@@ -10,9 +10,9 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction, models
 from django.db.models import (
     Sum, Count, Avg, F, Q, Case, When, Value, Subquery, OuterRef,
-    DecimalField, CharField, DateField, FloatField, IntegerField
+    DecimalField, CharField, DateField, FloatField, IntegerField, Min, Max
 )
-from django.db.models.functions import Coalesce, TruncMonth, ExtractMonth, ExtractYear
+from django.db.models.functions import Coalesce, TruncMonth, ExtractMonth, ExtractYear, TruncDay, TruncWeek
 from django.http import HttpResponse
 
 # Importações do DRF
@@ -346,9 +346,17 @@ class CTeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
                  'prestacao__componentes', 'modal_rodoviario__veiculos', 'modal_rodoviario__motoristas',
                  'complemento__observacoes_contribuinte', 'complemento__observacoes_fisco'
              )
-        date_from, date_to = get_date_filters(self.request)
-        # Garante que identificacao não seja nulo para filtrar data_emissao
-        qs = qs.filter(identificacao__isnull=False, identificacao__data_emissao__date__range=[date_from, date_to])
+        # Verifica se há filtros ativos
+        usando_filtro = 'date_from' in self.request.query_params or 'date_to' in self.request.query_params
+        
+        if usando_filtro:
+            date_from, date_to = get_date_filters(self.request)
+            # Garante que identificacao não seja nulo para filtrar data_emissao
+            qs = qs.filter(identificacao__isnull=False, identificacao__data_emissao__date__range=[date_from, date_to])
+        else:
+            # Sem filtro de data, mostra todos os documentos
+            qs = qs.filter(identificacao__isnull=False)
+            
         return qs.order_by('-identificacao__data_emissao')
 
     @action(detail=True, methods=['get'], url_path='xml')
@@ -373,6 +381,32 @@ class CTeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
             except Exception as e: raise APIException(f'Erro ao ler arquivo XML: {e}')
         else: raise NotFound('Conteúdo XML não encontrado.')
 
+    @action(detail=True, methods=['get'], url_path='dacte')
+    def get_dacte(self, request, pk=None):
+        """Gera e retorna o DACTE (Documento Auxiliar do CT-e) em formato PDF."""
+        cte = self.get_object()
+        
+        # Verificar se o CT-e está autorizado
+        if not hasattr(cte, 'protocolo') or not cte.protocolo or cte.protocolo.codigo_status != 100:
+            return Response(
+                {"detail": "Não é possível gerar DACTE para CT-e não autorizado."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Verificar se o CT-e está cancelado
+        if hasattr(cte, 'cancelamento') and cte.cancelamento and cte.cancelamento.c_stat == 135:
+            return Response(
+                {"detail": "Não é possível gerar DACTE para CT-e cancelado."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Implementação futura: integração com gerador de DACTE
+        # Por enquanto, retorna uma mensagem informando que a funcionalidade está em desenvolvimento
+        return Response(
+            {"detail": "Geração de DACTE em desenvolvimento."},
+            status=status.HTTP_501_NOT_IMPLEMENTED
+        )
+
 
 class MDFeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
     """Endpoint Read-Only para listar e detalhar MDF-es."""
@@ -395,8 +429,17 @@ class MDFeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
                  'condutores', 'municipios_descarga__docs_vinculados_municipio__produtos_perigosos',
                  'seguros_carga__averbacoes', 'lacres_rodoviarios', 'autorizados_xml'
             )
-        date_from, date_to = get_date_filters(self.request)
-        qs = qs.filter(identificacao__isnull=False, identificacao__dh_emi__date__range=[date_from, date_to])
+            
+        # Verifica se há filtros ativos
+        usando_filtro = 'date_from' in self.request.query_params or 'date_to' in self.request.query_params
+        
+        if usando_filtro:
+            date_from, date_to = get_date_filters(self.request)
+            qs = qs.filter(identificacao__isnull=False, identificacao__dh_emi__date__range=[date_from, date_to])
+        else:
+            # Sem filtro de data, mostra todos os documentos
+            qs = qs.filter(identificacao__isnull=False)
+            
         return qs.order_by('-identificacao__dh_emi')
 
     @action(detail=True, methods=['get'], url_path='xml')
@@ -421,12 +464,74 @@ class MDFeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
              except Exception as e: raise APIException(f'Erro ao ler arquivo XML: {e}')
         else: raise NotFound('Conteúdo XML não encontrado.')
 
+    @action(detail=True, methods=['get'], url_path='damdfe')
+    def get_damdfe(self, request, pk=None):
+        """Gera e retorna o DAMDFE (Documento Auxiliar do MDF-e) em formato PDF."""
+        mdfe = self.get_object()
+        
+        # Verificar se o MDF-e está autorizado
+        if not hasattr(mdfe, 'protocolo') or not mdfe.protocolo or mdfe.protocolo.codigo_status != 100:
+            return Response(
+                {"detail": "Não é possível gerar DAMDFE para MDF-e não autorizado."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Verificar se o MDF-e está cancelado
+        if hasattr(mdfe, 'cancelamento') and mdfe.cancelamento and mdfe.cancelamento.c_stat == 135:
+            return Response(
+                {"detail": "Não é possível gerar DAMDFE para MDF-e cancelado."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Implementação futura: integração com gerador de DAMDFE
+        # Por enquanto, retorna uma mensagem informando que a funcionalidade está em desenvolvimento
+        return Response(
+            {"detail": "Geração de DAMDFE em desenvolvimento."},
+            status=status.HTTP_501_NOT_IMPLEMENTED
+        )
+
 
 class VeiculoViewSet(viewsets.ModelViewSet):
     """Endpoint para CRUD completo de Veículos."""
     queryset = Veiculo.objects.all().order_by('placa')
     serializer_class = VeiculoSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=True, methods=['get'], url_path='estatisticas')
+    def get_estatisticas(self, request, pk=None):
+        """Retorna estatísticas detalhadas do veículo."""
+        veiculo = self.get_object()
+        
+        # Quantidade de CT-es e MDF-es vinculados
+        ctes_vinculados = CTeVeiculoRodoviario.objects.filter(placa=veiculo.placa).count()
+        mdfes_tracao = MDFeVeiculoTracao.objects.filter(placa=veiculo.placa).count()
+        mdfes_reboque = MDFeVeiculoReboque.objects.filter(placa=veiculo.placa).count()
+        
+        # Estatísticas de manutenção
+        manutencoes = ManutencaoVeiculo.objects.filter(veiculo=veiculo)
+        total_manutencoes = manutencoes.count()
+        total_gasto = manutencoes.aggregate(total=Coalesce(Sum('valor_total'), Decimal('0.00')))['total']
+        manutencoes_pendentes = manutencoes.filter(status='PENDENTE').count()
+        ultima_manutencao = manutencoes.order_by('-data_servico').first()
+        ultima_data = ultima_manutencao.data_servico if ultima_manutencao else None
+        
+        # Kilometragem estimada (baseada nos CT-es)
+        km_rodado = CTeIdentificacao.objects.filter(
+            cte__modal_rodoviario__veiculos__placa=veiculo.placa,
+            cte__cancelamento__isnull=True
+        ).aggregate(total=Coalesce(Sum('dist_km'), 0))['total']
+        
+        # Retorna os dados
+        return Response({
+            'placa': veiculo.placa,
+            'ctes_vinculados': ctes_vinculados,
+            'mdfes_vinculados': mdfes_tracao + mdfes_reboque,
+            'total_manutencoes': total_manutencoes,
+            'total_gasto_manutencao': total_gasto,
+            'manutencoes_pendentes': manutencoes_pendentes,
+            'ultima_manutencao': ultima_data,
+            'km_rodado_estimado': km_rodado
+        })
 
 
 class ManutencaoVeiculoViewSet(viewsets.ModelViewSet):
@@ -438,8 +543,16 @@ class ManutencaoVeiculoViewSet(viewsets.ModelViewSet):
         veiculo_pk = self.kwargs.get('veiculo_pk')
         get_object_or_404(Veiculo, pk=veiculo_pk)
         queryset = ManutencaoVeiculo.objects.filter(veiculo_id=veiculo_pk)
-        date_from, date_to = get_date_filters(self.request)
-        return queryset.filter(data_servico__range=[date_from, date_to]).order_by('-data_servico')
+        
+        # Verifica se há filtros ativos
+        usando_filtro = 'date_from' in self.request.query_params or 'date_to' in self.request.query_params
+        
+        if usando_filtro:
+            date_from, date_to = get_date_filters(self.request)
+            return queryset.filter(data_servico__range=[date_from, date_to]).order_by('-data_servico')
+        else:
+            # Sem filtro de data, mostra todas as manutenções do veículo
+            return queryset.order_by('-data_servico')
 
     def perform_create(self, serializer):
         veiculo_pk = self.kwargs.get('veiculo_pk')
@@ -470,8 +583,14 @@ class PagamentoAgregadoViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        date_from, date_to = get_date_filters(self.request)
-        queryset = queryset.filter(data_prevista__range=[date_from, date_to])
+        
+        # Verifica se há filtros ativos
+        usando_filtro = 'date_from' in self.request.query_params or 'date_to' in self.request.query_params
+        
+        if usando_filtro:
+            date_from, date_to = get_date_filters(self.request)
+            queryset = queryset.filter(data_prevista__range=[date_from, date_to])
+        
         return queryset
 
     @action(detail=False, methods=['post'], url_path='gerar')
@@ -583,10 +702,29 @@ class DashboardGeralAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request, *args, **kwargs):
-        date_from, date_to = get_date_filters(request)
-        cte_filter = Q(identificacao__data_emissao__date__range=[date_from, date_to], cancelamento__isnull=True)
-        mdfe_filter = Q(identificacao__dh_emi__date__range=[date_from, date_to], cancelamento__isnull=True)
-        manut_filter = Q(data_servico__range=[date_from, date_to])
+        # Verifica se o usuário está explicitamente filtrando por data
+        usando_filtro = 'date_from' in request.query_params or 'date_to' in request.query_params
+        
+        # Se não estiver usando filtro, mostrar todos os dados
+        if not usando_filtro:
+            # Define um intervalo de data muito amplo para mostrar todos os registros
+            date_from = date(2000, 1, 1)  # Data antiga o suficiente
+            date_to = date.today() + timedelta(days=1)  # Data futura para incluir hoje
+        else:
+            # Se estiver usando filtro, aplicar o filtro normalmente
+            date_from, date_to = get_date_filters(request)
+        
+        # Construir filtros dependendo se o usuário está filtrando ou não
+        cte_filter = Q(cancelamento__isnull=True)
+        mdfe_filter = Q(cancelamento__isnull=True)
+        manut_filter = Q()
+        
+        # Adicionar filtros de data apenas se o usuário estiver filtrando explicitamente
+        if usando_filtro:
+            cte_filter &= Q(identificacao__data_emissao__date__range=[date_from, date_to])
+            mdfe_filter &= Q(identificacao__dh_emi__date__range=[date_from, date_to])
+            manut_filter &= Q(data_servico__range=[date_from, date_to])
+        
         cards = {}
         try:
             cards['total_ctes'] = CTeDocumento.objects.filter(cte_filter).count()
@@ -598,20 +736,88 @@ class DashboardGeralAPIView(APIView):
             cards['custo_manutencao'] = manut_aggr['t']
             cards['qtd_manutencoes'] = manut_aggr['q']
         except Exception as e: print(f"Erro cards Dashboard: {e}")
+        
         grafico_cif_fob = []
         try:
-            cif_fob_data = CTeDocumento.objects.filter(cte_filter & Q(modalidade__in=['CIF', 'FOB'])).annotate(mes=TruncMonth('identificacao__data_emissao')).values('mes', 'modalidade').annotate(valor=Sum('prestacao__valor_total_prestado')).order_by('mes', 'modalidade')
+            # Base de filtro sem data para modalidade
+            base_filter = Q(modalidade__in=['CIF', 'FOB'], cancelamento__isnull=True)
+            if usando_filtro:
+                base_filter &= Q(identificacao__data_emissao__date__range=[date_from, date_to])
+                
+            cif_fob_data = CTeDocumento.objects.filter(base_filter).annotate(
+                mes=TruncMonth('identificacao__data_emissao')
+            ).values('mes', 'modalidade').annotate(
+                valor=Sum('prestacao__valor_total_prestado')
+            ).order_by('mes', 'modalidade')
+            
             temp_data = {}
             for item in cif_fob_data:
-                mes_str = item['mes'].strftime('%Y-%m'); temp_data.setdefault(mes_str, {'mes': mes_str, 'cif': Decimal(0), 'fob': Decimal(0)})
+                mes_str = item['mes'].strftime('%Y-%m')
+                temp_data.setdefault(mes_str, {'mes': mes_str, 'cif': Decimal(0), 'fob': Decimal(0)})
                 if item['modalidade'] == 'CIF': temp_data[mes_str]['cif'] += item['valor'] or 0
                 elif item['modalidade'] == 'FOB': temp_data[mes_str]['fob'] += item['valor'] or 0
             grafico_cif_fob = sorted(temp_data.values(), key=lambda x: x['mes'])
         except Exception as e: print(f"Erro gráfico CIF/FOB: {e}")
+        
+        # Implementar gráfico de metas (exemplo)
         grafico_metas = []
-        ultimos_ctes = CTeDocumentoListSerializer(CTeDocumento.objects.order_by('-identificacao__data_emissao')[:5], many=True).data
-        ultimas_manutencoes = ManutencaoVeiculoSerializer(ManutencaoVeiculo.objects.order_by('-data_servico', '-criado_em')[:5], many=True).data
-        response_data = {'filtros': {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat()}, 'cards': cards, 'grafico_cif_fob': grafico_cif_fob, 'grafico_metas': grafico_metas, 'ultimos_lancamentos': {'ctes': ultimos_ctes, 'manutencoes': ultimas_manutencoes}}
+        try:
+            # Dados dos últimos 6 meses
+            hoje = date.today()
+            meses_anteriores = [hoje.replace(day=1) - timedelta(days=1) for _ in range(6)]
+            meses_anteriores = [d.replace(day=1) for d in meses_anteriores]
+            
+            # Para cada mês, obter o faturamento real e meta (exemplo)
+            for mes_data in meses_anteriores:
+                mes_str = mes_data.strftime('%Y-%m')
+                ultimo_dia = calendar.monthrange(mes_data.year, mes_data.month)[1]
+                
+                # Faturamento real
+                faturamento_real = CTeDocumento.objects.filter(
+                    identificacao__data_emissao__date__range=[mes_data, mes_data.replace(day=ultimo_dia)],
+                    cancelamento__isnull=True
+                ).aggregate(
+                    total=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal('0.0'))
+                )['total']
+                
+                # Meta (exemplo fixo - poderia vir de uma tabela de metas)
+                meta_valor = Decimal('100000.00')  # Exemplo: R$ 100.000,00 por mês
+                
+                grafico_metas.append({
+                    'mes': mes_str,
+                    'real': float(faturamento_real),
+                    'meta': float(meta_valor),
+                    'percentual': float(faturamento_real / meta_valor * 100) if meta_valor > 0 else 0
+                })
+        except Exception as e:
+            print(f"Erro ao gerar gráfico de metas: {e}")
+        
+        # Últimos lançamentos
+        ultimos_ctes = CTeDocumentoListSerializer(
+            CTeDocumento.objects.filter(processado=True).order_by('-identificacao__data_emissao')[:5], 
+            many=True
+        ).data
+        
+        ultimas_manutencoes = ManutencaoVeiculoSerializer(
+            ManutencaoVeiculo.objects.order_by('-data_servico', '-criado_em')[:5], 
+            many=True
+        ).data
+        
+        response_data = {
+            'filtros': {
+                'date_from': date_from.isoformat(), 
+                'date_to': date_to.isoformat(),
+                'usando_filtro': usando_filtro
+            }, 
+            'cards': cards, 
+            'grafico_cif_fob': grafico_cif_fob, 
+            'grafico_metas': grafico_metas, 
+            'ultimos_lancamentos': {
+                'ctes': ultimos_ctes, 
+                'manutencoes': ultimas_manutencoes
+            }
+        }
+        
         serializer = DashboardGeralDataSerializer(response_data)
         return Response(serializer.data)
 
@@ -619,13 +825,68 @@ class CtePainelAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request, *args, **kwargs):
-        date_from, date_to = get_date_filters(request)
-        base_qs = CTeDocumento.objects.filter(identificacao__data_emissao__date__range=[date_from, date_to], cancelamento__isnull=True).select_related('destinatario', 'remetente', 'prestacao')
-        cards = base_qs.aggregate(total_ctes=Count('id'), total_cif=Count('id', filter=Q(modalidade='CIF')), total_fob=Count('id', filter=Q(modalidade='FOB')), valor_total=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal('0.0')), valor_medio=Coalesce(Avg('prestacao__valor_total_prestado'), Decimal('0.0')))
-        grafico_cliente = list(base_qs.values(label=F('destinatario__razao_social')).annotate(value1=Sum('prestacao__valor_total_prestado')).order_by('-value1')[:10])
-        grafico_distribuidor = list(base_qs.values(label=F('remetente__razao_social')).annotate(value1=Sum('prestacao__valor_total_prestado')).order_by('-value1')[:10])
-        tabela_cliente = []
-        data = {'filtros': {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat()}, 'cards': cards, 'grafico_cliente': grafico_cliente, 'grafico_distribuidor': grafico_distribuidor, 'tabela_cliente': tabela_cliente}
+        # Verifica se o usuário está explicitamente filtrando por data
+        usando_filtro = 'date_from' in request.query_params or 'date_to' in request.query_params
+        
+        # Define intervalos de data
+        if not usando_filtro:
+            # Sem filtro - mostra todos os dados
+            date_from = date(2000, 1, 1)
+            date_to = date.today() + timedelta(days=1)
+        else:
+            date_from, date_to = get_date_filters(request)
+        
+        # Base de filtro
+        base_filter = Q(cancelamento__isnull=True)
+        if usando_filtro:
+            base_filter &= Q(identificacao__data_emissao__date__range=[date_from, date_to])
+            
+        base_qs = CTeDocumento.objects.filter(base_filter).select_related('destinatario', 'remetente', 'prestacao')
+        
+        # Dados para cards
+        cards = base_qs.aggregate(
+            total_ctes=Count('id'), 
+            total_cif=Count('id', filter=Q(modalidade='CIF')), 
+            total_fob=Count('id', filter=Q(modalidade='FOB')), 
+            valor_total=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal('0.0')), 
+            valor_medio=Coalesce(Avg('prestacao__valor_total_prestado'), Decimal('0.0'))
+        )
+        
+        # Gráfico de clientes
+        grafico_cliente = list(base_qs.values(
+            label=F('destinatario__razao_social')
+        ).annotate(
+            value1=Sum('prestacao__valor_total_prestado')
+        ).order_by('-value1')[:10])
+        
+        # Gráfico de distribuidores
+        grafico_distribuidor = list(base_qs.values(
+            label=F('remetente__razao_social')
+        ).annotate(
+            value1=Sum('prestacao__valor_total_prestado')
+        ).order_by('-value1')[:10])
+        
+        # Tabela detalhada de clientes
+        tabela_cliente = list(base_qs.values(
+            'destinatario__razao_social', 'destinatario__cnpj'
+        ).annotate(
+            faturamento=Sum('prestacao__valor_total_prestado'),
+            qtd_ctes=Count('id'),
+            valor_medio=Avg('prestacao__valor_total_prestado')
+        ).order_by('-faturamento')[:20])
+        
+        data = {
+            'filtros': {
+                'date_from': date_from.isoformat(), 
+                'date_to': date_to.isoformat(),
+                'usando_filtro': usando_filtro
+            }, 
+            'cards': cards, 
+            'grafico_cliente': grafico_cliente, 
+            'grafico_distribuidor': grafico_distribuidor, 
+            'tabela_cliente': tabela_cliente
+        }
+        
         serializer = CtePainelSerializer(data)
         return Response(serializer.data)
 
@@ -633,15 +894,133 @@ class MdfePainelAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request, *args, **kwargs):
-        date_from, date_to = get_date_filters(request)
-        base_qs = MDFeDocumento.objects.filter(identificacao__dh_emi__date__range=[date_from, date_to], cancelamento__isnull=True).select_related('totais', 'modal_rodoviario__veiculo_tracao')
-        cards = base_qs.aggregate(total_mdfes=Count('id'), carga_total_kg=Coalesce(Sum('totais__q_carga', filter=Q(totais__c_unid='01')), Decimal('0.0')), carga_total_ton=Coalesce(Sum('totais__q_carga', filter=Q(totais__c_unid='02')), Decimal('0.0')), valor_carga_total=Coalesce(Sum('totais__v_carga'), Decimal('0.0')))
+        # Verifica se o usuário está explicitamente filtrando por data
+        usando_filtro = 'date_from' in request.query_params or 'date_to' in request.query_params
+        
+        # Define intervalos de data
+        if not usando_filtro:
+            # Sem filtro - mostra todos os dados
+            date_from = date(2000, 1, 1)
+            date_to = date.today() + timedelta(days=1)
+        else:
+            date_from, date_to = get_date_filters(request)
+        
+        # Base de filtro
+        base_filter = Q(cancelamento__isnull=True)
+        if usando_filtro:
+            base_filter &= Q(identificacao__dh_emi__date__range=[date_from, date_to])
+            
+        base_qs = MDFeDocumento.objects.filter(base_filter).select_related('totais', 'modal_rodoviario__veiculo_tracao')
+        
+        # Dados para cards
+        cards = base_qs.aggregate(
+            total_mdfes=Count('id'),
+            carga_total_kg=Coalesce(Sum('totais__q_carga', filter=Q(totais__c_unid='01')), Decimal('0.0')),
+            carga_total_ton=Coalesce(Sum('totais__q_carga', filter=Q(totais__c_unid='02')), Decimal('0.0')),
+            valor_carga_total=Coalesce(Sum('totais__v_carga'), Decimal('0.0'))
+        )
+        
+        # Converte toneladas para kg se necessário
         cards['carga_total_kg'] += cards['carga_total_ton'] * 1000
+        
+        # Gráfico de relação CT-e/MDF-e
         grafico_cte_mdfe = []
-        top_veiculos = list(base_qs.filter(modal_rodoviario__veiculo_tracao__placa__isnull=False).values(label=F('modal_rodoviario__veiculo_tracao__placa')).annotate(value1=Count('id')).order_by('-value1')[:10])
-        tabela_mdfe_veiculo = list(base_qs.annotate(placa=F('modal_rodoviario__veiculo_tracao__placa')).values('chave', 'identificacao__n_mdf', 'identificacao__dh_emi', 'placa', 'totais__v_carga', 'totais__q_carga').order_by('-identificacao__dh_emi')[:50])
+        try:
+            # Obter meses com MDFes
+            meses = MDFeDocumento.objects.filter(base_filter).annotate(
+                mes=TruncMonth('identificacao__dh_emi')
+            ).values('mes').distinct().order_by('mes')
+            
+            for mes_item in meses:
+                mes = mes_item['mes']
+                mes_str = mes.strftime('%Y-%m')
+                
+                # Intervalo do mês
+                inicio_mes = mes.replace(day=1)
+                fim_mes = (inicio_mes + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+                
+                # Conta MDF-es no mês
+                mdfes_count = MDFeDocumento.objects.filter(
+                    identificacao__dh_emi__date__range=[inicio_mes, fim_mes],
+                    cancelamento__isnull=True
+                ).count()
+                
+                # Conta CT-es emitidos no mesmo mês
+                ctes_count = CTeDocumento.objects.filter(
+                    identificacao__data_emissao__date__range=[inicio_mes, fim_mes],
+                    cancelamento__isnull=True
+                ).count()
+                
+                # Calcula a relação (média de CT-es por MDF-e)
+                ratio = round(ctes_count / mdfes_count, 2) if mdfes_count > 0 else 0
+                
+                grafico_cte_mdfe.append({
+                    'mes': mes_str,
+                    'mdfes': mdfes_count,
+                    'ctes': ctes_count,
+                    'ratio': ratio
+                })
+        except Exception as e:
+            print(f"Erro ao gerar gráfico CT-e/MDF-e: {e}")
+        
+        # Top veículos utilizados
+        top_veiculos = list(base_qs.filter(
+            modal_rodoviario__veiculo_tracao__placa__isnull=False
+        ).values(
+            label=F('modal_rodoviario__veiculo_tracao__placa')
+        ).annotate(
+            value1=Count('id')
+        ).order_by('-value1')[:10])
+        
+        # Tabela de MDFes por veículo
+        tabela_mdfe_veiculo = list(base_qs.annotate(
+            placa=F('modal_rodoviario__veiculo_tracao__placa')
+        ).values(
+            'chave', 
+            'identificacao__n_mdf', 
+            'identificacao__dh_emi', 
+            'placa', 
+            'totais__v_carga', 
+            'totais__q_carga'
+        ).order_by('-identificacao__dh_emi')[:50])
+        
+        # Cálculo de eficiência (% de CT-es transportados em MDF-es)
         eficiencia = 0.0
-        data = {'filtros': {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat()}, 'cards': cards, 'grafico_cte_mdfe': grafico_cte_mdfe, 'top_veiculos': top_veiculos, 'tabela_mdfe_veiculo': tabela_mdfe_veiculo, 'eficiencia': eficiencia}
+        try:
+            total_ctes = CTeDocumento.objects.filter(
+                cancelamento__isnull=True
+            )
+            if usando_filtro:
+                total_ctes = total_ctes.filter(identificacao__data_emissao__date__range=[date_from, date_to])
+            
+            total_ctes_count = total_ctes.count()
+            
+            ctes_em_mdfe = MDFeDocumentosVinculados.objects.filter(
+                mdfe__cancelamento__isnull=True,
+                cte_relacionado__isnull=False
+            )
+            if usando_filtro:
+                ctes_em_mdfe = ctes_em_mdfe.filter(mdfe__identificacao__dh_emi__date__range=[date_from, date_to])
+                
+            ctes_em_mdfe_count = ctes_em_mdfe.values('cte_relacionado').distinct().count()
+            
+            eficiencia = round((ctes_em_mdfe_count / total_ctes_count * 100), 2) if total_ctes_count > 0 else 0.0
+        except Exception as e:
+            print(f"Erro ao calcular eficiência: {e}")
+        
+        data = {
+            'filtros': {
+                'date_from': date_from.isoformat(), 
+                'date_to': date_to.isoformat(),
+                'usando_filtro': usando_filtro
+            }, 
+            'cards': cards, 
+            'grafico_cte_mdfe': grafico_cte_mdfe, 
+            'top_veiculos': top_veiculos, 
+            'tabela_mdfe_veiculo': tabela_mdfe_veiculo, 
+            'eficiencia': eficiencia
+        }
+        
         serializer = MdfePainelSerializer(data)
         return Response(serializer.data)
 
@@ -649,18 +1028,65 @@ class FinanceiroPainelAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request, *args, **kwargs):
-        date_from, date_to = get_date_filters(request)
-        cte_base = CTeDocumento.objects.filter(identificacao__data_emissao__date__range=[date_from, date_to], cancelamento__isnull=True).select_related('prestacao', 'tributos')
-        cards = cte_base.aggregate(faturamento=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal(0.0)), valor_cif=Coalesce(Sum('prestacao__valor_total_prestado', filter=Q(modalidade='CIF')), Decimal(0.0)), valor_fob=Coalesce(Sum('prestacao__valor_total_prestado', filter=Q(modalidade='FOB')), Decimal(0.0)), tributos=Coalesce(Sum('tributos__valor_total_tributos'), Decimal(0.0)))
-        cif_fob_data = cte_base.filter(modalidade__in=['CIF', 'FOB']).annotate(mes=TruncMonth('identificacao__data_emissao')).values('mes', 'modalidade').annotate(valor=Sum('prestacao__valor_total_prestado')).order_by('mes', 'modalidade')
+        # Verifica se o usuário está explicitamente filtrando por data
+        usando_filtro = 'date_from' in request.query_params or 'date_to' in request.query_params
+        
+        # Define intervalos de data
+        if not usando_filtro:
+            # Sem filtro - mostra todos os dados
+            date_from = date(2000, 1, 1)
+            date_to = date.today() + timedelta(days=1)
+        else:
+            date_from, date_to = get_date_filters(request)
+        
+        # Base de filtro
+        base_filter = Q(cancelamento__isnull=True)
+        if usando_filtro:
+            base_filter &= Q(identificacao__data_emissao__date__range=[date_from, date_to])
+            
+        cte_base = CTeDocumento.objects.filter(base_filter).select_related('prestacao', 'tributos')
+        
+        # Cards financeiros
+        cards = cte_base.aggregate(
+            faturamento=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal(0.0)), 
+            valor_cif=Coalesce(Sum('prestacao__valor_total_prestado', filter=Q(modalidade='CIF')), Decimal(0.0)), 
+            valor_fob=Coalesce(Sum('prestacao__valor_total_prestado', filter=Q(modalidade='FOB')), Decimal(0.0)), 
+            tributos=Coalesce(Sum('tributos__valor_total_tributos'), Decimal(0.0))
+        )
+        
+        # Gráfico CIF/FOB por mês
+        cif_fob_data = cte_base.filter(
+            modalidade__in=['CIF', 'FOB']
+        ).annotate(
+            mes=TruncMonth('identificacao__data_emissao')
+        ).values(
+            'mes', 'modalidade'
+        ).annotate(
+            valor=Sum('prestacao__valor_total_prestado')
+        ).order_by('mes', 'modalidade')
+        
         grafico_cif_fob = []
         temp_data = {}
         for item in cif_fob_data:
-            mes_str = item['mes'].strftime('%Y-%m'); temp_data.setdefault(mes_str, {'mes': mes_str, 'cif': Decimal(0), 'fob': Decimal(0)})
-            if item['modalidade'] == 'CIF': temp_data[mes_str]['cif'] += item['valor'] or 0
-            elif item['modalidade'] == 'FOB': temp_data[mes_str]['fob'] += item['valor'] or 0
+            mes_str = item['mes'].strftime('%Y-%m')
+            temp_data.setdefault(mes_str, {'mes': mes_str, 'cif': Decimal(0), 'fob': Decimal(0)})
+            if item['modalidade'] == 'CIF': 
+                temp_data[mes_str]['cif'] += item['valor'] or 0
+            elif item['modalidade'] == 'FOB': 
+                temp_data[mes_str]['fob'] += item['valor'] or 0
+                
         grafico_cif_fob = sorted(temp_data.values(), key=lambda x: x['mes'])
-        data = {'filtros': {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat()}, 'cards': cards, 'grafico_cif_fob': grafico_cif_fob}
+        
+        data = {
+            'filtros': {
+                'date_from': date_from.isoformat(), 
+                'date_to': date_to.isoformat(),
+                'usando_filtro': usando_filtro
+            }, 
+            'cards': cards, 
+            'grafico_cif_fob': grafico_cif_fob
+        }
+        
         serializer = FinanceiroPainelSerializer(data)
         return Response(serializer.data)
 
@@ -668,9 +1094,34 @@ class FinanceiroMensalAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request, *args, **kwargs):
-        today = date.today(); start_date = (today.replace(day=1) - timedelta(days=365*1)).replace(day=1)
-        data_mensal = CTeDocumento.objects.filter(identificacao__data_emissao__date__gte=start_date, cancelamento__isnull=True).annotate(mes=TruncMonth('identificacao__data_emissao')).values('mes').annotate(faturamento=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal(0.0)), cif=Coalesce(Sum('prestacao__valor_total_prestado', filter=Q(modalidade='CIF')), Decimal(0.0)), fob=Coalesce(Sum('prestacao__valor_total_prestado', filter=Q(modalidade='FOB')), Decimal(0.0)), entregas=Count('id')).order_by('mes')
-        resultado = [{'mes': item['mes'].strftime('%Y-%m'), **{k: item[k] for k in item if k != 'mes'}} for item in data_mensal]
+        today = date.today()
+        start_date = (today.replace(day=1) - timedelta(days=365*1)).replace(day=1)
+        
+        # Dados agrupados por mês
+        data_mensal = CTeDocumento.objects.filter(
+            identificacao__data_emissao__date__gte=start_date,
+            cancelamento__isnull=True
+        ).annotate(
+            mes=TruncMonth('identificacao__data_emissao')
+        ).values('mes').annotate(
+            faturamento=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal(0.0)),
+            cif=Coalesce(Sum('prestacao__valor_total_prestado', filter=Q(modalidade='CIF')), Decimal(0.0)),
+            fob=Coalesce(Sum('prestacao__valor_total_prestado', filter=Q(modalidade='FOB')), Decimal(0.0)),
+            entregas=Count('id')
+        ).order_by('mes')
+        
+        # Formatação dos resultados
+        resultado = [
+            {
+                'mes': item['mes'].strftime('%Y-%m'),
+                'faturamento': item['faturamento'],
+                'cif': item['cif'],
+                'fob': item['fob'],
+                'entregas': item['entregas']
+            } 
+            for item in data_mensal
+        ]
+        
         serializer = FinanceiroMensalSerializer(resultado, many=True)
         return Response(serializer.data)
 
@@ -678,15 +1129,60 @@ class FinanceiroDetalheAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request, *args, **kwargs):
-        date_from, date_to = get_date_filters(request)
+        # Verifica se o usuário está explicitamente filtrando por data
+        usando_filtro = 'date_from' in request.query_params or 'date_to' in request.query_params
+        
+        # Define intervalos de data
+        if not usando_filtro:
+            # Sem filtro - mostra todos os dados
+            date_from = date(2000, 1, 1)
+            date_to = date.today() + timedelta(days=1)
+        else:
+            date_from, date_to = get_date_filters(request)
+        
+        # Obtém o tipo de agrupamento
         group_by = request.query_params.get('group', 'cliente')
-        allowed_groups = {'cliente': {'label': F('destinatario__razao_social'), 'id_': F('destinatario__cnpj')}, 'veiculo': {'label': F('modal_rodoviario__veiculos__placa'), 'id_': F('modal_rodoviario__veiculos__placa')}, 'distribuidora': {'label': F('remetente__razao_social'), 'id_': F('remetente__cnpj')}}
-        if group_by not in allowed_groups: raise ValidationError({'detail': 'Parâmetro "group" inválido.'})
+        
+        # Mapeia os campos para agrupamento
+        allowed_groups = {
+            'cliente': {'label': F('destinatario__razao_social'), 'id_': F('destinatario__cnpj')},
+            'veiculo': {'label': F('modal_rodoviario__veiculos__placa'), 'id_': F('modal_rodoviario__veiculos__placa')},
+            'distribuidora': {'label': F('remetente__razao_social'), 'id_': F('remetente__cnpj')}
+        }
+        
+        if group_by not in allowed_groups:
+            raise ValidationError({'detail': 'Parâmetro "group" inválido. Valores permitidos: cliente, veiculo, distribuidora'})
+        
+        # Seleciona os campos de agrupamento
         group_fields = allowed_groups[group_by]
-        base_qs = CTeDocumento.objects.filter(identificacao__data_emissao__date__range=[date_from, date_to], cancelamento__isnull=True)
-        if group_by == 'veiculo': base_qs = base_qs.filter(modal_rodoviario__veiculos__placa__isnull=False)
-        data_agrupada = base_qs.values(**group_fields).annotate(faturamento_total=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal(0.0)), qtd_ctes=Count('id', distinct=True), valor_medio=Avg('prestacao__valor_total_prestado')).order_by('-faturamento_total')
-        resultado = [{**{k: v for k, v in item.items() if k != 'id_'}, 'id': item.get('id_')} for item in data_agrupada]
+        
+        # Constrói a query base
+        base_qs = CTeDocumento.objects.filter(cancelamento__isnull=True)
+        
+        # Adiciona filtro de data se necessário
+        if usando_filtro:
+            base_qs = base_qs.filter(identificacao__data_emissao__date__range=[date_from, date_to])
+        
+        # Filtra por veículos se necessário
+        if group_by == 'veiculo':
+            base_qs = base_qs.filter(modal_rodoviario__veiculos__placa__isnull=False)
+        
+        # Realiza a agregação dos dados
+        data_agrupada = base_qs.values(**group_fields).annotate(
+            faturamento_total=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal(0.0)),
+            qtd_ctes=Count('id', distinct=True),
+            valor_medio=Avg('prestacao__valor_total_prestado')
+        ).order_by('-faturamento_total')
+        
+        # Formata o resultado para o serializer
+        resultado = [
+            {
+                **{k: v for k, v in item.items() if k != 'id_'},
+                'id': item.get('id_')
+            } 
+            for item in data_agrupada
+        ]
+        
         serializer = FinanceiroDetalheSerializer(resultado, many=True)
         return Response(serializer.data)
 
@@ -694,13 +1190,68 @@ class GeograficoPainelAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request, *args, **kwargs):
-        date_from, date_to = get_date_filters(request)
-        base_qs = CTeIdentificacao.objects.filter(data_emissao__date__range=[date_from, date_to], cte__cancelamento__isnull=True, uf_ini__isnull=False, uf_fim__isnull=False)
-        rotas = list(base_qs.values('uf_ini', 'uf_fim').annotate(contagem=Count('id')).order_by('-contagem'))
-        top_origens = list(base_qs.values('uf_ini', 'nome_mun_ini').annotate(contagem=Count('id')).order_by('-contagem')[:10])
-        top_destinos = list(base_qs.values('uf_fim', 'nome_mun_fim').annotate(contagem=Count('id')).order_by('-contagem')[:10])
+        # Verifica se o usuário está explicitamente filtrando por data
+        usando_filtro = 'date_from' in request.query_params or 'date_to' in request.query_params
+        
+        # Define intervalos de data
+        if not usando_filtro:
+            # Sem filtro - mostra todos os dados
+            date_from = date(2000, 1, 1)
+            date_to = date.today() + timedelta(days=1)
+        else:
+            date_from, date_to = get_date_filters(request)
+        
+        # Constrói a query base
+        base_qs = CTeIdentificacao.objects.filter(
+            cte__cancelamento__isnull=True,
+            uf_ini__isnull=False,
+            uf_fim__isnull=False
+        )
+        
+        # Adiciona filtro de data se necessário
+        if usando_filtro:
+            base_qs = base_qs.filter(data_emissao__date__range=[date_from, date_to])
+        
+        # Análise de rotas (UF origem/destino)
+        rotas = list(base_qs.values(
+            'uf_ini', 'uf_fim'
+        ).annotate(
+            contagem=Count('id'),
+            km_total=Sum('dist_km'),
+            valor_total=Sum('cte__prestacao__valor_total_prestado')
+        ).order_by('-contagem'))
+        
+        # Top origens (por UF e município)
+        top_origens = list(base_qs.values(
+            'uf_ini', 'nome_mun_ini'
+        ).annotate(
+            contagem=Count('id'),
+            valor=Sum('cte__prestacao__valor_total_prestado')
+        ).order_by('-contagem')[:10])
+        
+        # Top destinos (por UF e município)
+        top_destinos = list(base_qs.values(
+            'uf_fim', 'nome_mun_fim'
+        ).annotate(
+            contagem=Count('id'),
+            valor=Sum('cte__prestacao__valor_total_prestado')
+        ).order_by('-contagem')[:10])
+        
+        # Rotas frequentes (as 10 mais utilizadas)
         rotas_frequentes = rotas[:10]
-        data = {'filtros': {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat()}, 'rotas': rotas, 'top_origens': top_origens, 'top_destinos': top_destinos, 'rotas_frequentes': rotas_frequentes}
+        
+        data = {
+            'filtros': {
+                'date_from': date_from.isoformat(), 
+                'date_to': date_to.isoformat(),
+                'usando_filtro': usando_filtro
+            }, 
+            'rotas': rotas, 
+            'top_origens': top_origens, 
+            'top_destinos': top_destinos, 
+            'rotas_frequentes': rotas_frequentes
+        }
+        
         serializer = GeograficoPainelSerializer(data)
         return Response(serializer.data)
 
@@ -708,41 +1259,120 @@ class ManutencaoPainelViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def _get_base_queryset(self, request): 
-        date_from, date_to = get_date_filters(request)
-        return ManutencaoVeiculo.objects.filter(data_servico__range=[date_from, date_to])
+        # Verifica se o usuário está explicitamente filtrando por data
+        usando_filtro = 'date_from' in request.query_params or 'date_to' in request.query_params
+        
+        if usando_filtro:
+            date_from, date_to = get_date_filters(request)
+            return ManutencaoVeiculo.objects.filter(data_servico__range=[date_from, date_to])
+        else:
+            # Sem filtro de data, retorna todas as manutenções
+            return ManutencaoVeiculo.objects.all()
     
     @action(detail=False, methods=['get'], url_path='indicadores')
     def indicadores(self, request):
         queryset = self._get_base_queryset(request)
+        
+        # Indicadores gerais de manutenção
         aggregates = queryset.aggregate(
             total_manutencoes=Count('id'), 
             total_pecas=Coalesce(Sum('valor_peca'), Decimal(0.0)), 
             total_mao_obra=Coalesce(Sum('valor_mao_obra'), Decimal(0.0)), 
             valor_total=Coalesce(Sum('valor_total'), Decimal(0.0))
         )
+        
         serializer = ManutencaoIndicadoresSerializer(aggregates)
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'], url_path='graficos')
     def graficos(self, request):
         queryset = self._get_base_queryset(request).select_related('veiculo')
+        
+        # Manutenções por status
         status_data = list(queryset.values('status').annotate(count=Count('id')).order_by('-count'))
-        por_veiculo_data = list(queryset.values(label=F('veiculo__placa')).annotate(value1=Sum('valor_total')).order_by('-value1')[:15])
-        por_periodo_data = queryset.annotate(mes=TruncMonth('data_servico')).values('mes').annotate(value1=Sum('valor_total')).order_by('mes')
-        por_periodo_formatado = [{'label': item['mes'].strftime('%Y-%m'), 'value1': item['value1']} for item in por_periodo_data]
+        
+        # Gastos por veículo
+        por_veiculo_data = list(queryset.values(
+            label=F('veiculo__placa')
+        ).annotate(
+            value1=Sum('valor_total')
+        ).order_by('-value1')[:15])
+        
+        # Gastos por período (agrupados por mês)
+        por_periodo_data = queryset.annotate(
+            mes=TruncMonth('data_servico')
+        ).values('mes').annotate(
+            value1=Sum('valor_total')
+        ).order_by('mes')
+        
+        # Formata os dados do período
+        por_periodo_formatado = [
+            {
+                'label': item['mes'].strftime('%Y-%m'), 
+                'value1': item['value1']
+            } 
+            for item in por_periodo_data
+        ]
+        
+        # Estrutura final dos dados
         dados_graficos = {
             'por_status': status_data, 
             'por_veiculo': por_veiculo_data, 
             'por_periodo': por_periodo_formatado
         }
+        
         serializer = ManutencaoGraficosSerializer(dados_graficos)
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'], url_path='ultimos')
     def ultimos(self, request): 
+        # Retorna as 10 últimas manutenções, independente de filtros
         queryset = ManutencaoVeiculo.objects.order_by('-data_servico', '-criado_em')[:10]
         serializer = ManutencaoVeiculoSerializer(queryset, many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='tendencias')
+    def tendencias(self, request):
+        """Análise de tendências de manutenção - nova funcionalidade."""
+        queryset = self._get_base_queryset(request)
+        
+        # Frequência de manutenção por veículo
+        frequencia_veiculo = queryset.values(
+            'veiculo__placa'
+        ).annotate(
+            primeira=Min('data_servico'),
+            ultima=Max('data_servico'),
+            total=Count('id'),
+            valor_medio=Avg('valor_total')
+        ).filter(total__gt=1).order_by('veiculo__placa')
+        
+        # Calcular intervalo médio entre manutenções
+        frequencia_data = []
+        for item in frequencia_veiculo:
+            dias_total = (item['ultima'] - item['primeira']).days
+            qtd_intervalos = max(1, item['total'] - 1)
+            dias_medio = dias_total / qtd_intervalos
+            
+            frequencia_data.append({
+                'placa': item['veiculo__placa'],
+                'total_manutencoes': item['total'],
+                'intervalo_medio_dias': round(dias_medio, 1),
+                'valor_medio': item['valor_medio'],
+                'ultima_manutencao': item['ultima'].strftime('%Y-%m-%d')
+            })
+        
+        # Tipo de serviços mais comuns
+        servicos_comuns = queryset.values(
+            'servico_realizado'
+        ).annotate(
+            count=Count('id'),
+            valor_medio=Avg('valor_total')
+        ).order_by('-count')[:10]
+        
+        return Response({
+            'frequencia_manutencao': frequencia_data,
+            'servicos_mais_comuns': servicos_comuns
+        })
 
 # ===============================================
 # ===         VIEW PARA ALERTAS               ===
@@ -782,3 +1412,158 @@ class AlertasPagamentoAPIView(APIView):
         
         serializer = AlertaPagamentoSerializer(response_data)
         return Response(serializer.data)
+
+# ===============================================
+# ===       API ADICIONAL PARA RELATÓRIOS     ===
+# ===============================================
+
+class RelatorioAPIView(APIView):
+    """API para geração de relatórios personalizados."""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        tipo_relatorio = request.query_params.get('tipo', 'faturamento')
+        date_from, date_to = get_date_filters(request)
+        
+        # Relatório de faturamento por período
+        if tipo_relatorio == 'faturamento':
+            # Agrupamento (diário, semanal, mensal)
+            agrupamento = request.query_params.get('agrupamento', 'mensal')
+            
+            if agrupamento == 'diario':
+                trunc_func = TruncDay('identificacao__data_emissao')
+                format_str = '%Y-%m-%d'
+            elif agrupamento == 'semanal':
+                trunc_func = TruncWeek('identificacao__data_emissao')
+                format_str = '%Y-%m-%d'
+            else: # mensal (padrão)
+                trunc_func = TruncMonth('identificacao__data_emissao')
+                format_str = '%Y-%m'
+            
+            # Dados agrupados por período
+            faturamento_data = CTeDocumento.objects.filter(
+                identificacao__data_emissao__date__range=[date_from, date_to],
+                cancelamento__isnull=True
+            ).annotate(
+                periodo=trunc_func
+            ).values('periodo').annotate(
+                total=Sum('prestacao__valor_total_prestado'),
+                cif=Sum('prestacao__valor_total_prestado', filter=Q(modalidade='CIF')),
+                fob=Sum('prestacao__valor_total_prestado', filter=Q(modalidade='FOB')),
+                qtd=Count('id')
+            ).order_by('periodo')
+            
+            # Formatação dos resultados
+            dados = [
+                {
+                    'periodo': item['periodo'].strftime(format_str),
+                    'total': item['total'],
+                    'cif': item['cif'] or Decimal('0.0'),
+                    'fob': item['fob'] or Decimal('0.0'),
+                    'qtd': item['qtd']
+                }
+                for item in faturamento_data
+            ]
+            
+            # Inclui totalizadores
+            totais = {
+                'total': sum(item['total'] for item in dados),
+                'cif': sum(item['cif'] for item in dados),
+                'fob': sum(item['fob'] for item in dados),
+                'qtd': sum(item['qtd'] for item in dados)
+            }
+            
+            return Response({
+                'titulo': f'Relatório de Faturamento ({agrupamento})',
+                'periodo': f'De {date_from.strftime("%d/%m/%Y")} a {date_to.strftime("%d/%m/%Y")}',
+                'dados': dados,
+                'totais': totais
+            })
+            
+        # Relatório de veículos
+        elif tipo_relatorio == 'veiculos':
+            # Filtrar apenas veículos ativos com operações no período
+            veiculos_ativos = Veiculo.objects.filter(ativo=True)
+            
+            # Dados de operação por veículo no período
+            dados_veiculo = []
+            
+            for veiculo in veiculos_ativos:
+                # CT-es vinculados ao veículo no período
+                ctes_vinculados = CTeVeiculoRodoviario.objects.filter(
+                    placa=veiculo.placa,
+                    modal__cte__identificacao__data_emissao__date__range=[date_from, date_to],
+                    modal__cte__cancelamento__isnull=True
+                ).values('modal__cte').distinct().count()
+                
+                # MDF-es como veículo de tração
+                mdfes_tracao = MDFeVeiculoTracao.objects.filter(
+                    placa=veiculo.placa,
+                    modal__mdfe__identificacao__dh_emi__date__range=[date_from, date_to],
+                    modal__mdfe__cancelamento__isnull=True
+                ).count()
+                
+                # MDF-es como veículo reboque
+                mdfes_reboque = MDFeVeiculoReboque.objects.filter(
+                    placa=veiculo.placa,
+                    modal__mdfe__identificacao__dh_emi__date__range=[date_from, date_to],
+                    modal__mdfe__cancelamento__isnull=True
+                ).count()
+                
+                # Manutenções no período
+                manutencoes = ManutencaoVeiculo.objects.filter(
+                    veiculo=veiculo,
+                    data_servico__range=[date_from, date_to]
+                )
+                
+                custos_manutencao = manutencoes.aggregate(
+                    total=Coalesce(Sum('valor_total'), Decimal('0.0'))
+                )['total']
+                
+                # KM estimados
+                km_rodado = CTeIdentificacao.objects.filter(
+                    cte__modal_rodoviario__veiculos__placa=veiculo.placa,
+                    cte__cancelamento__isnull=True,
+                    data_emissao__date__range=[date_from, date_to],
+                    dist_km__isnull=False
+                ).aggregate(
+                    total=Coalesce(Sum('dist_km'), 0)
+                )['total']
+                
+                # Adiciona dados do veículo se teve atividade no período
+                if ctes_vinculados > 0 or mdfes_tracao > 0 or mdfes_reboque > 0 or custos_manutencao > 0:
+                    dados_veiculo.append({
+                        'placa': veiculo.placa,
+                        'tipo_proprietario': veiculo.get_tipo_proprietario_display() if hasattr(veiculo, 'get_tipo_proprietario_display') else veiculo.tipo_proprietario,
+                        'ctes': ctes_vinculados,
+                        'mdfes': mdfes_tracao + mdfes_reboque,
+                        'km_rodado': km_rodado,
+                        'custos_manutencao': custos_manutencao,
+                        'custo_km': round(float(custos_manutencao / km_rodado), 2) if km_rodado > 0 else 0
+                    })
+            
+            # Ordenar por KM rodado
+            dados_veiculo = sorted(dados_veiculo, key=lambda x: x['km_rodado'], reverse=True)
+            
+            # Totalizadores
+            totais = {
+                'veiculos': len(dados_veiculo),
+                'km_total': sum(item['km_rodado'] for item in dados_veiculo),
+                'ctes_total': sum(item['ctes'] for item in dados_veiculo),
+                'mdfes_total': sum(item['mdfes'] for item in dados_veiculo),
+                'custos_total': sum(item['custos_manutencao'] for item in dados_veiculo)
+            }
+            
+            return Response({
+                'titulo': 'Relatório de Utilização de Veículos',
+                'periodo': f'De {date_from.strftime("%d/%m/%Y")} a {date_to.strftime("%d/%m/%Y")}',
+                'dados': dados_veiculo,
+                'totais': totais
+            })
+        
+        # Tipo de relatório não implementado
+        else:
+            return Response(
+                {'detail': f'Tipo de relatório "{tipo_relatorio}" não implementado.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
