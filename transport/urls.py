@@ -99,7 +99,6 @@ urlpatterns = [
     
     # 5. URLs para as páginas de frontend (templates)
     # Página inicial é pública
-    path('', TemplateView.as_view(template_name='index.html'), name='home'),
     
     # Páginas que requerem autenticação
     path('dashboard/', login_required(TemplateView.as_view(template_name='dashboard.html')), name='dashboard'),
