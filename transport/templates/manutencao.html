@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Manutenção de Veículos{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item active">Manutenção</li>
+{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addManutencaoModal">
+    <i class="fas fa-plus me-1"></i>Nova Manutenção
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Filter Form -->
+<div class="card shadow mb-4" style="border-left: 4px solid var(--verde-primario);">
+    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+        <i class="fas fa-filter me-2"></i>Filtros
+    </div>
+    <div class="card-body">
+        <form id="filterForm" class="row g-3">
+            <div class="col-md-3">
+                <label for="data_inicio" class="form-label">Data Inicial</label>
+                <input type="date" class="form-control" id="data_inicio" name="date_from">
+            </div>
+            <div class="col-md-3">
+                <label for="data_fim" class="form-label">Data Final</label>
+                <input type="date" class="form-control" id="data_fim" name="date_to">
+            </div>
+            <div class="col-md-3">
+                <label for="placa" class="form-label">Placa</label>
+                <input type="text" class="form-control" id="placa" name="placa" placeholder="ABC1234">
+            </div>
+            <div class="col-md-3">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">Todos</option>
+                    <option value="PENDENTE">Pendente</option>
+                    <option value="AGENDADO">Agendado</option>
+                    <option value="PAGO">Pago</option>
+                    <option value="CANCELADO">Cancelado</option>
+                </select>
+            </div>
+            <div class="col-12 d-flex gap-2">
+                <button type="button" class="btn btn-success flex-grow-1" onclick="loadManutencoes()">
+                    <i class="fas fa-filter me-2"></i>Filtrar
+                </button>
+                <button type="button" class="btn btn-outline-secondary" title="Reset filters" onclick="resetFilters()">
+                    <i class="fas fa-undo"></i><span class="visually-hidden">Reset filters</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4 g-4">
+    <div class="col-md-3">
+        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+            <div class="card-body">
+                <h5 class="card-title" style="color: var(--verde-secundario);">Total Manutenções</h5>
+                <p class="card-text h2" id="total-manutencoes">0</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+            <div class="card-body">
+                <h5 class="card-title" style="color: var(--verde-secundario);">Custo Peças</h5>
+                <p class="card-text h2" id="custo-pecas">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+            <div class="card-body">
+                <h5 class="card-title" style="color: var(--verde-secundario);">Custo Mão de Obra</h5>
+                <p class="card-text h2" id="custo-mao-obra">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+            <div class="card-body">
+                <h5 class="card-title" style="color: var(--verde-secundario);">Custo Total</h5>
+                <p class="card-text h2" id="custo-total">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4 g-4">
+    <div class="col-md-6">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">Manutenções por Status</h5>
+            </div>
+            <div class="card-body">
+                <div style="height: 300px;">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">Gastos por Veículo</h5>
+            </div>
+            <div class="card-body">
+                <div style="height: 300px;">
+                    <canvas id="veiculoChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Maintenance Table -->
+<div class="card shadow">
+    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-tools me-2"></i>Manutenções Registradas
+            </div>
+            <button type="button" class="btn btn-sm btn-light" onclick="exportCSV()">
+                <i class="fas fa-download me-1"></i>Exportar CSV
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead style="background-color: var(--verde-claro);">
+                    <tr>
+                        <th>Veículo</th>
+                        <th>Data</th>
+                        <th>Serviço</th>
+                        <th>Oficina</th>
+                        <th>KM</th>
+                        <th>Valor Total</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="manutencoes-list">
+                    <tr>
+                        <td colspan="8" class="text-center">Carregando dados...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer">
+        <nav aria-label="Paginação de Manutenções">
+            <ul class="pagination justify-content-center mb-0" id="pagination">
+                <!-- Paginação será inserida via JavaScript -->
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Add Maintenance Modal -->
+<div class="modal fade" id="addManutencaoModal" tabindex="-1" aria-labelledby="addManutencaoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: var(--verde-primario);">
+                <h5 class="modal-title" id="addManutencaoModalLabel">Nova Manutenção</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="manutencaoForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="veiculo" class="form-label">Veículo</label>
+                            <select class="form-select" id="veiculo" name="veiculo" required>
+                                <option value="">Selecione um veículo</option>
+                                <!-- Options will be filled via JavaScript -->
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="data_servico" class="form-label">Data do Serviço</label>
+                            <input type="date" class="form-control" id="data_servico" name="data_servico" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="servico_realizado" class="form-label">Serviço Realizado</label>
+                            <input type="text" class="form-control" id="servico_realizado" name="servico_realizado" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="oficina" class="form-label">Oficina</label>
+                            <input type="text" class="form-control" id="oficina" name="oficina">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="quilometragem" class="form-label">Quilometragem</label>
+                            <input type="number" class="form-control" id="quilometragem" name="quilometragem" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="peca_utilizada" class="form-label">Peça Utilizada</label>
+                            <input type="text" class="form-control" id="peca_utilizada" name="peca_utilizada">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="nota_fiscal" class="form-label">Nota Fiscal</label>
+                            <input type="text" class="form-control" id="nota_fiscal" name="nota_fiscal">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="valor_peca" class="form-label">Valor da Peça (R$)</label>
+                            <input type="number" class="form-control" id="valor_peca" name="valor_peca" min="0" step="0.01" value="0.00">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="valor_mao_obra" class="form-label">Valor da Mão de Obra (R$)</label>
+                            <input type="number" class="form-control" id="valor_mao_obra" name="valor_mao_obra" min="0" step="0.01" value="0.00">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status_manutencao" name="status">
+                                <option value="PENDENTE">Pendente</option>
+                                <option value="AGENDADO">Agendado</option>
+                                <option value="PAGO">Pago</option>
+                                <option value="CANCELADO">Cancelado</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="observacoes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="observacoes" name="observacoes" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="saveManutencao">
+                    <i class="fas fa-save me-2"></i>Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="detailModalLabel">Detalhes da Manutenção</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" id="detailContent">
+                <!-- Conteúdo será carregado via API -->
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" id="editManutencao">
+                    <i class="fas fa-edit me-2"></i>Editar
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/manutencao.js' %}"></script>
+{% endblock %}
