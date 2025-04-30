@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Painel CT-e{% endblock %}
+
+{% block content %}
+<div class="card shadow mb-4" style="border-left: 4px solid var(--verde-primario);">
+    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+        <i class="fas fa-filter me-2"></i>Filtros
+    </div>
+    <div class="card-body">
+        <form id="filterForm" class="row g-3">
+            <div class="col-md-3">
+                <label for="data_inicio" class="form-label">Data Inicial</label>
+                <input type="date" class="form-control" id="data_inicio" name="date_from">
+            </div>
+            <div class="col-md-3">
+                <label for="data_fim" class="form-label">Data Final</label>
+                <input type="date" class="form-control" id="data_fim" name="date_to">
+            </div>
+            <div class="col-md-3">
+                <label for="modalidade" class="form-label">Modalidade</label>
+                <select class="form-select" id="modalidade" name="modalidade">
+                    <option value="">Todas</option>
+                    <option value="CIF">CIF</option>
+                    <option value="FOB">FOB</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="button" class="btn btn-success w-100" onclick="loadCTeList()">
+                    <i class="fas fa-filter me-2"></i>Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Cards resumo -->
+<div class="row mb-4 g-4">
+    <div class="col-md-3">
+        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+            <div class="card-body">
+                <h5 class="card-title" style="color: var(--verde-secundario);">Total CT-e</h5>
+                <p class="card-text h2" id="total-cte">0</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+            <div class="card-body">
+                <h5 class="card-title" style="color: var(--verde-secundario);">Valor Total</h5>
+                <p class="card-text h2" id="valor-total">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+            <div class="card-body">
+                <h5 class="card-title" style="color: var(--verde-secundario);">CIF</h5>
+                <p class="card-text h2" id="total-cif">0</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+            <div class="card-body">
+                <h5 class="card-title" style="color: var(--verde-secundario);">FOB</h5>
+                <p class="card-text h2" id="total-fob">0</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de CT-es -->
+<div class="card shadow">
+    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-file-invoice me-2"></i>Lista de CT-e
+            </div>
+            <button type="button" class="btn btn-sm btn-light" onclick="exportCSV()">
+                <i class="fas fa-download me-1"></i>Exportar CSV
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead style="background-color: var(--verde-claro);">
+                    <tr>
+                        <th>Nº CT-e</th>
+                        <th>Chave</th>
+                        <th>Data Emissão</th>
+                        <th>Remetente</th>
+                        <th>Destinatário</th>
+                        <th>Valor</th>
+                        <th>Modal.</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="cte-list">
+                    <tr>
+                        <td colspan="9" class="text-center">Carregando dados...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer">
+        <nav aria-label="Paginação de CT-e">
+            <ul class="pagination justify-content-center mb-0" id="pagination">
+                <!-- Paginação será inserida via JavaScript -->
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Modal de Detalhes -->
+<div class="modal fade" id="cteDetailModal" tabindex="-1" aria-labelledby="cteDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="cteDetailModalLabel">Detalhes do CT-e</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" id="cteDetailContent">
+                <!-- Conteúdo será carregado via API -->
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="btnPrintCTe">
+                    <i class="fas fa-print me-2"></i>Imprimir DACTE
+                </button>
+                <button type="button" class="btn btn-success" id="btnDownloadXML">
+                    <i class="fas fa-file-code me-2"></i>Download XML
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/cte_panel.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Importar XML{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow mb-4">
+            <div class="card-header text-white" style="background-color: var(--verde-primario);">
+                <i class="fas fa-file-import me-2"></i>Upload de Arquivos XML
+            </div>
+            <div class="card-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            O sistema aceita documentos XML de CT-e, MDF-e e eventos relacionados.
+                            Para eventos, você pode fornecer o XML de retorno opcionalmente.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="arquivoXML" class="form-label fw-bold">Arquivo XML Principal</label>
+                        <input type="file" class="form-control" id="arquivoXML" name="arquivo_xml" accept=".xml" required>
+                        <div class="form-text">Selecione o arquivo XML do CT-e, MDF-e ou Evento</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="arquivoRetorno" class="form-label fw-bold">Arquivo XML de Retorno (opcional)</label>
+                        <input type="file" class="form-control" id="arquivoRetorno" name="arquivo_xml_retorno" accept=".xml">
+                        <div class="form-text">Selecione o arquivo XML de retorno para eventos (opcional)</div>
+                    </div>
+
+                    <div class="progress mb-3 d-none" id="uploadProgress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+
+                    <div class="alert alert-success d-none" id="uploadSuccess">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <span id="successMessage">Arquivo processado com sucesso!</span>
+                    </div>
+
+                    <div class="alert alert-danger d-none" id="uploadError">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <span id="errorMessage"></span>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-upload me-2"></i>Processar XML
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Histórico de Uploads -->
+        <div class="card shadow">
+            <div class="card-header text-white" style="background-color: var(--verde-primario);">
+                <i class="fas fa-history me-2"></i>Últimos Uploads
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead style="background-color: var(--verde-claro);">
+                            <tr>
+                                <th>Data/Hora</th>
+                                <th>Tipo</th>
+                                <th>Chave</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="upload-history">
+                            <tr>
+                                <td colspan="5" class="text-center">Carregando histórico...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/upload.js' %}"></script>
+{% endblock %}
