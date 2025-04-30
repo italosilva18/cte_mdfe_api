@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Início{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <img src="{% static 'img/logo-large.svg' %}" alt="Destack Transportes" class="img-fluid mb-4" style="max-width: 250px;">
+                <h1 class="display-4 text-primary">Sistema de Gestão de Transporte</h1>
+                <p class="lead text-muted">
+                    Bem-vindo ao sistema integrado para gerenciamento de CT-e, MDF-e, veículos e operações.
+                </p>
+                <div class="mt-4">
+                    <a href="{% url 'dashboard' %}" class="btn btn-lg btn-success">
+                        <i class="fas fa-tachometer-alt me-2"></i>Acessar Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- CT-e Card -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-left-primary">
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-file-invoice fa-3x text-primary"></i>
+                </div>
+                <h5 class="card-title text-center">CT-e</h5>
+                <p class="card-text text-muted">
+                    Gerencie seus Conhecimentos de Transporte Eletrônicos de forma simples e eficiente.
+                </p>
+                <div class="d-grid">
+                    <a href="{% url 'cte_panel' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-right me-1"></i>Acessar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MDF-e Card -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-left-success">
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-truck fa-3x text-success"></i>
+                </div>
+                <h5 class="card-title text-center">MDF-e</h5>
+                <p class="card-text text-muted">
+                    Controle seus Manifestos Eletrônicos de Documentos Fiscais com facilidade.
+                </p>
+                <div class="d-grid">
+                    <a href="{% url 'mdfe_panel' %}" class="btn btn-outline-success">
+                        <i class="fas fa-arrow-right me-1"></i>Acessar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Upload Card -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-left-primary">
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-file-import fa-3x text-primary"></i>
+                </div>
+                <h5 class="card-title text-center">Importar XML</h5>
+                <p class="card-text text-muted">
+                    Importe arquivos XML de documentos fiscais eletrônicos e eventos.
+                </p>
+                <div class="d-grid">
+                    <a href="{% url 'upload' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-right me-1"></i>Acessar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Financial Card -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-left-success">
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-chart-line fa-3x text-success"></i>
+                </div>
+                <h5 class="card-title text-center">Financeiro</h5>
+                <p class="card-text text-muted">
+                    Acompanhe os indicadores financeiros das operações de transporte.
+                </p>
+                <div class="d-grid">
+                    <a href="{% url 'financeiro' %}" class="btn btn-outline-success">
+                        <i class="fas fa-arrow-right me-1"></i>Acessar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Geographic Card -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-left-primary">
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-map-marked-alt fa-3x text-primary"></i>
+                </div>
+                <h5 class="card-title text-center">Geográfico</h5>
+                <p class="card-text text-muted">
+                    Visualize rotas e distribuição geográfica das suas operações.
+                </p>
+                <div class="d-grid">
+                    <a href="{% url 'geografico' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-right me-1"></i>Acessar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Maintenance Card -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm border-left-success">
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-tools fa-3x text-success"></i>
+                </div>
+                <h5 class="card-title text-center">Manutenção</h5>
+                <p class="card-text text-muted">
+                    Controle a manutenção da sua frota e agende serviços.
+                </p>
+                <div class="d-grid">
+                    <a href="{% url 'manutencao' %}" class="btn btn-outline-success">
+                        <i class="fas fa-arrow-right me-1"></i>Acessar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Dicas Rápidas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="me-3 text-primary">
+                                <i class="fas fa-lightbulb fa-2x"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Importação de XML</h6>
+                                <p class="text-muted mb-0 small">Utilize a página de upload para importar seus documentos XML.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="me-3 text-success">
+                                <i class="fas fa-chart-pie fa-2x"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Relatórios Financeiros</h6>
+                                <p class="text-muted mb-0 small">Acompanhe os indicadores financeiros no painel Financeiro.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="me-3 text-primary">
+                                <i class="fas fa-truck-loading fa-2x"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1">Manutenções</h6>
+                                <p class="text-muted mb-0 small">Cadastre as manutenções para controlar os custos da frota.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
