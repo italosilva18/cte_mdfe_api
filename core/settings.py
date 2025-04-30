@@ -52,10 +52,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# Diretório para arquivos enviados
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
+# URL Configuration
 ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [
@@ -124,7 +121,19 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
+# settings.py
+# Configurações de arquivos estáticos
 STATIC_URL = 'static/'
+STATICFILES_DIRS = [BASE_DIR / 'transport/static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Configuração de arquivos de mídia
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Adicione estas linhas ao final do arquivo
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
