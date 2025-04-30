@@ -1,0 +1,496 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block page_title %}Configurações{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item active">Configurações</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-3">
+        <div class="card shadow mb-4">
+            <div class="card-header text-white" style="background-color: var(--verde-primario);">
+                <i class="fas fa-cog me-2"></i>Menu de Configurações
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="config-tabs" role="tablist">
+                    <a class="list-group-item list-group-item-action active" data-bs-toggle="list" href="#tab-perfil" role="tab">
+                        <i class="fas fa-user me-2"></i>Perfil de Usuário
+                    </a>
+                    <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#tab-empresa" role="tab">
+                        <i class="fas fa-building me-2"></i>Dados da Empresa
+                    </a>
+                    <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#tab-parametros" role="tab">
+                        <i class="fas fa-sliders-h me-2"></i>Parâmetros do Sistema
+                    </a>
+                    <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#tab-faixakm" role="tab">
+                        <i class="fas fa-ruler me-2"></i>Faixas de KM
+                    </a>
+                    <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#tab-usuarios" role="tab">
+                        <i class="fas fa-users me-2"></i>Usuários
+                    </a>
+                    <a class="list-group-item list-group-item-action" data-bs-toggle="list" href="#tab-backup" role="tab">
+                        <i class="fas fa-database me-2"></i>Backup
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-9">
+        <div class="tab-content">
+            <!-- Perfil do Usuário -->
+            <div class="tab-pane fade show active" id="tab-perfil" role="tabpanel">
+                <div class="card shadow">
+                    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+                        <i class="fas fa-user me-2"></i>Perfil de Usuário
+                    </div>
+                    <div class="card-body">
+                        <form id="formPerfil">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="nome" class="form-label">Nome Completo</label>
+                                    <input type="text" class="form-control" id="nome" name="nome" value="{{ request.user.get_full_name }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="username" class="form-label">Nome de Usuário</label>
+                                    <input type="text" class="form-control" id="username" name="username" value="{{ request.user.username }}" readonly>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="email" class="form-label">E-mail</label>
+                                    <input type="email" class="form-control" id="email" name="email" value="{{ request.user.email }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="cargo" class="form-label">Cargo</label>
+                                    <input type="text" class="form-control" id="cargo" name="cargo" value="{{ request.user.profile.cargo|default:'' }}">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="senha_atual" class="form-label">Senha Atual</label>
+                                    <input type="password" class="form-control" id="senha_atual" name="senha_atual">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="nova_senha" class="form-label">Nova Senha</label>
+                                    <input type="password" class="form-control" id="nova_senha" name="nova_senha">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="confirma_senha" class="form-label">Confirme a Nova Senha</label>
+                                    <input type="password" class="form-control" id="confirma_senha" name="confirma_senha">
+                                </div>
+                            </div>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button type="button" class="btn btn-success" id="salvarPerfil">
+                                    <i class="fas fa-save me-2"></i>Salvar Alterações
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dados da Empresa -->
+            <div class="tab-pane fade" id="tab-empresa" role="tabpanel">
+                <div class="card shadow">
+                    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+                        <i class="fas fa-building me-2"></i>Dados da Empresa
+                    </div>
+                    <div class="card-body">
+                        <form id="formEmpresa">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="razao_social" class="form-label">Razão Social</label>
+                                    <input type="text" class="form-control" id="razao_social" name="razao_social">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="nome_fantasia" class="form-label">Nome Fantasia</label>
+                                    <input type="text" class="form-control" id="nome_fantasia" name="nome_fantasia">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="cnpj" class="form-label">CNPJ</label>
+                                    <input type="text" class="form-control" id="cnpj" name="cnpj">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="ie" class="form-label">Inscrição Estadual</label>
+                                    <input type="text" class="form-control" id="ie" name="ie">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="telefone" class="form-label">Telefone</label>
+                                    <input type="text" class="form-control" id="telefone" name="telefone">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="email_empresa" class="form-label">E-mail</label>
+                                    <input type="email" class="form-control" id="email_empresa" name="email_empresa">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label for="endereco" class="form-label">Endereço</label>
+                                    <input type="text" class="form-control" id="endereco" name="endereco">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="numero" class="form-label">Número</label>
+                                    <input type="text" class="form-control" id="numero" name="numero">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="complemento" class="form-label">Complemento</label>
+                                    <input type="text" class="form-control" id="complemento" name="complemento">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="bairro" class="form-label">Bairro</label>
+                                    <input type="text" class="form-control" id="bairro" name="bairro">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="cep" class="form-label">CEP</label>
+                                    <input type="text" class="form-control" id="cep" name="cep">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label for="cidade" class="form-label">Cidade</label>
+                                    <input type="text" class="form-control" id="cidade" name="cidade">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="uf" class="form-label">UF</label>
+                                    <select class="form-select" id="uf" name="uf">
+                                        <option value="">Selecione</option>
+                                        <option value="AC">AC</option>
+                                        <option value="AL">AL</option>
+                                        <option value="AM">AM</option>
+                                        <option value="AP">AP</option>
+                                        <option value="BA">BA</option>
+                                        <option value="CE">CE</option>
+                                        <option value="DF">DF</option>
+                                        <option value="ES">ES</option>
+                                        <option value="GO">GO</option>
+                                        <option value="MA">MA</option>
+                                        <option value="MG">MG</option>
+                                        <option value="MS">MS</option>
+                                        <option value="MT">MT</option>
+                                        <option value="PA">PA</option>
+                                        <option value="PB">PB</option>
+                                        <option value="PE">PE</option>
+                                        <option value="PI">PI</option>
+                                        <option value="PR">PR</option>
+                                        <option value="RJ">RJ</option>
+                                        <option value="RN">RN</option>
+                                        <option value="RO">RO</option>
+                                        <option value="RR">RR</option>
+                                        <option value="RS">RS</option>
+                                        <option value="SC">SC</option>
+                                        <option value="SE">SE</option>
+                                        <option value="SP">SP</option>
+                                        <option value="TO">TO</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button type="button" class="btn btn-success" id="salvarEmpresa">
+                                    <i class="fas fa-save me-2"></i>Salvar Alterações
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Parâmetros do Sistema -->
+            <div class="tab-pane fade" id="tab-parametros" role="tabpanel">
+                <div class="card shadow">
+                    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+                        <i class="fas fa-sliders-h me-2"></i>Parâmetros do Sistema
+                    </div>
+                    <div class="card-body">
+                        <form id="formParametros">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="dias_alerta" class="form-label">Dias para Alerta de Pagamento</label>
+                                    <input type="number" class="form-control" id="dias_alerta" name="dias_alerta" min="1" max="30" value="3">
+                                    <div class="form-text">Emitir alertas para pagamentos vencendo em X dias</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="percentual_padrao" class="form-label">Percentual Padrão de Repasse (%)</label>
+                                    <input type="number" class="form-control" id="percentual_padrao" name="percentual_padrao" min="0" max="100" step="0.01" value="25.00">
+                                    <div class="form-text">Percentual usado ao gerar pagamentos para agregados</div>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="periodo_manutencao" class="form-label">Período de Manutenção Preventiva (dias)</label>
+                                    <input type="number" class="form-control" id="periodo_manutencao" name="periodo_manutencao" min="1" max="365" value="90">
+                                    <div class="form-text">Frequência de manutenção preventiva dos veículos</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="km_manutencao" class="form-label">KM para Manutenção Preventiva</label>
+                                    <input type="number" class="form-control" id="km_manutencao" name="km_manutencao" min="1000" max="100000" step="1000" value="10000">
+                                    <div class="form-text">Kilometragem para alerta de manutenção preventiva</div>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="auto_cancelamento" name="auto_cancelamento">
+                                        <label class="form-check-label" for="auto_cancelamento">Auto-Cancelamento CT-e Rejeitado</label>
+                                    </div>
+                                    <div class="form-text">Cancelar automaticamente CT-es que foram rejeitados pela SEFAZ</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="alerta_email" name="alerta_email">
+                                        <label class="form-check-label" for="alerta_email">Enviar Alertas por E-mail</label>
+                                    </div>
+                                    <div class="form-text">Enviar e-mails de alerta para pagamentos e manutenções</div>
+                                </div>
+                            </div>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button type="button" class="btn btn-success" id="salvarParametros">
+                                    <i class="fas fa-save me-2"></i>Salvar Alterações
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Faixas de KM -->
+            <div class="tab-pane fade" id="tab-faixakm" role="tabpanel">
+                <div class="card shadow">
+                    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-ruler me-2"></i>Faixas de KM para Pagamento
+                            </div>
+                            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#addFaixaKMModal">
+                                <i class="fas fa-plus me-1"></i>Nova Faixa
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped mb-0">
+                                <thead style="background-color: var(--verde-claro);">
+                                    <tr>
+                                        <th>KM Mínimo</th>
+                                        <th>KM Máximo</th>
+                                        <th>Valor (R$)</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="faixas-list">
+                                    <tr>
+                                        <td colspan="4" class="text-center">Carregando faixas...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Usuários -->
+            <div class="tab-pane fade" id="tab-usuarios" role="tabpanel">
+                <div class="card shadow">
+                    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-users me-2"></i>Gerenciar Usuários
+                            </div>
+                            <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                                <i class="fas fa-user-plus me-1"></i>Novo Usuário
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped mb-0">
+                                <thead style="background-color: var(--verde-claro);">
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Usuário</th>
+                                        <th>E-mail</th>
+                                        <th>Tipo</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usuarios-list">
+                                    <tr>
+                                        <td colspan="6" class="text-center">Carregando usuários...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Backup -->
+            <div class="tab-pane fade" id="tab-backup" role="tabpanel">
+                <div class="card shadow">
+                    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+                        <i class="fas fa-database me-2"></i>Backup do Sistema
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            É recomendado realizar backups frequentes para evitar perda de dados.
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title"><i class="fas fa-download me-2"></i>Gerar Backup</h5>
+                                        <p class="card-text">Crie um backup completo dos dados do sistema.</p>
+                                        <button class="btn btn-success w-100" id="gerarBackup">
+                                            <i class="fas fa-database me-2"></i>Gerar Backup Agora
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title"><i class="fas fa-upload me-2"></i>Restaurar Backup</h5>
+                                        <p class="card-text">Restaure um backup previamente gerado.</p>
+                                        <div class="input-group mb-3">
+                                            <input type="file" class="form-control" id="arquivoBackup" title="Selecione o arquivo de backup" placeholder="Selecione o arquivo">
+                                            <button class="btn btn-outline-success" type="button" id="restaurarBackup" aria-label="Restaurar Backup">
+                                                <i class="fas fa-upload me-1"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h5 class="mb-3">Backups Recentes</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Data/Hora</th>
+                                        <th>Tamanho</th>
+                                        <th>Usuário</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="backups-list">
+                                    <tr>
+                                        <td colspan="4" class="text-center">Carregando backups...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nova Faixa KM -->
+<div class="modal fade" id="addFaixaKMModal" tabindex="-1" aria-labelledby="addFaixaKMLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: var(--verde-primario);">
+                <h5 class="modal-title" id="addFaixaKMLabel">Nova Faixa de KM</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="faixaKMForm">
+                    <div class="mb-3">
+                        <label for="min_km" class="form-label">KM Mínimo</label>
+                        <input type="number" class="form-control" id="min_km" name="min_km" min="0" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="max_km" class="form-label">KM Máximo (deixe em branco para "sem limite")</label>
+                        <input type="number" class="form-control" id="max_km" name="max_km" min="0">
+                    </div>
+                    <div class="mb-3">
+                        <label for="valor_pago" class="form-label">Valor a Pagar (R$)</label>
+                        <input type="number" class="form-control" id="valor_pago" name="valor_pago" min="0" step="0.01" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="salvarFaixaKM">
+                    <i class="fas fa-save me-2"></i>Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Usuário -->
+<div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: var(--verde-primario);">
+                <h5 class="modal-title" id="addUserLabel">Novo Usuário</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm">
+                    <div class="mb-3">
+                        <label for="user_nome" class="form-label">Nome Completo</label>
+                        <input type="text" class="form-control" id="user_nome" name="user_nome" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="user_username" class="form-label">Nome de Usuário</label>
+                        <input type="text" class="form-control" id="user_username" name="user_username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="user_email" class="form-label">E-mail</label>
+                        <input type="email" class="form-control" id="user_email" name="user_email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="user_senha" class="form-label">Senha</label>
+                        <input type="password" class="form-control" id="user_senha" name="user_senha" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="user_tipo" class="form-label">Tipo de Usuário</label>
+                        <select class="form-select" id="user_tipo" name="user_tipo" required>
+                            <option value="">Selecione...</option>
+                            <option value="admin">Administrador</option>
+                            <option value="gerente">Gerente</option>
+                            <option value="operador">Operador</option>
+                            <option value="consulta">Consulta</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="user_ativo" name="user_ativo" checked>
+                            <label class="form-check-label" for="user_ativo">Usuário Ativo</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="salvarUsuario">
+                    <i class="fas fa-save me-2"></i>Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/configuracoes.js' %}"></script>
+{% endblock %}

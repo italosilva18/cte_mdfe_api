@@ -1,33 +1,15 @@
-# requirements.txt
-
-# Core Django Framework
-django>=4.2,<5.0  # Ou a versão específica que você está usando
-
-# Django REST Framework (para a API)
-djangorestframework>=3.14,<3.15
-
-# Para parsear XML para Dicionário Python (usado nos parsers)
-xmltodict>=0.13,<0.14
-
-# Para parsing robusto de datas/horas (usado nos parsers)
-python-dateutil>=2.8,<2.9
-
-# Para rotas aninhadas na API (ex: /veiculos/{pk}/manutencoes/)
-# (Você mencionou 'rest_framework_nested', mas 'drf-nested-routers' é o mais comum
-# e foi o importado no urls.py que gerei. Use o que você instalou.)
-drf-nested-routers>=0.93,<0.94
-
-# --- Opcional: Driver do Banco de Dados ---
-# Descomente e ajuste conforme o banco de dados que você utiliza
-# psycopg2-binary>=2.9,<3.0  # Para PostgreSQL
-# mysqlclient>=2.1,<2.2    # Para MySQL/MariaDB
-
-# --- Opcional: Para Filtros Avançados ---
-# Descomente se for usar os filtros comentados nas views
-# django-filter>=23.5,<24.0
-
-# --- Opcional: Para Tarefas Assíncronas ---
-# Descomente se for implementar processamento em background
-# celery>=5.3,<5.4
-# redis>=5.0,<5.1  # Exemplo de message broker para Celery
-# django-celery-results>=2.5,<2.6 # Para armazenar resultados de tasks no DB Django
+asgiref==3.8.1
+Django==4.2.20
+djangorestframework==3.14.0
+drf-nested-routers==0.93.5
+drf-yasg==1.21.10
+inflection==0.5.1
+packaging==25.0
+psycopg2-binary==2.9.10
+python-dateutil==2.8.2
+pytz==2025.2
+PyYAML==6.0.2
+six==1.17.0
+sqlparse==0.5.3
+uritemplate==4.1.1
+xmltodict==0.13.0
