@@ -1,114 +1,79 @@
-# transport/urls.py - atualizado para incluir login
-
-from django.urls import path, include
+# transport/urls.py
+from django.urls import include, path
 from django.views.generic import TemplateView
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.decorators import login_required
+
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
 
-# Importar todas as ViewSets e APIViews do views.py
 from .views import (
-    # Views/ViewSets Existentes (Consulta/CRUD)
-    CTeDocumentoViewSet,
-    MDFeDocumentoViewSet,
-    VeiculoViewSet,
-    ManutencaoVeiculoViewSet,
-    
-    # ViewSet Unificada de Upload
-    UnifiedUploadViewSet,
-    
-    # Novas APIViews/ViewSets para Painéis e Funcionalidades
-    DashboardGeralAPIView,
-    CtePainelAPIView,
-    MdfePainelAPIView,
-    FinanceiroPainelAPIView,
-    FinanceiroMensalAPIView,
-    FinanceiroDetalheAPIView,
-    GeograficoPainelAPIView,
-    ManutencaoPainelViewSet,
-    
-    # Pagamentos
-    FaixaKMViewSet,
-    PagamentoProprioViewSet,
-    PagamentoAgregadoViewSet,
-    
-    # Alertas
-    AlertasPagamentoAPIView,
+    # ViewSets (CRUD / consultas)
+    CTeDocumentoViewSet, MDFeDocumentoViewSet,
+    VeiculoViewSet, ManutencaoVeiculoViewSet,
+    UnifiedUploadViewSet, ManutencaoPainelViewSet,
+    FaixaKMViewSet, PagamentoAgregadoViewSet, PagamentoProprioViewSet,
+
+    # APIViews (painéis / extras)
+    DashboardGeralAPIView, CtePainelAPIView, MdfePainelAPIView,
+    FinanceiroPainelAPIView, FinanceiroMensalAPIView, FinanceiroDetalheAPIView,
+    GeograficoPainelAPIView, AlertasPagamentoAPIView,
+
+    # Dados do usuário autenticado
+    CurrentUserAPIView,
 )
 
-# --- Roteador Principal (para ViewSets) ---
+# ------------------------------------------------------------------ #
+# DRF routers
+# ------------------------------------------------------------------ #
 router = DefaultRouter()
+router.register(r"upload",               UnifiedUploadViewSet, basename="unified-upload")
+router.register(r"ctes",                 CTeDocumentoViewSet,  basename="cte-documento")
+router.register(r"mdfes",                MDFeDocumentoViewSet, basename="mdfe-documento")
+router.register(r"veiculos",             VeiculoViewSet,       basename="veiculo")
+router.register(r"pagamentos/agregados", PagamentoAgregadoViewSet, basename="pagamento-agregado")
+router.register(r"pagamentos/proprios",  PagamentoProprioViewSet,  basename="pagamento-proprio")
+router.register(r"faixas-km",            FaixaKMViewSet,       basename="faixa-km")
+router.register(r"manutencao",           ManutencaoPainelViewSet, basename="manutencao-painel")
 
-# --- Registro das ViewSets no Roteador Principal ---
+# rotas aninhadas: /veiculos/{veiculo_pk}/manutencoes/
+veiculos_router = routers.NestedSimpleRouter(router, r"veiculos", lookup="veiculo")
+veiculos_router.register(r"manutencoes", ManutencaoVeiculoViewSet, basename="veiculo-manutencao")
 
-# Endpoint Unificado de Upload
-router.register(r'upload', UnifiedUploadViewSet, basename='unified-upload')
-
-# Consulta CT-e / MDF-e
-router.register(r'ctes', CTeDocumentoViewSet, basename='cte-documento')
-router.register(r'mdfes', MDFeDocumentoViewSet, basename='mdfe-documento')
-
-# CRUD Veículos
-router.register(r'veiculos', VeiculoViewSet, basename='veiculo')
-
-# CRUD e Ações Pagamentos Agregados
-router.register(r'pagamentos/agregados', PagamentoAgregadoViewSet, basename='pagamento-agregado')
-
-# CRUD e Ações Pagamentos Próprios
-router.register(r'pagamentos/proprios', PagamentoProprioViewSet, basename='pagamento-proprio')
-
-# CRUD Faixas de KM (Parametrização)
-router.register(r'faixas-km', FaixaKMViewSet, basename='faixa-km')
-
-# Ações do Painel de Manutenção (Indicadores, Gráficos, Últimos)
-router.register(r'manutencao', ManutencaoPainelViewSet, basename='manutencao-painel')
-
-# --- Roteador Aninhado para CRUD de Manutenções ---
-# Cria um roteador aninhado para as manutenções dentro de veículos.
-# Ex: /api/veiculos/{veiculo_pk}/manutencoes/
-veiculos_router = routers.NestedSimpleRouter(router, r'veiculos', lookup='veiculo')
-
-# Registra a ViewSet de CRUD de Manutenções no roteador aninhado.
-veiculos_router.register(
-    r'manutencoes', ManutencaoVeiculoViewSet, basename='veiculo-manutencao'
-)
-
-# --- Definição das URLs ---
-# A lista urlpatterns define as URLs raiz da aplicação 'transport'.
+# ------------------------------------------------------------------ #
+# URL patterns
+# ------------------------------------------------------------------ #
 urlpatterns = [
-    # 1. Inclui todas as URLs geradas pelo roteador principal (ViewSets)
-    path('api/', include(router.urls)),
-    
-    # 2. Inclui todas as URLs geradas pelo roteador aninhado (Manutenções por Veículo)
-    path('api/', include(veiculos_router.urls)),
-    
-    # 3. Define Paths específicos para as APIViews (que não usam roteador)
-    path('api/dashboard/', DashboardGeralAPIView.as_view(), name='dashboard-geral'),
-    path('api/cte/', CtePainelAPIView.as_view(), name='painel-cte'),
-    path('api/mdfe/', MdfePainelAPIView.as_view(), name='painel-mdfe'),
-    path('api/financeiro/', FinanceiroPainelAPIView.as_view(), name='painel-financeiro'),
-    path('api/financeiro/mensal/', FinanceiroMensalAPIView.as_view(), name='financeiro-mensal'),
-    path('api/financeiro/detalhe/', FinanceiroDetalheAPIView.as_view(), name='financeiro-detalhe'),
-    path('api/geografico/', GeograficoPainelAPIView.as_view(), name='painel-geografico'),
-    path('api/alertas/pagamentos/', AlertasPagamentoAPIView.as_view(), name='alertas-pagamentos'),
-    
-    # 4. Autenticação
-    path('login/', LoginView.as_view(template_name='login.html'), name='login'),
-    path('logout/', LogoutView.as_view(next_page='/login/'), name='logout'),
-    
-    # 5. URLs para as páginas de frontend (templates)
-    # Página inicial é pública
-    
-    # Páginas que requerem autenticação
-    path('dashboard/', login_required(TemplateView.as_view(template_name='dashboard.html')), name='dashboard'),
-    path('cte/', login_required(TemplateView.as_view(template_name='cte_panel.html')), name='cte_panel'),
-    path('mdfe/', login_required(TemplateView.as_view(template_name='mdfe_panel.html')), name='mdfe_panel'),
-    path('upload/', login_required(TemplateView.as_view(template_name='upload.html')), name='upload'),
-    path('financeiro/', login_required(TemplateView.as_view(template_name='financeiro.html')), name='financeiro'),
-    path('geografico/', login_required(TemplateView.as_view(template_name='geografico.html')), name='geografico'),
-    path('manutencao/', login_required(TemplateView.as_view(template_name='manutencao.html')), name='manutencao'),
-    path('configuracoes/', login_required(TemplateView.as_view(template_name='configuracoes.html')), name='configuracoes'),
+    # API (ViewSets)
+    path("api/", include(router.urls)),
+    path("api/", include(veiculos_router.urls)),
+
+    # APIViews avulsas
+    path("api/dashboard/",            DashboardGeralAPIView.as_view(),    name="dashboard-geral"),
+    path("api/cte/",                  CtePainelAPIView.as_view(),         name="painel-cte"),
+    path("api/mdfe/",                 MdfePainelAPIView.as_view(),        name="painel-mdfe"),
+    path("api/financeiro/",           FinanceiroPainelAPIView.as_view(),  name="painel-financeiro"),
+    path("api/financeiro/mensal/",    FinanceiroMensalAPIView.as_view(),  name="financeiro-mensal"),
+    path("api/financeiro/detalhe/",   FinanceiroDetalheAPIView.as_view(), name="financeiro-detalhe"),
+    path("api/geografico/",           GeograficoPainelAPIView.as_view(),  name="painel-geografico"),
+    path("api/alertas/pagamentos/",   AlertasPagamentoAPIView.as_view(),  name="alertas-pagamentos"),
+
+    # Dados do usuário autenticado (utilizado pelo auth.js)
+    path("api/users/me/", CurrentUserAPIView.as_view(), name="user_me"),
+
+    # Autenticação baseada em sessão (templates)
+    path("login/",  LoginView.as_view(template_name="login.html"),              name="login"),
+    path("logout/", LogoutView.as_view(next_page="/login/"),                    name="logout"),
+
+    # Páginas HTML (requerem login)
+    path("dashboard/",    login_required(TemplateView.as_view(template_name="dashboard.html")),   name="dashboard"),
+    path("cte/",          login_required(TemplateView.as_view(template_name="cte_panel.html")),   name="cte_panel"),
+    path("mdfe/",         login_required(TemplateView.as_view(template_name="mdfe_panel.html")),  name="mdfe_panel"),
+    path("upload/",       login_required(TemplateView.as_view(template_name="upload.html")),      name="upload"),
+    path("financeiro/",   login_required(TemplateView.as_view(template_name="financeiro.html")),  name="financeiro"),
+    path("geografico/",   login_required(TemplateView.as_view(template_name="geografico.html")),  name="geografico"),
+    path("manutencao/",   login_required(TemplateView.as_view(template_name="manutencao.html")),  name="manutencao"),
+    path("configuracoes/",login_required(TemplateView.as_view(template_name="configuracoes.html")),name="configuracoes"),
 ]
 
 # =============================================

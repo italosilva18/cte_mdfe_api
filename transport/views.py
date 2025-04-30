@@ -14,7 +14,8 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce, TruncMonth, ExtractMonth, ExtractYear, TruncDay, TruncWeek
 from django.http import HttpResponse
-
+from rest_framework.serializers import ModelSerializer
+from django.contrib.auth import get_user_model
 # Importações do DRF
 from rest_framework import viewsets, status, permissions, mixins
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -88,6 +89,22 @@ def get_encoding(xml_bytes):
             return 'latin-1'
         except UnicodeDecodeError:
             return None
+
+
+# --- VIEW que o auth.js usa para /api/users/me/ ---
+class _CurrentUserSerializer(ModelSerializer):
+    class Meta:
+        model = get_user_model()
+        fields = ['id', 'username', 'first_name', 'last_name',
+                  'email', 'is_staff', 'is_superuser']
+
+class CurrentUserAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        serializer = _CurrentUserSerializer(request.user)
+        return Response(serializer.data)
+
 
 # ===============================================
 # ===      ENDPOINT UNIFICADO DE UPLOAD       ===

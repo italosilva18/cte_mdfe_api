@@ -16,11 +16,25 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
-from django.views.generic import TemplateView  # Importe isso
+from django.views.generic import TemplateView
+
+# Endpoints JWT (djangorestframework-simplejwt)
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('transport.urls')),
-    # Adicione uma view para a página inicial caso não exista em transport.urls
-    path('', TemplateView.as_view(template_name='index.html'), name='index'),
+    # Django Admin
+    path("admin/", admin.site.urls),
+
+    # JWT – usado pelo auth.js
+    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+
+    # Demais URLs da aplicação
+    path("", include("transport.urls")),
+
+    # Landing page pública (index)
+    path("", TemplateView.as_view(template_name="index.html"), name="home"),
 ]
