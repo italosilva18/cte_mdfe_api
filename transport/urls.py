@@ -7,20 +7,42 @@ from django.contrib.auth.decorators import login_required
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
 
+# --- Views ---
 from .views import (
     # ViewSets (CRUD / consultas)
     CTeDocumentoViewSet, MDFeDocumentoViewSet,
     VeiculoViewSet, ManutencaoVeiculoViewSet,
     UnifiedUploadViewSet, ManutencaoPainelViewSet,
     FaixaKMViewSet, PagamentoAgregadoViewSet, PagamentoProprioViewSet,
+    UserViewSet, # <-- Adicionado
 
     # APIViews (painéis / extras)
     DashboardGeralAPIView, CtePainelAPIView, MdfePainelAPIView,
     FinanceiroPainelAPIView, FinanceiroMensalAPIView, FinanceiroDetalheAPIView,
     GeograficoPainelAPIView, AlertasPagamentoAPIView,
+    RelatorioAPIView,
+    BackupAPIView, # <-- Adicionado
 
     # Dados do usuário autenticado
     CurrentUserAPIView,
+)
+
+# --- Documentação da API (drf-yasg) ---
+from rest_framework import permissions
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+
+schema_view = get_schema_view(
+   openapi.Info(
+      title="API Sistema Transporte",
+      default_version='v1',
+      description="Documentação da API para o sistema de gestão de CT-e e MDF-e",
+      # terms_of_service="URL_DOS_TERMOS_DE_SERVICO", # Descomente e ajuste se tiver
+      contact=openapi.Contact(email="seu_email_de_contato@exemplo.com"), # Ajuste o email
+      # license=openapi.License(name="Sua Licença"), # Ajuste se tiver licença
+   ),
+   public=True, # Mude para False se quiser acesso restrito à documentação
+   permission_classes=(permissions.AllowAny,), # Ou permissions.IsAdminUser, etc.
 )
 
 # ------------------------------------------------------------------ #
@@ -35,6 +57,7 @@ router.register(r"pagamentos/agregados", PagamentoAgregadoViewSet, basename="pag
 router.register(r"pagamentos/proprios",  PagamentoProprioViewSet,  basename="pagamento-proprio")
 router.register(r"faixas-km",            FaixaKMViewSet,       basename="faixa-km")
 router.register(r"manutencao",           ManutencaoPainelViewSet, basename="manutencao-painel")
+router.register(r"usuarios",             UserViewSet,          basename="usuario") # <-- Adicionado
 
 # rotas aninhadas: /veiculos/{veiculo_pk}/manutencoes/
 veiculos_router = routers.NestedSimpleRouter(router, r"veiculos", lookup="veiculo")
@@ -44,7 +67,7 @@ veiculos_router.register(r"manutencoes", ManutencaoVeiculoViewSet, basename="vei
 # URL patterns
 # ------------------------------------------------------------------ #
 urlpatterns = [
-    # API (ViewSets)
+    # --- API Endpoints ---
     path("api/", include(router.urls)),
     path("api/", include(veiculos_router.urls)),
 
@@ -57,10 +80,18 @@ urlpatterns = [
     path("api/financeiro/detalhe/",   FinanceiroDetalheAPIView.as_view(), name="financeiro-detalhe"),
     path("api/geografico/",           GeograficoPainelAPIView.as_view(),  name="painel-geografico"),
     path("api/alertas/pagamentos/",   AlertasPagamentoAPIView.as_view(),  name="alertas-pagamentos"),
+    path("api/relatorios/",           RelatorioAPIView.as_view(),         name="relatorios"), # <-- Adicionado
+    path("api/backup/gerar/",         BackupAPIView.as_view(),            name="gerar-backup"), # <-- Adicionado
 
-    # Dados do usuário autenticado (utilizado pelo auth.js)
-    path("api/users/me/", CurrentUserAPIView.as_view(), name="user_me"),
+    # Dados do usuário autenticado (usado pelo auth.js)
+    path("api/users/me/", CurrentUserAPIView.as_view(), name="user_me"), # Permite GET e PATCH
 
+    # --- Documentação da API (Swagger/ReDoc) ---
+    path('api/swagger<format>/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    path('api/swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('api/redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+
+    # --- Autenticação e Páginas HTML ---
     # Autenticação baseada em sessão (templates)
     path("login/",  LoginView.as_view(template_name="login.html"),              name="login"),
     path("logout/", LogoutView.as_view(next_page="/login/"),                    name="logout"),
@@ -74,36 +105,44 @@ urlpatterns = [
     path("geografico/",   login_required(TemplateView.as_view(template_name="geografico.html")),  name="geografico"),
     path("manutencao/",   login_required(TemplateView.as_view(template_name="manutencao.html")),  name="manutencao"),
     path("configuracoes/",login_required(TemplateView.as_view(template_name="configuracoes.html")),name="configuracoes"),
+
+    # Página Inicial (Raiz) - Deve estar no urls.py principal (core/urls.py)
+    # Se este for o único app, pode ficar aqui, senão mova para core/urls.py
+    # path("", TemplateView.as_view(template_name="index.html"), name="home"), # Exemplo, ajuste se necessário
 ]
 
 # =============================================
-# ===      Mapa de URLs Geradas            ===
+# ===      Mapa de URLs Geradas (ATUALIZADO) ===
 # =============================================
 """
 Upload:
   POST /api/upload/
-  
+
 CT-e:
-  GET /api/ctes/                     (Lista com filtros de data)
-  GET /api/ctes/{uuid}/              (Detalhe CT-e)
-  GET /api/ctes/{uuid}/xml/          (XML do CT-e)
-  GET /api/cte/                      (Painel CT-e)
-  
+  GET /api/ctes/
+  GET /api/ctes/{uuid}/
+  GET /api/ctes/{uuid}/xml/
+  GET /api/ctes/{uuid}/dacte/
+  GET /api/cte/
+
 MDF-e:
-  GET /api/mdfes/                    (Lista com filtros de data)
-  GET /api/mdfes/{uuid}/             (Detalhe MDF-e)
-  GET /api/mdfes/{uuid}/xml/         (XML do MDF-e)
-  GET /api/mdfe/                     (Painel MDF-e)
-  
+  GET /api/mdfes/
+  GET /api/mdfes/{uuid}/
+  GET /api/mdfes/{uuid}/xml/
+  GET /api/mdfes/{uuid}/damdfe/
+  GET /api/mdfe/
+
 Veículos e Manutenção:
   GET, POST /api/veiculos/
   GET, PUT, PATCH, DELETE /api/veiculos/{pk}/
+  GET /api/veiculos/{pk}/estatisticas/
   GET, POST /api/veiculos/{veiculo_pk}/manutencoes/
   GET, PUT, PATCH, DELETE /api/veiculos/{veiculo_pk}/manutencoes/{pk}/
-  GET /api/manutencao/indicadores/    (Painel Manutenção)
-  GET /api/manutencao/graficos/       (Painel Manutenção)
-  GET /api/manutencao/ultimos/        (Painel Manutenção)
-  
+  GET /api/manutencao/indicadores/
+  GET /api/manutencao/graficos/
+  GET /api/manutencao/ultimos/
+  GET /api/manutencao/tendencias/
+
 Pagamentos:
   GET, POST /api/pagamentos/agregados/
   GET, PUT, PATCH, DELETE /api/pagamentos/agregados/{pk}/
@@ -111,27 +150,42 @@ Pagamentos:
   GET, POST /api/pagamentos/proprios/
   GET, PUT, PATCH, DELETE /api/pagamentos/proprios/{pk}/
   POST /api/pagamentos/proprios/gerar/
-  
+
 Parametrização:
   GET, POST /api/faixas-km/
   GET, PUT, PATCH, DELETE /api/faixas-km/{pk}/
-  
-Painéis e Alertas (APIViews):
-  GET /api/dashboard/                (Dashboard Geral)
-  GET /api/financeiro/               (Painel Financeiro Principal)
-  GET /api/financeiro/mensal/        (Painel Financeiro Mensal)
-  GET /api/financeiro/detalhe/       (Painel Financeiro Detalhe)
-  GET /api/geografico/               (Painel Geográfico)
-  GET /api/alertas/pagamentos/       (Alertas de Pagamentos)
-  
+
+Usuários:
+  GET, PATCH /api/users/me/              (Usuário logado)
+  GET, POST /api/usuarios/             (Lista/Cria usuários - Admin)
+  GET, PUT, PATCH, DELETE /api/usuarios/{pk}/ (Detalhe/Atualiza/Deleta usuário - Admin)
+
+Painéis, Alertas e Outros (APIViews):
+  GET /api/dashboard/
+  GET /api/financeiro/
+  GET /api/financeiro/mensal/
+  GET /api/financeiro/detalhe/
+  GET /api/geografico/
+  GET /api/alertas/pagamentos/
+  GET /api/relatorios/
+  POST /api/backup/gerar/
+
+Documentação API:
+  GET /api/swagger/
+  GET /api/redoc/
+  GET /api/swagger.json
+  GET /api/swagger.yaml
+
 Frontend:
-  GET /                              (Página inicial)
-  GET /dashboard/                    (Dashboard)
-  GET /cte/                          (Painel CT-e)
-  GET /mdfe/                         (Painel MDF-e)
-  GET /upload/                       (Upload XML)
-  GET /financeiro/                   (Painel Financeiro)
-  GET /geografico/                   (Painel Geográfico)
-  GET /manutencao/                   (Painel Manutenção)
-  GET /configuracoes/                (Configurações)
+  /login/
+  /logout/
+  /dashboard/
+  /cte/
+  /mdfe/
+  /upload/
+  /financeiro/
+  /geografico/
+  /manutencao/
+  /configuracoes/
+  / (Raiz, pode estar em core/urls.py)
 """

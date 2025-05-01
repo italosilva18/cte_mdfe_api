@@ -1,6 +1,9 @@
 # transport/serializers.py
 
 from rest_framework import serializers
+# ---> ADICIONAR ESTA IMPORTAÇÃO <---
+from django.contrib.auth.models import User # Importar modelo User
+# ---> FIM DA IMPORTAÇÃO <---
 from .models import (
     # Base
     Endereco,
@@ -58,6 +61,100 @@ class EnderecoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Endereco
         exclude = ['id'] # Exclui o ID base do Endereco
+
+
+# =======================================
+# === Serializers para Usuários (User) === # <-- ADICIONADOS
+# =======================================
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer para atualizar o perfil do usuário logado (PATCH)."""
+    password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'}, help_text="Opcional. Defina para alterar a senha.")
+    password_confirm = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'}, help_text="Confirmação da nova senha.")
+
+    class Meta:
+        model = User
+        # Campos permitidos para atualização pelo próprio usuário
+        fields = ['first_name', 'last_name', 'email', 'password', 'password_confirm']
+        extra_kwargs = {
+            # Nenhum campo é estritamente obrigatório no PATCH
+            'email': {'required': False},
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+        }
+
+    def validate(self, data):
+        # Validação de confirmação de senha (só se password for enviado)
+        password = data.get('password')
+        password_confirm = data.pop('password_confirm', None) # Remove confirmação dos dados a salvar
+
+        if password: # Se uma nova senha foi fornecida
+             if not password_confirm:
+                 raise serializers.ValidationError({"password_confirm": "Confirmação de senha é obrigatória ao definir uma nova senha."})
+             if password != password_confirm:
+                 raise serializers.ValidationError({"password_confirm": "As senhas não coincidem."})
+        elif password_confirm:
+            # Se a confirmação foi enviada mas a senha não, é um erro
+            raise serializers.ValidationError({"password": "Senha é obrigatória se a confirmação for fornecida."})
+
+        return data
+
+    def update(self, instance, validated_data):
+        # Trata a senha separadamente usando set_password para hashing
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+
+        # Atualiza os outros campos
+        # Chama o update padrão do ModelSerializer para os campos restantes
+        instance = super().update(instance, validated_data)
+        instance.save()
+        return instance
+
+
+class UserSerializer(serializers.ModelSerializer):
+    """Serializer para CRUD completo de Usuários (usado pelo UserViewSet - Admin)."""
+    password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'}, help_text="Obrigatório na criação. Opcional na atualização.")
+
+    class Meta:
+        model = User
+        # Define os campos a serem expostos/editados pela API de admin
+        fields = ['id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_staff', 'is_active', 'is_superuser', 'date_joined', 'last_login']
+        read_only_fields = ['id', 'date_joined', 'last_login']
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False}, # Não obrigatório em GET/PATCH
+            'username': {'required': True}, # Username sempre obrigatório
+            'email': {'required': False},
+        }
+
+    def create(self, validated_data):
+        # Garante que a senha seja obrigatória na criação
+        if 'password' not in validated_data:
+             raise serializers.ValidationError({'password': 'Este campo é obrigatório na criação.'})
+
+        # Usa create_user para garantir o hash correto da senha
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            password=validated_data['password'],
+            email=validated_data.get('email', ''),
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+            is_staff=validated_data.get('is_staff', False),
+            is_active=validated_data.get('is_active', True),
+            is_superuser=validated_data.get('is_superuser', False) # Cuidado ao expor/permitir isso
+        )
+        return user
+
+    def update(self, instance, validated_data):
+        # Atualiza a senha SE ela for fornecida
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+
+        # Atualiza outros campos (chama o método padrão para o resto)
+        instance = super().update(instance, validated_data)
+        instance.save()
+        return instance
 
 
 # =========================
@@ -369,10 +466,10 @@ class MDFeDocumentosVinculadosSerializer(serializers.ModelSerializer):
         fields = ['chave_documento', 'tipo_doc', 'seg_cod_barras', 'ind_reentrega', 'cte_info', 'produtos_perigosos']
 
     def get_tipo_doc(self, obj):
-        try: 
+        try:
             modelo = obj.chave_documento[20:22]
             return {'57': 'CT-e', '55': 'NF-e', '67': 'CT-e OS'}.get(modelo, 'Outro')
-        except: 
+        except:
             return 'Desconhecido'
 
 class MDFeMunicipioDescargaSerializer(serializers.ModelSerializer):
