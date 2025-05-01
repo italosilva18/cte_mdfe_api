@@ -47,10 +47,14 @@ function setupEventListeners() {
     setupModalEventListeners();
     
     // Export CSV button
-    document.querySelector('button[onclick="exportCSV()"]')?.addEventListener('click', function(e) {
-        e.preventDefault();
-        exportTableToCSV();
-    });
+    const exportBtn = document.querySelector('button[onclick="exportCSV()"]');
+    if (exportBtn) {
+        exportBtn.removeAttribute('onclick');
+        exportBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            exportTableToCSV();
+        });
+    }
 }
 
 /**
@@ -110,11 +114,14 @@ function formatDateForInput(date) {
 function loadCTeList() {
     // Show loading state
     showLoading();
+    console.log("Loading CT-e list...");
     
     // Get filter values
     const dataInicio = document.getElementById('data_inicio').value;
     const dataFim = document.getElementById('data_fim').value;
     const modalidade = document.getElementById('modalidade').value;
+    
+    console.log("Filters:", { dataInicio, dataFim, modalidade });
     
     // Build API URL with query params
     let apiUrl = `/api/ctes/?page=${currentPage}&page_size=${pageSize}`;
@@ -123,18 +130,28 @@ function loadCTeList() {
     if (dataFim) apiUrl += `&date_to=${dataFim}`;
     if (modalidade) apiUrl += `&modalidade=${modalidade}`;
     
+    console.log("API URL:", apiUrl);
+    
+    // Check auth token validity
+    const token = Auth.getToken();
+    console.log("Auth token exists:", !!token);
+    
     // Fetch data with authentication
     Auth.fetchWithAuth(apiUrl)
         .then(response => {
+            console.log("API Response status:", response.status);
             if (!response.ok) {
-                throw new Error('Falha ao carregar lista de CT-es');
+                throw new Error(`Falha ao carregar lista de CT-es: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
+            console.log("CT-e data received:", data);
             // Update pagination variables
             cteList = data.results || [];
             totalItems = data.count || 0;
+            
+            console.log(`Found ${cteList.length} CT-es out of ${totalItems} total`);
             
             // Update summary cards if summary data is available
             if (data.summary) {
@@ -161,7 +178,7 @@ function loadCTeList() {
                 <tr>
                     <td colspan="9" class="text-center text-danger">
                         <i class="fas fa-exclamation-circle me-2"></i>
-                        Erro ao carregar dados. Tente novamente.
+                        Erro ao carregar dados: ${error.message}. Tente novamente.
                     </td>
                 </tr>`;
             }
@@ -693,8 +710,8 @@ function renderDocumentosTransportados(documentos) {
 }
 
 /**
- * Renders the veículos section
- * @param {Array} veiculos - List of veículos
+ * Renders veículos table rows
+ * @param {Array} veiculos - Array of vehicles
  * @returns {string} - HTML content
  */
 function renderVeiculos(veiculos) {
@@ -723,8 +740,8 @@ function renderVeiculos(veiculos) {
 }
 
 /**
- * Renders the motoristas section
- * @param {Array} motoristas - List of motoristas
+ * Renders motoristas table rows
+ * @param {Array} motoristas - Array of drivers
  * @returns {string} - HTML content
  */
 function renderMotoristas(motoristas) {
@@ -794,7 +811,6 @@ function updatePagination() {
     
     paginationElement.innerHTML = html;
     
-    // Add click event listeners
     // Add click event listeners
     const pageLinks = paginationElement.querySelectorAll('.page-link');
     pageLinks.forEach(link => {
