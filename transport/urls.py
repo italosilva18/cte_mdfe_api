@@ -6,6 +6,10 @@ from django.contrib.auth.decorators import login_required
 
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 # --- Views ---
 from .views import (
@@ -71,6 +75,10 @@ urlpatterns = [
     path("api/", include(router.urls)),
     path("api/", include(veiculos_router.urls)),
 
+    # Autenticação JWT
+    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    
     # APIViews avulsas
     path("api/dashboard/",            DashboardGeralAPIView.as_view(),    name="dashboard-geral"),
     path("api/cte/",                  CtePainelAPIView.as_view(),         name="painel-cte"),
@@ -107,14 +115,17 @@ urlpatterns = [
     path("configuracoes/",login_required(TemplateView.as_view(template_name="configuracoes.html")),name="configuracoes"),
 
     # Página Inicial (Raiz) - Deve estar no urls.py principal (core/urls.py)
-    # Se este for o único app, pode ficar aqui, senão mova para core/urls.py
-    # path("", TemplateView.as_view(template_name="index.html"), name="home"), # Exemplo, ajuste se necessário
+    path("", TemplateView.as_view(template_name="index.html"), name="home"),
 ]
 
 # =============================================
 # ===      Mapa de URLs Geradas (ATUALIZADO) ===
 # =============================================
 """
+Autenticação JWT:
+  POST /api/token/                    (Obtém token JWT)
+  POST /api/token/refresh/            (Atualiza token JWT)
+
 Upload:
   POST /api/upload/
 
@@ -187,5 +198,5 @@ Frontend:
   /geografico/
   /manutencao/
   /configuracoes/
-  / (Raiz, pode estar em core/urls.py)
+  / (Raiz)
 """

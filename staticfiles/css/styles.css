@@ -1,0 +1,535 @@
+
+/**
+ * styles.css
+ * Estilos globais para o sistema de gerenciamento de transporte
+ */
+
+:root {
+    /* Cores principais */
+    --verde-primario: #1b4d3e;
+    --verde-secundario: #4CAF50;
+    --verde-claro: #e8f5e9;
+    --verde-hover: #2e7d32;
+    
+    /* Outras cores */
+    --cinza-claro: #f5f5f5;
+    --cinza-texto: #555555;
+    --branco: #ffffff;
+    --preto: #212121;
+    
+    /* Sombras */
+    --sombra-padrao: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --sombra-hover: 0 6px 12px rgba(0, 0, 0, 0.15);
+    
+    /* Arredondamentos */
+    --borda-raio: 8px;
+    --borda-raio-sm: 4px;
+    --borda-raio-lg: 12px;
+    
+    /* Transições */
+    --transicao-padrao: all 0.3s ease;
+}
+
+/* === Estilos Base === */
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: var(--preto);
+    background-color: var(--cinza-claro);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+a {
+    color: var(--verde-primario);
+    text-decoration: none;
+    transition: var(--transicao-padrao);
+}
+
+a:hover {
+    color: var(--verde-secundario);
+}
+
+/* === Tema Escuro === */
+body.dark-theme {
+    color: #f0f0f0;
+    background-color: #121212;
+}
+
+body.dark-theme .card {
+    background-color: #1e1e1e;
+    border-color: #333;
+}
+
+body.dark-theme .table {
+    color: #e0e0e0;
+}
+
+body.dark-theme .bg-light {
+    background-color: #2a2a2a !important;
+    color: #e0e0e0;
+}
+
+body.dark-theme .text-muted {
+    color: #aaaaaa !important;
+}
+
+body.dark-theme .border {
+    border-color: #444 !important;
+}
+
+/* === Layout Principal === */
+.wrapper {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+}
+
+/* === Sidebar === */
+.sidebar {
+    width: 250px;
+    min-height: 100vh;
+    background-color: var(--verde-primario);
+    color: var(--branco);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    transition: var(--transicao-padrao);
+    box-shadow: var(--sombra-padrao);
+}
+
+.sidebar-header {
+    padding: 20px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-logo {
+    max-width: 150px;
+    margin-bottom: 10px;
+}
+
+.sidebar-title {
+    font-size: 1.2rem;
+    margin: 0;
+    font-weight: 600;
+}
+
+.sidebar .nav-link {
+    padding: 12px 20px;
+    color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    border-left: 4px solid transparent;
+    transition: var(--transicao-padrao);
+}
+
+.sidebar .nav-link i {
+    margin-right: 10px;
+    width: 20px;
+    text-align: center;
+}
+
+.sidebar .nav-link:hover {
+    color: var(--branco);
+    background-color: rgba(255, 255, 255, 0.1);
+    border-left-color: var(--verde-secundario);
+}
+
+.sidebar .nav-link.active {
+    color: var(--branco);
+    background-color: rgba(255, 255, 255, 0.15);
+    border-left-color: var(--verde-secundario);
+    font-weight: 600;
+}
+
+.sidebar-footer {
+    padding: 15px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    padding-bottom: 15px;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--verde-secundario);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.user-name {
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.user-role {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+/* Sidebar Collapsed */
+.sidebar.collapsed {
+    width: 70px;
+}
+
+.sidebar.collapsed .sidebar-title,
+.sidebar.collapsed .user-name,
+.sidebar.collapsed .user-role {
+    display: none;
+}
+
+.sidebar.collapsed .nav-link {
+    padding: 15px 0;
+    justify-content: center;
+}
+
+.sidebar.collapsed .nav-link i {
+    margin-right: 0;
+}
+
+.sidebar.collapsed .nav-text {
+    display: none;
+}
+
+.sidebar-toggler {
+    cursor: pointer;
+    text-align: center;
+    padding: 10px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.sidebar-toggler:hover {
+    color: var(--branco);
+}
+
+/* === Conteúdo Principal === */
+.main-content {
+    width: 100%;
+    margin-left: 250px;
+    padding: 20px;
+    transition: var(--transicao-padrao);
+}
+
+.main-content.expanded {
+    margin-left: 70px;
+}
+
+.page-header {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.page-title {
+    font-size: 1.5rem;
+    color: var(--verde-primario);
+    font-weight: 600;
+    margin: 0;
+}
+
+.breadcrumb-item.active {
+    color: var(--verde-secundario);
+}
+
+/* === Responsividade === */
+@media (max-width: 991.98px) {
+    .sidebar {
+        width: 250px;
+        transform: translateX(-100%);
+    }
+    
+    .sidebar.active {
+        transform: translateX(0);
+    }
+    
+    .main-content {
+        margin-left: 0;
+    }
+    
+    .main-content.expanded {
+        margin-left: 0;
+    }
+    
+    .menu-toggle {
+        display: block !important;
+    }
+}
+
+.menu-toggle {
+    display: none;
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 1050;
+    background-color: var(--verde-primario);
+    color: var(--branco);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    text-align: center;
+    box-shadow: var(--sombra-padrao);
+}
+
+/* === Cards & Componentes === */
+.card {
+    border-radius: var(--borda-raio);
+    box-shadow: var(--sombra-padrao);
+    border: none;
+    margin-bottom: 20px;
+    overflow: hidden;
+    transition: var(--transicao-padrao);
+}
+
+.card:hover {
+    box-shadow: var(--sombra-hover);
+}
+
+.card-header {
+    font-weight: 600;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.card-header-primary {
+    background-color: var(--verde-primario);
+    color: var(--branco);
+}
+
+.card-header-secondary {
+    background-color: var(--verde-secundario);
+    color: var(--branco);
+}
+
+.btn-success, .bg-success {
+    background-color: var(--verde-secundario) !important;
+    border-color: var(--verde-secundario) !important;
+}
+
+.btn-success:hover {
+    background-color: var(--verde-hover) !important;
+    border-color: var(--verde-hover) !important;
+}
+
+.btn-primary, .bg-primary {
+    background-color: var(--verde-primario) !important;
+    border-color: var(--verde-primario) !important;
+}
+
+.text-success {
+    color: var(--verde-secundario) !important;
+}
+
+.text-primary {
+    color: var(--verde-primario) !important;
+}
+
+/* === Tabelas === */
+.table th {
+    font-weight: 600;
+    border-top: none;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(76, 175, 80, 0.05);
+}
+
+.table-responsive {
+    border-radius: var(--borda-raio);
+    overflow: hidden;
+}
+
+/* === Formulários === */
+.form-control:focus {
+    border-color: var(--verde-secundario);
+    box-shadow: 0 0 0 0.2rem rgba(76, 175, 80, 0.25);
+}
+
+.form-select:focus {
+    border-color: var(--verde-secundario);
+    box-shadow: 0 0 0 0.2rem rgba(76, 175, 80, 0.25);
+}
+
+.input-group-text {
+    background-color: var(--verde-claro);
+    border-color: #ced4da;
+}
+
+/* === Badges e Alertas === */
+.badge-success {
+    background-color: var(--verde-secundario);
+}
+
+.badge-primary {
+    background-color: var(--verde-primario);
+}
+
+.alert-success {
+    background-color: var(--verde-claro);
+    border-color: var(--verde-secundario);
+    color: var(--verde-primario);
+}
+
+/* === Progresso === */
+.progress {
+    border-radius: var(--borda-raio-sm);
+    height: 8px;
+    margin: 10px 0;
+}
+
+.progress-bar-success {
+    background-color: var(--verde-secundario);
+}
+
+/* === Estados de Carregamento === */
+.loading {
+    position: relative;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.7);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.dark-theme .loading::after {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* === Animações === */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+/* === Utilitários === */
+.border-left-primary {
+    border-left: 4px solid var(--verde-primario) !important;
+}
+
+.border-left-success {
+    border-left: 4px solid var(--verde-secundario) !important;
+}
+
+.bg-light-success {
+    background-color: var(--verde-claro) !important;
+}
+
+/* === Componentes Específicos === */
+
+/* Upload Zone */
+.upload-zone {
+    border: 2px dashed #ccc;
+    border-radius: var(--borda-raio);
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transicao-padrao);
+}
+
+.upload-zone:hover, .upload-zone.active {
+    border-color: var(--verde-secundario);
+    background-color: rgba(76, 175, 80, 0.05);
+}
+
+/* Notificações */
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #dc3545;
+    color: white;
+}
+
+/* Tooltips e Popovers */
+.tooltip-inner {
+    background-color: var(--verde-primario);
+}
+
+.bs-tooltip-auto[x-placement^=top] .arrow::before, 
+.bs-tooltip-top .arrow::before {
+    border-top-color: var(--verde-primario);
+}
+
+/* Customizações Bootstrap Adicionais */
+.dropdown-item.active, 
+.dropdown-item:active {
+    background-color: var(--verde-secundario);
+}
+
+.page-item.active .page-link {
+    background-color: var(--verde-secundario);
+    border-color: var(--verde-secundario);
+}
+
+.page-link {
+    color: var(--verde-primario);
+}
+
+.page-link:hover {
+    color: var(--verde-secundario);
+}
+
+/* Toast Notifications */
+.toast-container {
+    z-index: 1080;
+}
+
+.toast {
+    border-radius: var(--borda-raio-sm);
+    box-shadow: var(--sombra-padrao);
+}
+
+/* === Print Styles === */
+@media print {
+    .sidebar, .menu-toggle, .page-header button, 
+    .no-print, .modal-footer, .card-header button {
+        display: none !important;
+    }
+    
+    .main-content {
+        margin-left: 0;
+        padding: 0;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        margin-bottom: 10px;
+    }
+    
+    @page {
+        margin: 1cm;
+    }
+}

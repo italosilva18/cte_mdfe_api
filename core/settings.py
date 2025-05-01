@@ -53,6 +53,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 # URL Configuration
 ROOT_URLCONF = 'core.urls'
 
@@ -134,6 +138,7 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'transport/static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+
 # Configuração de arquivos de mídia
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -141,6 +146,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Adicione estas linhas ao final do arquivo
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/login/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
