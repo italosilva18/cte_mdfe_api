@@ -22,6 +22,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load initial CT-e data
     loadCTeList();
     
+    // Load dashboard data
+    loadCteDashboardData();
+    
     // Set up event listeners
     setupEventListeners();
 });
@@ -38,6 +41,7 @@ function setupEventListeners() {
         filterBtn.addEventListener('click', function() {
             currentPage = 1; // Reset to first page when applying filters
             loadCTeList();
+            loadCteDashboardData(); // Load dashboard data when filters change
         });
     }
     
@@ -97,6 +101,9 @@ function setDefaultDateRange() {
     // Format dates for input fields (YYYY-MM-DD)
     document.getElementById('data_inicio').value = formatDateForInput(thirtyDaysAgo);
     document.getElementById('data_fim').value = formatDateForInput(today);
+    
+    console.log("Default date range set:", document.getElementById('data_inicio').value, 
+                "to", document.getElementById('data_fim').value);
 }
 
 /**
@@ -109,19 +116,71 @@ function formatDateForInput(date) {
 }
 
 /**
- * Loads CT-e list from the API
+ * Loads dashboard data from the API
  */
-function loadCTeList() {
-    // Show loading state
-    showLoading();
-    console.log("Loading CT-e list...");
+function loadCteDashboardData() {
+    console.log("Loading CT-e dashboard data...");
     
     // Get filter values
     const dataInicio = document.getElementById('data_inicio').value;
     const dataFim = document.getElementById('data_fim').value;
     const modalidade = document.getElementById('modalidade').value;
     
-    console.log("Filters:", { dataInicio, dataFim, modalidade });
+    // Build API URL with query params
+    let apiUrl = `/api/cte/`;
+    
+    // Add query parameters if they exist
+    const params = [];
+    if (dataInicio) params.push(`date_from=${dataInicio}`);
+    if (dataFim) params.push(`date_to=${dataFim}`);
+    if (modalidade) params.push(`modalidade=${modalidade}`);
+    
+    if (params.length > 0) {
+        apiUrl += '?' + params.join('&');
+    }
+    
+    console.log("Dashboard API URL:", apiUrl);
+    
+    // Fetch dashboard data with authentication
+    Auth.fetchWithAuth(apiUrl)
+        .then(response => {
+            console.log("Dashboard API response status:", response.status);
+            if (!response.ok) {
+                throw new Error('Falha ao carregar dados do painel de CT-e');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("Dashboard data received:", data);
+            
+            // Update summary cards
+            updateSummaryCards(data.cards);
+            
+            // Hide loading indicator
+            hideLoading();
+        })
+        .catch(error => {
+            console.error('Error loading CT-e dashboard data:', error);
+            showError('Não foi possível carregar os dados do painel de CT-e. Tente novamente.');
+            
+            // Hide loading indicator
+            hideLoading();
+        });
+}
+
+/**
+ * Loads CT-e list from the API
+ */
+function loadCTeList() {
+    console.log("Loading CT-e list data...");
+    
+    // Show loading state
+    showLoading();
+    
+    // Get filter values
+    const dataInicio = document.getElementById('data_inicio').value;
+    const dataFim = document.getElementById('data_fim').value;
+    const modalidade = document.getElementById('modalidade').value;
     
     // Build API URL with query params
     let apiUrl = `/api/ctes/?page=${currentPage}&page_size=${pageSize}`;
@@ -130,33 +189,23 @@ function loadCTeList() {
     if (dataFim) apiUrl += `&date_to=${dataFim}`;
     if (modalidade) apiUrl += `&modalidade=${modalidade}`;
     
-    console.log("API URL:", apiUrl);
-    
-    // Check auth token validity
-    const token = Auth.getToken();
-    console.log("Auth token exists:", !!token);
+    console.log("List API URL:", apiUrl);
     
     // Fetch data with authentication
     Auth.fetchWithAuth(apiUrl)
         .then(response => {
-            console.log("API Response status:", response.status);
+            console.log("List API response status:", response.status);
             if (!response.ok) {
-                throw new Error(`Falha ao carregar lista de CT-es: ${response.status}`);
+                throw new Error('Falha ao carregar lista de CT-es');
             }
             return response.json();
         })
         .then(data => {
-            console.log("CT-e data received:", data);
+            console.log("List data received:", data);
+            
             // Update pagination variables
             cteList = data.results || [];
             totalItems = data.count || 0;
-            
-            console.log(`Found ${cteList.length} CT-es out of ${totalItems} total`);
-            
-            // Update summary cards if summary data is available
-            if (data.summary) {
-                updateSummaryCards(data.summary);
-            }
             
             // Render table with results
             renderCTeTable();
@@ -178,7 +227,7 @@ function loadCTeList() {
                 <tr>
                     <td colspan="9" class="text-center text-danger">
                         <i class="fas fa-exclamation-circle me-2"></i>
-                        Erro ao carregar dados: ${error.message}. Tente novamente.
+                        Erro ao carregar dados. Tente novamente.
                     </td>
                 </tr>`;
             }
@@ -189,86 +238,15 @@ function loadCTeList() {
 }
 
 /**
- * Shows loading state
- */
-function showLoading() {
-    // Display loading message in table
-    const tbody = document.getElementById('cte-list');
-    if (tbody) {
-        tbody.innerHTML = `
-        <tr>
-            <td colspan="9" class="text-center">
-                <div class="d-flex justify-content-center">
-                    <div class="spinner-border text-success" role="status">
-                        <span class="visually-hidden">Carregando...</span>
-                    </div>
-                </div>
-                <div class="mt-2">Carregando dados...</div>
-            </td>
-        </tr>`;
-    }
-    
-    // Disable filter buttons during loading
-    const buttons = document.querySelectorAll('#filterForm button');
-    buttons.forEach(button => {
-        button.disabled = true;
-    });
-}
-
-/**
- * Hides loading state
- */
-function hideLoading() {
-    // Re-enable filter buttons
-    const buttons = document.querySelectorAll('#filterForm button');
-    buttons.forEach(button => {
-        button.disabled = false;
-    });
-}
-
-/**
- * Shows error message
- * @param {string} message - Error message to display
- */
-function showError(message) {
-    // Create toast notification
-    const toastContainer = document.createElement('div');
-    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-    toastContainer.style.zIndex = '1080';
-    
-    const toastHTML = `
-    <div class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-            <div class="toast-body">
-                <i class="fas fa-exclamation-circle me-2"></i> ${message}
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-    </div>
-    `;
-    
-    toastContainer.innerHTML = toastHTML;
-    document.body.appendChild(toastContainer);
-    
-    const toastElement = toastContainer.querySelector('.toast');
-    const toast = new bootstrap.Toast(toastElement, {
-        delay: 5000
-    });
-    
-    toast.show();
-    
-    // Remove toast container when hidden
-    toastElement.addEventListener('hidden.bs.toast', function() {
-        document.body.removeChild(toastContainer);
-    });
-}
-
-/**
  * Updates summary cards with API data
  * @param {Object} summary - Summary data from API
  */
 function updateSummaryCards(summary) {
-    document.getElementById('total-cte').textContent = summary.total || 0;
+    if (!summary) return;
+    
+    console.log("Updating summary cards:", summary);
+    
+    document.getElementById('total-cte').textContent = summary.total_ctes || 0;
     document.getElementById('valor-total').textContent = formatCurrency(summary.valor_total || 0);
     document.getElementById('total-cif').textContent = summary.total_cif || 0;
     document.getElementById('total-fob').textContent = summary.total_fob || 0;
@@ -280,6 +258,8 @@ function updateSummaryCards(summary) {
 function renderCTeTable() {
     const tbody = document.getElementById('cte-list');
     if (!tbody) return;
+    
+    console.log("Rendering CT-e table with", cteList.length, "items");
     
     if (cteList.length === 0) {
         tbody.innerHTML = `
@@ -339,6 +319,8 @@ function renderCTeTable() {
  * @param {string} cteId - CT-e ID
  */
 function showCTeDetails(cteId) {
+    console.log("Showing details for CT-e ID:", cteId);
+    
     // Save current CT-e ID
     currentCTeId = cteId;
     
@@ -372,6 +354,8 @@ function showCTeDetails(cteId) {
             return response.json();
         })
         .then(cteData => {
+            console.log("CT-e details received:", cteData);
+            
             // Update modal title
             modalTitle.textContent = `CT-e ${cteData.identificacao?.numero || ''} - Detalhes`;
             
@@ -710,8 +694,8 @@ function renderDocumentosTransportados(documentos) {
 }
 
 /**
- * Renders veículos table rows
- * @param {Array} veiculos - Array of vehicles
+ * Renders the veículos section
+ * @param {Array} veiculos - List of veículos
  * @returns {string} - HTML content
  */
 function renderVeiculos(veiculos) {
@@ -740,8 +724,8 @@ function renderVeiculos(veiculos) {
 }
 
 /**
- * Renders motoristas table rows
- * @param {Array} motoristas - Array of drivers
+ * Renders the motoristas section
+ * @param {Array} motoristas - List of motoristas
  * @returns {string} - HTML content
  */
 function renderMotoristas(motoristas) {
@@ -822,6 +806,81 @@ function updatePagination() {
                 loadCTeList();
             }
         });
+    });
+}
+
+/**
+ * Shows loading state
+ */
+function showLoading() {
+    // Display loading message in table
+    const tbody = document.getElementById('cte-list');
+    if (tbody) {
+        tbody.innerHTML = `
+        <tr>
+            <td colspan="9" class="text-center">
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+                <div class="mt-2">Carregando dados...</div>
+            </td>
+        </tr>`;
+    }
+    
+    // Disable filter buttons during loading
+    const buttons = document.querySelectorAll('#filterForm button');
+    buttons.forEach(button => {
+        button.disabled = true;
+    });
+}
+
+/**
+ * Hides loading state
+ */
+function hideLoading() {
+    // Re-enable filter buttons
+    const buttons = document.querySelectorAll('#filterForm button');
+    buttons.forEach(button => {
+        button.disabled = false;
+    });
+}
+
+/**
+ * Shows error message
+ * @param {string} message - Error message to display
+ */
+function showError(message) {
+    // Create toast notification
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+    toastContainer.style.zIndex = '1080';
+    
+    const toastHTML = `
+    <div class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="fas fa-exclamation-circle me-2"></i> ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+    `;
+    
+    toastContainer.innerHTML = toastHTML;
+    document.body.appendChild(toastContainer);
+    
+    const toastElement = toastContainer.querySelector('.toast');
+    const toast = new bootstrap.Toast(toastElement, {
+        delay: 5000
+    });
+    
+    toast.show();
+    
+    // Remove toast container when hidden
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        document.body.removeChild(toastContainer);
     });
 }
 
