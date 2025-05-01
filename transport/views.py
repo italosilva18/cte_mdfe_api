@@ -1,5 +1,7 @@
 # transport/views.py
-
+import subprocess
+import os
+from django.conf import settings
 import xmltodict
 import traceback
 import calendar
@@ -14,15 +16,21 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce, TruncMonth, ExtractMonth, ExtractYear, TruncDay, TruncWeek
 from django.http import HttpResponse
+
 from rest_framework.serializers import ModelSerializer
 from django.contrib.auth import get_user_model
 # Importações do DRF
+from rest_framework import serializers as drf_serializers
 from rest_framework import viewsets, status, permissions, mixins
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.exceptions import ParseError, ValidationError, NotFound, PermissionDenied, APIException
+
+from django.contrib.auth.hashers import make_password 
+from rest_framework.serializers import Serializer 
+from django.contrib.auth.models import User
 
 # Importar Modelos
 from .models import (
@@ -51,6 +59,7 @@ from .serializers import (
 from .services.parser_cte import parse_cte_completo
 from .services.parser_mdfe import parse_mdfe_completo
 from .services.parser_eventos import parse_evento
+from transport import serializers
 
 # --- Funções Auxiliares ---
 def get_date_filters(request, default_days=30):
@@ -92,11 +101,53 @@ def get_encoding(xml_bytes):
 
 
 # --- VIEW que o auth.js usa para /api/users/me/ ---
-class _CurrentUserSerializer(ModelSerializer):
+# Ajuste aqui se o serializer _CurrentUserSerializer usar ModelSerializer diretamente
+class _CurrentUserSerializer(drf_serializers.ModelSerializer): # <-- AJUSTE AQUI
     class Meta:
         model = get_user_model()
         fields = ['id', 'username', 'first_name', 'last_name',
                   'email', 'is_staff', 'is_superuser']
+
+class UserUpdateSerializer(drf_serializers.ModelSerializer): # <-- AJUSTE AQUI
+    password = drf_serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
+    password_confirm = drf_serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
+
+    class Meta:
+        model = get_user_model()
+        fields = ['first_name', 'last_name', 'email', 'password', 'password_confirm']
+        extra_kwargs = {
+            'email': {'required': False},
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+        }
+
+    def validate(self, data):
+        # Validação de confirmação de senha
+        password = data.get('password')
+        password_confirm = data.get('password_confirm')
+        if password or password_confirm:
+            if not password:
+                raise serializers.ValidationError({"password": "Senha é obrigatória se confirmação for fornecida."})
+            if not password_confirm:
+                raise serializers.ValidationError({"password_confirm": "Confirmação de senha é obrigatória se senha for fornecida."})
+            if password != password_confirm:
+                raise serializers.ValidationError({"password_confirm": "As senhas não coincidem."})
+        # Remove a confirmação pois não está no modelo User
+        if 'password_confirm' in data:
+            del data['password_confirm']
+        return data
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password) # Usa set_password para hash seguro
+
+        # Atualiza outros campos
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
 
 class CurrentUserAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -104,6 +155,19 @@ class CurrentUserAPIView(APIView):
     def get(self, request, *args, **kwargs):
         serializer = _CurrentUserSerializer(request.user)
         return Response(serializer.data)
+
+    # --- INSERIR ESTE MÉTODO ---
+    def patch(self, request, *args, **kwargs):
+        """Permite atualizar parcialmente o perfil do usuário logado."""
+        user = request.user
+        serializer = UserUpdateSerializer(user, data=request.data, partial=True) # partial=True para PATCH
+        if serializer.is_valid():
+            serializer.save()
+            # Retorna os dados atualizados (sem a senha)
+            return Response(_CurrentUserSerializer(user).data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # --- FIM DA INSERÇÃO ---
+
 
 
 # ===============================================
@@ -591,6 +655,50 @@ class FaixaKMViewSet(viewsets.ModelViewSet):
      serializer_class = FaixaKMSerializer
      permission_classes = [permissions.IsAdminUser] # Apenas Admin
 
+# Serializer para o CRUD de Usuários (pode ir para serializers.py)
+class UserSerializer(drf_serializers.ModelSerializer): # <-- AJUSTE AQUI
+    password = drf_serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_staff', 'is_active', 'is_superuser', 'date_joined', 'last_login']
+        read_only_fields = ['id', 'date_joined', 'last_login']
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False}, # Senha não obrigatória na atualização
+        }
+
+    def create(self, validated_data):
+        user = User.objects.create_user(**validated_data) # create_user lida com hash de senha
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password) # Atualiza senha com hash seguro
+
+        # Atualiza outros campos
+        for attr, value in validated_data.items():
+             # Previne que um admin comum se torne superuser ou staff via API (pode ajustar conforme regra)
+            if attr in ['is_superuser', 'is_staff'] and not self.context['request'].user.is_superuser:
+                continue
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
+
+# ViewSet para gerenciar usuários
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    API para gerenciar usuários do sistema (apenas Admin).
+    """
+    queryset = User.objects.all().order_by('username')
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAdminUser] # Apenas Admins podem gerenciar usuários
+
+    # Opcional: adicionar filtros e busca
+    # filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    # search_fields = ['username', 'first_name', 'last_name', 'email']
+    # ordering_fields = ['username', 'first_name', 'last_name', 'email', 'date_joined']
 
 class PagamentoAgregadoViewSet(viewsets.ModelViewSet):
     """Endpoint para CRUD e geração de Pagamentos de Agregados."""
@@ -1429,6 +1537,41 @@ class AlertasPagamentoAPIView(APIView):
         
         serializer = AlertaPagamentoSerializer(response_data)
         return Response(serializer.data)
+
+class BackupAPIView(APIView):
+    """
+    API para gerar um backup do banco de dados (apenas Admin).
+    Exemplo básico para SQLite. Adapte para seu banco de dados.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, *args, **kwargs):
+        # Exemplo para SQLite
+        db_path = settings.DATABASES['default']['NAME']
+        backup_filename = f"backup_{dt.now().strftime('%Y%m%d_%H%M%S')}.sql"
+        # ATENÇÃO: Este comando é específico para SQLite e pode precisar de ajustes.
+        # Considere usar management commands do Django para mais robustez.
+        command = f"sqlite3 {db_path} .dump"
+
+        try:
+            process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = process.communicate()
+
+            if process.returncode == 0:
+                response = HttpResponse(stdout, content_type='application/sql') # Ou 'application/octet-stream'
+                response['Content-Disposition'] = f'attachment; filename="{backup_filename}"'
+                return response
+            else:
+                error_message = stderr.decode('utf-8', errors='ignore')
+                print(f"Erro ao gerar backup: {error_message}")
+                raise APIException(f"Erro ao executar comando de backup: {error_message}")
+
+        except FileNotFoundError:
+             print("Erro: Comando 'sqlite3' não encontrado. Certifique-se de que está instalado e no PATH.")
+             raise APIException("Erro interno: Comando do banco de dados não encontrado.")
+        except Exception as e:
+            print(f"Erro inesperado ao gerar backup: {e}")
+            raise APIException("Erro interno inesperado durante o backup.")
 
 # ===============================================
 # ===       API ADICIONAL PARA RELATÓRIOS     ===
