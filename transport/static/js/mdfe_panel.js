@@ -41,16 +41,31 @@ function setupEventListeners() {
         });
     }
     
+    // Reset filters button
+    const resetBtn = document.querySelector('button[onclick="resetFilters()"]');
+    if (resetBtn) {
+        resetBtn.removeAttribute('onclick');
+        resetBtn.addEventListener('click', function() {
+            resetFilters();
+        });
+    }
+    
     // Document detail buttons are set up in renderMDFeTable function
     
     // Modal buttons
     setupModalEventListeners();
     
     // Export CSV button
-    document.querySelector('button[onclick="exportCSV()"]')?.addEventListener('click', function(e) {
-        e.preventDefault();
-        exportTableToCSV();
-    });
+    const exportBtn = document.querySelector('button[onclick="exportCSV()"]');
+    if (exportBtn) {
+        exportBtn.removeAttribute('onclick');
+        exportBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            exportCSV();
+        });
+    }
+    
+    // Pagination handling is in updatePagination function
 }
 
 /**
@@ -61,20 +76,42 @@ function setupModalEventListeners() {
     const modal = document.getElementById('mdfeDetailModal');
     const btnPrintMDFe = document.getElementById('btnPrintMDFe');
     const btnDownloadXML = document.getElementById('btnDownloadXML');
+    const btnReprocessMDFe = document.getElementById('btnReprocessMDFe');
+    const btnDocumentos = document.getElementById('btnVerDocumentos');
     
-    if (!modal || !btnPrintMDFe || !btnDownloadXML) return;
+    if (!modal) return;
     
-    // Print DAMDFe button
-    btnPrintMDFe.addEventListener('click', function() {
-        if (!currentMDFeId) return;
-        window.open(`/api/mdfes/${currentMDFeId}/damdfe/`, '_blank');
-    });
+    // Print DAMDFE button
+    if (btnPrintMDFe) {
+        btnPrintMDFe.addEventListener('click', function() {
+            if (!currentMDFeId) return;
+            window.open(`/api/mdfes/${currentMDFeId}/damdfe/`, '_blank');
+        });
+    }
     
     // Download XML button
-    btnDownloadXML.addEventListener('click', function() {
-        if (!currentMDFeId) return;
-        window.open(`/api/mdfes/${currentMDFeId}/xml/`, '_blank');
-    });
+    if (btnDownloadXML) {
+        btnDownloadXML.addEventListener('click', function() {
+            if (!currentMDFeId) return;
+            window.open(`/api/mdfes/${currentMDFeId}/xml/`, '_blank');
+        });
+    }
+    
+    // Reprocess MDF-e button
+    if (btnReprocessMDFe) {
+        btnReprocessMDFe.addEventListener('click', function() {
+            if (!currentMDFeId) return;
+            reprocessMDFe(currentMDFeId);
+        });
+    }
+    
+    // View documents button
+    if (btnDocumentos) {
+        btnDocumentos.addEventListener('click', function() {
+            if (!currentMDFeId) return;
+            showDocumentosVinculados(currentMDFeId);
+        });
+    }
     
     // When modal is hidden, reset current MDF-e ID
     modal.addEventListener('hidden.bs.modal', function() {
@@ -105,6 +142,23 @@ function formatDateForInput(date) {
 }
 
 /**
+ * Resets filters and loads data
+ */
+function resetFilters() {
+    // Reset form
+    document.getElementById('filterForm')?.reset();
+    
+    // Set default date range
+    setDefaultDateRange();
+    
+    // Reset to first page
+    currentPage = 1;
+    
+    // Load data with reset filters
+    loadMDFeList();
+}
+
+/**
  * Loads MDF-e list from the API
  */
 function loadMDFeList() {
@@ -114,14 +168,22 @@ function loadMDFeList() {
     // Get filter values
     const dataInicio = document.getElementById('data_inicio').value;
     const dataFim = document.getElementById('data_fim').value;
-    const placa = document.getElementById('placa')?.value || '';
+    const ufOrigem = document.getElementById('uf_origem')?.value;
+    const ufDestino = document.getElementById('uf_destino')?.value;
+    const placa = document.getElementById('placa')?.value;
+    const status = document.getElementById('status')?.value;
+    const searchText = document.getElementById('search_text')?.value;
     
     // Build API URL with query params
     let apiUrl = `/api/mdfes/?page=${currentPage}&page_size=${pageSize}`;
     
-    if (dataInicio) apiUrl += `&date_from=${dataInicio}`;
-    if (dataFim) apiUrl += `&date_to=${dataFim}`;
+    if (dataInicio) apiUrl += `&data_inicio=${dataInicio}`;
+    if (dataFim) apiUrl += `&data_fim=${dataFim}`;
+    if (ufOrigem) apiUrl += `&uf_ini=${ufOrigem}`;
+    if (ufDestino) apiUrl += `&uf_fim=${ufDestino}`;
     if (placa) apiUrl += `&placa=${placa}`;
+    if (status) apiUrl += `&${status}=true`; // autorizado=true, encerrado=true, etc.
+    if (searchText) apiUrl += `&q=${encodeURIComponent(searchText)}`;
     
     // Fetch data with authentication
     Auth.fetchWithAuth(apiUrl)
@@ -133,16 +195,20 @@ function loadMDFeList() {
         })
         .then(data => {
             // Update pagination variables
-            mdfeList = data.results || [];
-            totalItems = data.count || 0;
+            if (Array.isArray(data)) {
+                // Handle case when API returns array directly
+                mdfeList = data;
+                totalItems = data.length;
+            } else {
+                // Handle paginated response
+                mdfeList = data.results || [];
+                totalItems = data.count || 0;
+            }
             
             // Update summary cards if summary data is available
             if (data.summary) {
                 updateSummaryCards(data.summary);
             }
-            
-            // Also fetch panel data for charts and statistics
-            fetchMDFePanelData();
             
             // Render table with results
             renderMDFeTable();
@@ -155,14 +221,14 @@ function loadMDFeList() {
         })
         .catch(error => {
             console.error('Error loading MDF-e data:', error);
-            showError('Não foi possível carregar os dados dos MDF-es. Tente novamente.');
+            showNotification('Não foi possível carregar os dados dos MDF-es. Tente novamente.', 'error');
             
             // Clear table with error message
             const tbody = document.getElementById('mdfe-list');
             if (tbody) {
                 tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="text-center text-danger">
+                    <td colspan="8" class="text-center text-danger">
                         <i class="fas fa-exclamation-circle me-2"></i>
                         Erro ao carregar dados. Tente novamente.
                     </td>
@@ -175,155 +241,60 @@ function loadMDFeList() {
 }
 
 /**
- * Fetches MDF-e panel data for charts and statistics
- */
-function fetchMDFePanelData() {
-    const dataInicio = document.getElementById('data_inicio').value;
-    const dataFim = document.getElementById('data_fim').value;
-    
-    let apiUrl = `/api/mdfe/?`;
-    if (dataInicio) apiUrl += `&date_from=${dataInicio}`;
-    if (dataFim) apiUrl += `&date_to=${dataFim}`;
-    
-    Auth.fetchWithAuth(apiUrl)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Falha ao carregar dados do painel MDF-e');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Update dashboard cards
-            updateSummaryCards(data.cards);
-            
-            // Update CT-e/MDF-e relationship chart
-            renderRelationshipChart(data.grafico_cte_mdfe);
-            
-            // Update top vehicles
-            renderTopVehicles(data.top_veiculos);
-            
-            // Update efficiency display
-            document.getElementById('eficiencia').textContent = data.eficiencia + '%';
-        })
-        .catch(error => {
-            console.error('Error loading MDF-e panel data:', error);
-        });
-}
-
-/**
  * Updates summary cards with API data
  * @param {Object} summary - Summary data from API
  */
 function updateSummaryCards(summary) {
-    if (!summary) return;
-    
-    document.getElementById('total-mdfe').textContent = summary.total_mdfes || 0;
-    document.getElementById('valor-carga').textContent = formatCurrency(summary.valor_carga_total || 0);
-    document.getElementById('total-ctes').textContent = summary.total_ctes || 0;
+    if (document.getElementById('total-mdfe')) {
+        document.getElementById('total-mdfe').textContent = summary.total_mdfes || 0;
+    }
+    if (document.getElementById('total-encerrados')) {
+        document.getElementById('total-encerrados').textContent = summary.total_encerrados || 0;
+    }
+    if (document.getElementById('total-autorizados')) {
+        document.getElementById('total-autorizados').textContent = summary.total_autorizados || 0;
+    }
+    if (document.getElementById('total-documentos')) {
+        document.getElementById('total-documentos').textContent = summary.total_documentos || 0;
+    }
 }
 
 /**
- * Renders the CT-e/MDF-e relationship chart
- * @param {Array} chartData - Chart data from API
+ * Shows loading state
  */
-function renderRelationshipChart(chartData) {
-    if (!chartData || chartData.length === 0) return;
-    
-    const canvas = document.getElementById('mdfeRelationChart');
-    if (!canvas) return;
-    
-    // Destroy existing chart if it exists
-    const existingChart = Chart.getChart(canvas);
-    if (existingChart) {
-        existingChart.destroy();
+function showLoading() {
+    // Display loading message in table
+    const tbody = document.getElementById('mdfe-list');
+    if (tbody) {
+        tbody.innerHTML = `
+        <tr>
+            <td colspan="8" class="text-center">
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+                <div class="mt-2">Carregando dados...</div>
+            </td>
+        </tr>`;
     }
     
-    // Prepare data for chart
-    const labels = chartData.map(item => item.mes);
-    const mdfeData = chartData.map(item => item.mdfes);
-    const cteData = chartData.map(item => item.ctes);
-    const ratioData = chartData.map(item => item.ratio);
-    
-    // Create new chart
-    const ctx = canvas.getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'MDF-es',
-                    data: mdfeData,
-                    backgroundColor: '#4CAF50',
-                    order: 2
-                },
-                {
-                    label: 'CT-es',
-                    data: cteData,
-                    backgroundColor: '#1b4d3e',
-                    order: 1
-                },
-                {
-                    label: 'Relação CT-e/MDF-e',
-                    data: ratioData,
-                    type: 'line',
-                    borderColor: '#FF5722',
-                    backgroundColor: 'rgba(255, 87, 34, 0.1)',
-                    tension: 0.4,
-                    fill: false,
-                    yAxisID: 'y1',
-                    order: 0
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Quantidade'
-                    }
-                },
-                y1: {
-                    beginAtZero: true,
-                    position: 'right',
-                    grid: {
-                        drawOnChartArea: false
-                    },
-                    title: {
-                        display: true,
-                        text: 'Média CT-e/MDF-e'
-                    }
-                }
-            }
-        }
+    // Disable filter buttons during loading
+    const buttons = document.querySelectorAll('#filterForm button');
+    buttons.forEach(button => {
+        button.disabled = true;
     });
 }
 
 /**
- * Renders the top vehicles table
- * @param {Array} topVehicles - Top vehicles data from API
+ * Hides loading state
  */
-function renderTopVehicles(topVehicles) {
-    if (!topVehicles || topVehicles.length === 0) return;
-    
-    const tbody = document.getElementById('top-veiculos');
-    if (!tbody) return;
-    
-    let html = '';
-    topVehicles.forEach(vehicle => {
-        html += `
-        <tr>
-            <td>${vehicle.label}</td>
-            <td class="text-end">${vehicle.value1}</td>
-        </tr>
-        `;
+function hideLoading() {
+    // Re-enable filter buttons
+    const buttons = document.querySelectorAll('#filterForm button');
+    buttons.forEach(button => {
+        button.disabled = false;
     });
-    
-    tbody.innerHTML = html;
 }
 
 /**
@@ -336,7 +307,7 @@ function renderMDFeTable() {
     if (mdfeList.length === 0) {
         tbody.innerHTML = `
         <tr>
-            <td colspan="9" class="text-center">
+            <td colspan="8" class="text-center">
                 Nenhum MDF-e encontrado para os filtros selecionados.
             </td>
         </tr>`;
@@ -349,24 +320,24 @@ function renderMDFeTable() {
         // Format values
         const dataEmissao = mdfe.data_emissao ? formatDateTime(new Date(mdfe.data_emissao)) : '--';
         const statusHTML = getStatusHTML(mdfe);
-        const docsCount = mdfe.documentos_count || '0';
         
         html += `
         <tr>
             <td>${mdfe.numero_mdfe || '--'}</td>
             <td>${truncateText(mdfe.chave, 15)}</td>
             <td>${dataEmissao}</td>
-            <td>${mdfe.uf_inicio || '--'}</td>
-            <td>${mdfe.uf_fim || '--'}</td>
+            <td>${mdfe.uf_inicio || '--'} → ${mdfe.uf_fim || '--'}</td>
             <td>${mdfe.placa_tracao || '--'}</td>
-            <td>${docsCount}</td>
             <td>${statusHTML}</td>
             <td>
                 <div class="btn-group btn-group-sm">
                     <button type="button" class="btn btn-outline-primary btn-mdfe-detail" data-id="${mdfe.id}" title="Ver Detalhes">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <a href="/api/mdfes/${mdfe.id}/xml/" class="btn btn-outline-success" title="Download XML" target="_blank">
+                    <button type="button" class="btn btn-outline-success btn-mdfe-docs" data-id="${mdfe.id}" title="Ver Documentos">
+                        <i class="fas fa-file-invoice"></i>
+                    </button>
+                    <a href="/api/mdfes/${mdfe.id}/xml/" class="btn btn-outline-info" title="Download XML" target="_blank">
                         <i class="fas fa-file-code"></i>
                     </a>
                 </div>
@@ -385,6 +356,15 @@ function renderMDFeTable() {
             showMDFeDetails(mdfeId);
         });
     });
+    
+    // Set up doc button click events
+    const docButtons = document.querySelectorAll('.btn-mdfe-docs');
+    docButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const mdfeId = this.getAttribute('data-id');
+            showDocumentosVinculados(mdfeId);
+        });
+    });
 }
 
 /**
@@ -399,6 +379,7 @@ function showMDFeDetails(mdfeId) {
     const modal = document.getElementById('mdfeDetailModal');
     const modalTitle = document.getElementById('mdfeDetailModalLabel');
     const modalBody = document.getElementById('mdfeDetailContent');
+    const reprocessButton = document.getElementById('btnReprocessMDFe');
     
     if (!modal || !modalTitle || !modalBody) return;
     
@@ -430,6 +411,16 @@ function showMDFeDetails(mdfeId) {
             
             // Render MDF-e details
             modalBody.innerHTML = renderMDFeDetails(mdfeData);
+            
+            // Toggle reprocess button based on status
+            if (reprocessButton) {
+                if (mdfeData.cancelamento && mdfeData.cancelamento.c_stat === 135) {
+                    // Hide if canceled
+                    reprocessButton.classList.add('d-none');
+                } else {
+                    reprocessButton.classList.remove('d-none');
+                }
+            }
         })
         .catch(error => {
             console.error('Error loading MDF-e details:', error);
@@ -460,20 +451,21 @@ function renderMDFeDetails(mdfe) {
             <div class="row">
                 <div class="col-md-4">
                     <p class="mb-1"><strong>Número:</strong> ${mdfe.identificacao?.n_mdf || '--'}</p>
-                    <p class="mb-1"><strong>Chave:</strong> ${mdfe.chave || '--'}</p>
+                    <p class="mb-1"><strong>Série:</strong> ${mdfe.identificacao?.serie || '--'}</p>
                     <p class="mb-1"><strong>Data Emissão:</strong> ${formatDateTime(mdfe.identificacao?.dh_emi_formatada || mdfe.identificacao?.dh_emi)}</p>
+                    <p class="mb-1"><strong>Chave:</strong> ${mdfe.chave || '--'}</p>
+                </div>
+                <div class="col-md-4">
+                    <p class="mb-1"><strong>Modalidade:</strong> ${getModalidadeText(mdfe.identificacao?.modal)}</p>
+                    <p class="mb-1"><strong>UF Início:</strong> ${mdfe.identificacao?.uf_ini || '--'}</p>
+                    <p class="mb-1"><strong>UF Fim:</strong> ${mdfe.identificacao?.uf_fim || '--'}</p>
                     <p class="mb-1"><strong>Ambiente:</strong> ${getAmbienteText(mdfe.identificacao?.tp_amb)}</p>
                 </div>
                 <div class="col-md-4">
-                    <p class="mb-1"><strong>Modal:</strong> ${getModalText(mdfe.identificacao?.modal)}</p>
-                    <p class="mb-1"><strong>UF Início:</strong> ${mdfe.identificacao?.uf_ini || '--'}</p>
-                    <p class="mb-1"><strong>UF Fim:</strong> ${mdfe.identificacao?.uf_fim || '--'}</p>
-                    <p class="mb-1"><strong>Carregamento:</strong> ${renderMunicipiosCarregamento(mdfe.identificacao?.municipios_carregamento)}</p>
-                </div>
-                <div class="col-md-4">
-                    <p class="mb-1"><strong>Tipo Emissor:</strong> ${getTipoEmissorText(mdfe.identificacao?.tp_emit)}</p>
-                    <p class="mb-1"><strong>Tipo Transportador:</strong> ${getTipoTransportadorText(mdfe.identificacao?.tp_transp)}</p>
+                    <p class="mb-1"><strong>Tipo:</strong> ${getTipoEmissaoText(mdfe.identificacao?.tp_emis)}</p>
                     <p class="mb-1"><strong>Data Início Viagem:</strong> ${formatDateTime(mdfe.identificacao?.dh_ini_viagem_formatada || mdfe.identificacao?.dh_ini_viagem) || '--'}</p>
+                    <p class="mb-1"><strong>Qtd. CTs/NFs:</strong> ${mdfe.totais?.qCTe || 0} / ${mdfe.totais?.qNFe || 0}</p>
+                    <p class="mb-1"><strong>Carga:</strong> ${formatNumber(mdfe.totais?.carga?.qCarga || 0)} ${mdfe.prod_pred?.tp_carga || 'KG'}</p>
                 </div>
             </div>
         </div>
@@ -490,12 +482,12 @@ function renderMDFeDetails(mdfe) {
             <div class="row">
                 <div class="col-md-6">
                     <p class="mb-1"><strong>Razão Social:</strong> ${mdfe.emitente?.razao_social || '--'}</p>
-                    <p class="mb-1"><strong>CNPJ/CPF:</strong> ${formatCNPJorCPF(mdfe.emitente?.cnpj, mdfe.emitente?.cpf)}</p>
+                    <p class="mb-1"><strong>CNPJ:</strong> ${formatCNPJ(mdfe.emitente?.cnpj)}</p>
                     <p class="mb-1"><strong>IE:</strong> ${mdfe.emitente?.ie || '--'}</p>
                 </div>
                 <div class="col-md-6">
-                    <p class="mb-1"><strong>Município:</strong> ${mdfe.emitente?.nome_municipio || '--'} - ${mdfe.emitente?.uf || '--'}</p>
-                    <p class="mb-1"><strong>Endereço:</strong> ${mdfe.emitente?.logradouro || '--'}, ${mdfe.emitente?.numero || '--'}</p>
+                    <p class="mb-1"><strong>Município:</strong> ${mdfe.emitente?.x_mun || '--'}</p>
+                    <p class="mb-1"><strong>UF:</strong> ${mdfe.emitente?.uf || '--'}</p>
                     <p class="mb-1"><strong>Telefone:</strong> ${mdfe.emitente?.telefone || '--'}</p>
                 </div>
             </div>
@@ -503,8 +495,8 @@ function renderMDFeDetails(mdfe) {
     </div>
     `;
     
-    // Vehicle Information
-    if (mdfe.modal_rodoviario) {
+    // Vehicle info (if available)
+    if (mdfe.modal_rodoviario?.veiculo_tracao) {
         html += `
         <div class="card mb-3">
             <div class="card-header bg-light">
@@ -513,215 +505,114 @@ function renderMDFeDetails(mdfe) {
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <p class="mb-1"><strong>Placa:</strong> ${mdfe.modal_rodoviario.veiculo_tracao?.placa || '--'}</p>
-                        <p class="mb-1"><strong>RENAVAM:</strong> ${mdfe.modal_rodoviario.veiculo_tracao?.renavam || '--'}</p>
-                        <p class="mb-1"><strong>UF:</strong> ${mdfe.modal_rodoviario.veiculo_tracao?.uf || '--'}</p>
-                        <p class="mb-1"><strong>RNTRC:</strong> ${mdfe.modal_rodoviario.rntrc || mdfe.modal_rodoviario.veiculo_tracao?.prop_rntrc || '--'}</p>
+                        <p class="mb-1"><strong>Placa:</strong> ${mdfe.modal_rodoviario.veiculo_tracao.placa || '--'}</p>
+                        <p class="mb-1"><strong>RENAVAM:</strong> ${mdfe.modal_rodoviario.veiculo_tracao.RENAVAM || '--'}</p>
+                        <p class="mb-1"><strong>Tara (kg):</strong> ${mdfe.modal_rodoviario.veiculo_tracao.tara || '--'}</p>
                     </div>
                     <div class="col-md-6">
-                        <p class="mb-1"><strong>Tara (kg):</strong> ${mdfe.modal_rodoviario.veiculo_tracao?.tara || '--'}</p>
-                        <p class="mb-1"><strong>Capacidade (kg):</strong> ${mdfe.modal_rodoviario.veiculo_tracao?.cap_kg || '--'}</p>
-                        <p class="mb-1"><strong>Capacidade (m³):</strong> ${mdfe.modal_rodoviario.veiculo_tracao?.cap_m3 || '--'}</p>
-                        <p class="mb-1"><strong>Tipo Rodado:</strong> ${getTipoRodadoText(mdfe.modal_rodoviario.veiculo_tracao?.tp_rod)}</p>
+                        <p class="mb-1"><strong>Tipo Rodado:</strong> ${getTipoRodadoText(mdfe.modal_rodoviario.veiculo_tracao.tpRod)}</p>
+                        <p class="mb-1"><strong>Tipo Carroceria:</strong> ${getTipoCarroceriaText(mdfe.modal_rodoviario.veiculo_tracao.tpCar)}</p>
+                        <p class="mb-1"><strong>UF Licenciamento:</strong> ${mdfe.modal_rodoviario.veiculo_tracao.UF || '--'}</p>
                     </div>
                 </div>
             </div>
         </div>
         `;
-        
-        // Veículos Reboque
-        if (mdfe.modal_rodoviario.veiculos_reboque && mdfe.modal_rodoviario.veiculos_reboque.length > 0) {
-            html += `
-            <div class="card mb-3">
-                <div class="card-header bg-light">
-                    <h5 class="mb-0">Veículos Reboque</h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-striped mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Placa</th>
-                                    <th>RENAVAM</th>
-                                    <th>UF</th>
-                                    <th>Tara (kg)</th>
-                                    <th>Capacidade (kg)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${renderVeiculosReboque(mdfe.modal_rodoviario.veiculos_reboque)}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            `;
-        }
-        
-        // Condutores
-        if (mdfe.condutores && mdfe.condutores.length > 0) {
-            html += `
-            <div class="card mb-3">
-                <div class="card-header bg-light">
-                    <h5 class="mb-0">Condutores</h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-striped mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Nome</th>
-                                    <th>CPF</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${renderCondutores(mdfe.condutores)}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            `;
-        }
     }
     
-    // Documentos Vinculados (por município)
-    if (mdfe.municipios_descarga && mdfe.municipios_descarga.length > 0) {
+    // Condutores info
+    if (mdfe.condutores && mdfe.condutores.length > 0) {
         html += `
         <div class="card mb-3">
             <div class="card-header bg-light">
-                <h5 class="mb-0">Documentos por Município de Descarga</h5>
+                <h5 class="mb-0">Condutores</h5>
             </div>
             <div class="card-body p-0">
-                ${renderMunicipiosDescarga(mdfe.municipios_descarga)}
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>CPF</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${renderCondutores(mdfe.condutores)}
+                    </tbody>
+                </table>
             </div>
         </div>
         `;
     }
     
-    // Totais
-    if (mdfe.totais) {
-        html += `
-        <div class="card mb-3">
-            <div class="card-header bg-light">
-                <h5 class="mb-0">Totais</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p class="mb-1"><strong>Quantidade CT-e:</strong> ${mdfe.totais.q_cte || '0'}</p>
-                        <p class="mb-1"><strong>Quantidade NF-e:</strong> ${mdfe.totais.q_nfe || '0'}</p>
-                    </div>
-                    <div class="col-md-6">
-                        <p class="mb-1"><strong>Valor Total Carga:</strong> ${formatCurrency(mdfe.totais.v_carga)}</p>
-                        <p class="mb-1"><strong>Peso Total (${getUnidadeMedida(mdfe.totais.c_unid)}):</strong> ${formatNumber(mdfe.totais.q_carga)}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        `;
-    }
-    
-    // Protocolo e status
+    // Documento status
     html += `
     <div class="card mb-3">
         <div class="card-header bg-light">
-            <h5 class="mb-0">Protocolo de Autorização</h5>
+            <h5 class="mb-0">Status do Documento</h5>
         </div>
         <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <p class="mb-1"><strong>Status:</strong> ${getStatusText(mdfe)}</p>
-                    <p class="mb-1"><strong>Código Status:</strong> ${mdfe.protocolo?.codigo_status || '--'}</p>
-                    <p class="mb-1"><strong>Motivo:</strong> ${mdfe.protocolo?.motivo_status || '--'}</p>
-                </div>
-                <div class="col-md-6">
-                    <p class="mb-1"><strong>Número Protocolo:</strong> ${mdfe.protocolo?.numero_protocolo || '--'}</p>
-                    <p class="mb-1"><strong>Data Recebimento:</strong> ${formatDateTime(mdfe.protocolo?.data_recebimento_formatada || mdfe.protocolo?.data_recebimento)}</p>
-                </div>
-            </div>
+        `;
+        
+    // Status info
+    html += `
+        <div class="alert ${getAlertClassForStatus(mdfe)} mb-3">
+            <h6 class="alert-heading">Status Atual: ${getStatusText(mdfe)}</h6>
+            <p class="mb-0">
+                <strong>Código Status:</strong> ${mdfe.protocolo?.codigo_status || '--'} |
+                <strong>Número Protocolo:</strong> ${mdfe.protocolo?.numero_protocolo || '--'} |
+                <strong>Data Recebimento:</strong> ${formatDateTime(mdfe.protocolo?.data_recebimento_formatada || mdfe.protocolo?.data_recebimento)}
+            </p>
+        </div>
+    `;
+    
+    // Encerramento info (if applicable)
+    if (mdfe.encerrado) {
+        html += `
+        <div class="alert alert-primary">
+            <h6 class="alert-heading">MDF-e Encerrado</h6>
+            <p class="mb-0">
+                <strong>Data:</strong> ${formatDate(mdfe.data_encerramento) || '--'} |
+                <strong>Município:</strong> ${mdfe.municipio_encerramento_cod || '--'} |
+                <strong>UF:</strong> ${mdfe.uf_encerramento || '--'} |
+                <strong>Protocolo:</strong> ${mdfe.protocolo_encerramento || '--'}
+            </p>
+        </div>
+        `;
+    }
+    
+    // Cancelamento info (if applicable)
+    if (mdfe.cancelamento && mdfe.cancelamento.c_stat === 135) {
+        html += `
+        <div class="alert alert-danger">
+            <h6 class="alert-heading">MDF-e Cancelado</h6>
+            <p class="mb-0">
+                <strong>Data/Hora:</strong> ${formatDateTime(mdfe.cancelamento.dh_evento_formatada || mdfe.cancelamento.dh_evento) || '--'} |
+                <strong>Protocolo:</strong> ${mdfe.cancelamento.n_prot_retorno || '--'} |
+                <strong>Justificativa:</strong> ${mdfe.cancelamento.x_just || '--'}
+            </p>
+        </div>
+        `;
+    }
+    
+    // Close card
+    html += `
         </div>
     </div>
     `;
     
-    // Cancelamento (if applicable)
-    if (mdfe.cancelamento && mdfe.cancelamento.c_stat === 135) {
-        html += `
-        <div class="card mb-3 border-danger">
-            <div class="card-header bg-danger text-white">
-                <h5 class="mb-0">Cancelamento</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p class="mb-1"><strong>Data/Hora Evento:</strong> ${formatDateTime(mdfe.cancelamento.dh_evento_formatada || mdfe.cancelamento.dh_evento)}</p>
-                        <p class="mb-1"><strong>Protocolo Original:</strong> ${mdfe.cancelamento.n_prot_original || '--'}</p>
-                        <p class="mb-1"><strong>Protocolo Cancelamento:</strong> ${mdfe.cancelamento.n_prot_retorno || '--'}</p>
-                    </div>
-                    <div class="col-md-6">
-                        <p class="mb-1"><strong>Justificativa:</strong> ${mdfe.cancelamento.x_just || '--'}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        `;
-    }
-    
     return html;
 }
 
 /**
- * Renders municipalities of loading
- * @param {Array} municipios - Array of loading municipalities
- * @returns {string} - Formatted string with municipalities
- */
-function renderMunicipiosCarregamento(municipios) {
-    if (!municipios || municipios.length === 0) return '--';
-    
-    return municipios.map(m => m.x_mun_carrega).join(', ');
-}
-
-/**
- * Renders reboque vehicles table rows
- * @param {Array} veiculos - Array of reboque vehicles
- * @returns {string} - HTML rows for table
- */
-function renderVeiculosReboque(veiculos) {
-    if (!veiculos || veiculos.length === 0) {
-        return `
-        <tr>
-            <td colspan="5" class="text-center">Nenhum veículo reboque</td>
-        </tr>
-        `;
-    }
-    
-    let html = '';
-    
-    veiculos.forEach(veiculo => {
-        html += `
-        <tr>
-            <td>${veiculo.placa || '--'}</td>
-            <td>${veiculo.renavam || '--'}</td>
-            <td>${veiculo.uf || '--'}</td>
-            <td>${veiculo.tara || '--'}</td>
-            <td>${veiculo.cap_kg || '--'}</td>
-        </tr>
-        `;
-    });
-    
-    return html;
-}
-
-/**
- * Renders drivers/conductors table rows
- * @param {Array} condutores - Array of conductors
- * @returns {string} - HTML rows for table
+ * Renders the condutores section
+ * @param {Array} condutores - List of condutores
+ * @returns {string} - HTML content
  */
 function renderCondutores(condutores) {
     if (!condutores || condutores.length === 0) {
         return `
         <tr>
-            <td colspan="2" class="text-center">Nenhum condutor</td>
+            <td colspan="2" class="text-center">Nenhum condutor informado</td>
         </tr>
         `;
     }
@@ -741,75 +632,202 @@ function renderCondutores(condutores) {
 }
 
 /**
- * Renders municipalities of unloading with linked documents
- * @param {Array} municipios - Array of unloading municipalities with documents
- * @returns {string} - HTML content for municipalities and documents
+ * Shows documentos vinculados in modal
+ * @param {string} mdfeId - MDF-e ID
  */
-function renderMunicipiosDescarga(municipios) {
-    if (!municipios || municipios.length === 0) {
-        return `<div class="text-center p-3">Nenhum município de descarga informado</div>`;
-    }
+function showDocumentosVinculados(mdfeId) {
+    // Get modal elements
+    const modal = document.getElementById('docsVinculadosModal');
+    const modalTitle = document.getElementById('docsVinculadosModalLabel');
+    const modalBody = document.getElementById('docsVinculadosModalBody');
     
-    let html = '';
+    if (!modal || !modalTitle || !modalBody) return;
     
-    municipios.forEach(municipio => {
-        html += `
-        <div class="municipality-section mb-3">
-            <div class="bg-light p-2">
-                <strong>${municipio.x_mun_descarga} (${municipio.c_mun_descarga})</strong>
-            </div>
-            
-            <div class="table-responsive">
-                <table class="table table-sm table-striped mb-0">
-                    <thead>
-                        <tr>
-                            <th>Tipo</th>
-                            <th>Chave</th>
-                            <th>Reentrega</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${renderDocumentosVinculados(municipio.docs_vinculados)}
-                    </tbody>
-                </table>
-            </div>
+    // Show loading state in modal
+    modalBody.innerHTML = `
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-success" role="status">
+            <span class="visually-hidden">Carregando...</span>
         </div>
-        `;
-    });
+    </div>
+    <div class="text-center mt-3">Carregando documentos vinculados...</div>
+    `;
     
-    return html;
+    // Show modal
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+    
+    // Fetch documentos vinculados from API
+    Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/documentos/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Falha ao carregar documentos vinculados');
+            }
+            return response.json();
+        })
+        .then(docs => {
+            // Update modal title
+            modalTitle.textContent = `Documentos Vinculados ao MDF-e`;
+            
+            // Render documentos vinculados
+            if (!docs || docs.length === 0) {
+                modalBody.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Nenhum documento vinculado a este MDF-e.
+                </div>
+                `;
+                return;
+            }
+            
+            // Group documents by municipality
+            const docsByMunicipality = {};
+            docs.forEach(doc => {
+                const munKey = doc.municipio ? `${doc.municipio.codigo}-${doc.municipio.nome}` : 'sem-municipio';
+                if (!docsByMunicipality[munKey]) {
+                    docsByMunicipality[munKey] = {
+                        municipio: doc.municipio,
+                        docs: []
+                    };
+                }
+                docsByMunicipality[munKey].docs.push(doc);
+            });
+            
+            // Render by municipality
+            let html = '';
+            
+            for (const [munKey, data] of Object.entries(docsByMunicipality)) {
+                const mun = data.municipio;
+                const munDocs = data.docs;
+                
+                html += `
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Município: ${mun ? `${mun.nome} (${mun.codigo})` : 'Não informado'}</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th>Chave</th>
+                                        <th>Informações</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                munDocs.forEach(doc => {
+                    const tipoDoc = doc.tipo || getDocumentoTipo(doc.chave);
+                    
+                    html += `
+                    <tr>
+                        <td><span class="badge bg-secondary">${tipoDoc}</span></td>
+                        <td>${truncateText(doc.chave, 25)}</td>
+                        <td>
+                    `;
+                    
+                    // Add CT-e info if available
+                    if (doc.cte_info) {
+                        html += `
+                            <small>
+                                <strong>Emitente:</strong> ${truncateText(doc.cte_info.emitente, 20) || '--'}<br>
+                                <strong>Remetente:</strong> ${truncateText(doc.cte_info.remetente, 20) || '--'}<br>
+                                <strong>Destinatário:</strong> ${truncateText(doc.cte_info.destinatario, 20) || '--'}
+                            </small>
+                        `;
+                    } else {
+                        html += `<em>Detalhes não disponíveis</em>`;
+                    }
+                    
+                    html += `
+                        </td>
+                        <td>
+                    `;
+                    
+                    // Add CT-e actions if info available
+                    if (doc.cte_info) {
+                        html += `
+                            <a href="/api/ctes/${doc.cte_info.id}/xml/" class="btn btn-sm btn-outline-primary" target="_blank" title="Download XML">
+                                <i class="fas fa-file-code"></i>
+                            </a>
+                        `;
+                    }
+                    
+                    html += `
+                        </td>
+                    </tr>
+                    `;
+                });
+                
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+            
+            modalBody.innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Error loading documentos vinculados:', error);
+            
+            // Show error in modal
+            modalBody.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Erro ao carregar documentos vinculados. Tente novamente.
+            </div>
+            `;
+        });
 }
 
 /**
- * Renders linked documents
- * @param {Array} documentos - Array of linked documents
- * @returns {string} - HTML rows for table
+ * Reprocesses a MDF-e
+ * @param {string} mdfeId - MDF-e ID
  */
-function renderDocumentosVinculados(documentos) {
-    if (!documentos || documentos.length === 0) {
-        return `
-        <tr>
-            <td colspan="3" class="text-center">Nenhum documento vinculado a este município</td>
-        </tr>
-        `;
+function reprocessMDFe(mdfeId) {
+    // Get button for visual feedback
+    const btn = document.getElementById('btnReprocessMDFe');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Reprocessando...';
     }
     
-    let html = '';
-    
-    documentos.forEach(doc => {
-        const tipoDoc = doc.tipo_doc || 'Desconhecido';
-        const reentrega = doc.ind_reentrega ? '<span class="badge bg-warning text-dark">Sim</span>' : 'Não';
-        
-        html += `
-        <tr>
-            <td>${tipoDoc}</td>
-            <td>${doc.chave_documento || '--'}</td>
-            <td>${reentrega}</td>
-        </tr>
-        `;
-    });
-    
-    return html;
+    // Send reprocess request to API
+    Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/reprocessar/`, {
+        method: 'POST',
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Falha ao reprocessar o MDF-e');
+            }
+            return response.json();
+        })
+        .then(data => {
+            showNotification('MDF-e reprocessado com sucesso!', 'success');
+            
+            // Reload data
+            loadMDFeList();
+            
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('mdfeDetailModal')).hide();
+        })
+        .catch(error => {
+            console.error('Error reprocessing MDF-e:', error);
+            showNotification(`Erro ao reprocessar MDF-e: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            // Re-enable button
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sync-alt me-2"></i>Reprocessar';
+            }
+        });
 }
 
 /**
@@ -865,104 +883,61 @@ function updatePagination() {
             if (page >= 1 && page <= totalPages) {
                 currentPage = page;
                 loadMDFeList();
+                
+                // Scroll to top of table
+                document.querySelector('.card-header').scrollIntoView({
+                    behavior: 'smooth'
+                });
             }
         });
     });
 }
 
 /**
- * Shows loading state
+ * Exports table data to CSV
  */
-function showLoading() {
-    // Display loading message in table
-    const tbody = document.getElementById('mdfe-list');
-    if (tbody) {
-        tbody.innerHTML = `
-        <tr>
-            <td colspan="9" class="text-center">
-                <div class="d-flex justify-content-center">
-                    <div class="spinner-border text-success" role="status">
-                        <span class="visually-hidden">Carregando...</span>
-                    </div>
-                </div>
-                <div class="mt-2">Carregando dados...</div>
-            </td>
-        </tr>`;
-    }
-    
-    // Disable filter buttons during loading
-    const buttons = document.querySelectorAll('#filterForm button');
-    buttons.forEach(button => {
-        button.disabled = true;
-    });
-}
-
-/**
- * Hides loading state
- */
-function hideLoading() {
-    // Re-enable filter buttons
-    const buttons = document.querySelectorAll('#filterForm button');
-    buttons.forEach(button => {
-        button.disabled = false;
-    });
-}
-
-/**
- * Shows error message
- * @param {string} message - Error message to display
- */
-function showError(message) {
-    // Create toast notification
-    const toastContainer = document.createElement('div');
-    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-    toastContainer.style.zIndex = '1080';
-    
-    const toastHTML = `
-    <div class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-            <div class="toast-body">
-                <i class="fas fa-exclamation-circle me-2"></i> ${message}
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-    </div>
-    `;
-    
-    toastContainer.innerHTML = toastHTML;
-    document.body.appendChild(toastContainer);
-    
-    const toastElement = toastContainer.querySelector('.toast');
-    const toast = new bootstrap.Toast(toastElement, {
-        delay: 5000
-    });
-    
-    toast.show();
-    
-    // Remove toast container when hidden
-    toastElement.addEventListener('hidden.bs.toast', function() {
-        document.body.removeChild(toastContainer);
-    });
-}
-
-/**
- * Exports table data to CSV file
- */
-function exportTableToCSV() {
+function exportCSV() {
     // Get filter values
     const dataInicio = document.getElementById('data_inicio').value;
     const dataFim = document.getElementById('data_fim').value;
-    const placa = document.getElementById('placa')?.value || '';
+    const ufOrigem = document.getElementById('uf_origem')?.value;
+    const ufDestino = document.getElementById('uf_destino')?.value;
+    const placa = document.getElementById('placa')?.value;
+    const status = document.getElementById('status')?.value;
+    const searchText = document.getElementById('search_text')?.value;
     
-    // Build API URL with query params for export
+    // Build API URL with query params
     let apiUrl = `/api/mdfes/export/?format=csv`;
     
-    if (dataInicio) apiUrl += `&date_from=${dataInicio}`;
-    if (dataFim) apiUrl += `&date_to=${dataFim}`;
+    if (dataInicio) apiUrl += `&data_inicio=${dataInicio}`;
+    if (dataFim) apiUrl += `&data_fim=${dataFim}`;
+    if (ufOrigem) apiUrl += `&uf_ini=${ufOrigem}`;
+    if (ufDestino) apiUrl += `&uf_fim=${ufDestino}`;
     if (placa) apiUrl += `&placa=${placa}`;
+    if (status) apiUrl += `&${status}=true`; // autorizado=true, encerrado=true, etc.
+    if (searchText) apiUrl += `&q=${encodeURIComponent(searchText)}`;
     
-    // Redirect to download
+    // Trigger download
     window.location.href = apiUrl;
+}
+
+/**
+ * Gets document type from chave
+ * @param {string} chave - Document chave
+ * @returns {string} - Document type
+ */
+function getDocumentoTipo(chave) {
+    if (!chave || chave.length < 44) return 'Desconhecido';
+    
+    // Extract model (positions 20-21)
+    const modelo = chave.substr(20, 2);
+    
+    switch (modelo) {
+        case '55': return 'NF-e';
+        case '57': return 'CT-e';
+        case '67': return 'CT-e OS';
+        default: return 'Outro';
+    }
 }
 
 /**
@@ -971,7 +946,7 @@ function exportTableToCSV() {
  * @returns {string} - HTML for status badge
  */
 function getStatusHTML(mdfe) {
-    if (mdfe.cancelado || (mdfe.cancelamento && mdfe.cancelamento.c_stat === 135)) {
+    if (mdfe.status === 'Cancelado' || (mdfe.cancelamento && mdfe.cancelamento.c_stat === 135)) {
         return '<span class="badge bg-danger">Cancelado</span>';
     }
     
@@ -979,15 +954,44 @@ function getStatusHTML(mdfe) {
         return '<span class="badge bg-primary">Encerrado</span>';
     }
     
-    if (mdfe.autorizado || (mdfe.status_code_protocolo === 100)) {
+    if (mdfe.status === 'Autorizado' || (mdfe.status_code_protocolo === 100)) {
         return '<span class="badge bg-success">Autorizado</span>';
+    }
+    
+    if (mdfe.status && mdfe.status.toLowerCase().includes('rejeitado')) {
+        return '<span class="badge bg-warning text-dark">Rejeitado</span>';
     }
     
     if (mdfe.processado) {
         return '<span class="badge bg-info">Processado</span>';
     }
     
-    return '<span class="badge bg-warning text-dark">Pendente</span>';
+    return '<span class="badge bg-secondary">Pendente</span>';
+}
+
+/**
+ * Gets alert class for status
+ * @param {Object} mdfe - MDF-e data
+ * @returns {string} - Alert class
+ */
+function getAlertClassForStatus(mdfe) {
+    if (mdfe.cancelamento && mdfe.cancelamento.c_stat === 135) {
+        return 'alert-danger';
+    }
+    
+    if (mdfe.encerrado) {
+        return 'alert-primary';
+    }
+    
+    if (mdfe.protocolo && mdfe.protocolo.codigo_status === 100) {
+        return 'alert-success';
+    }
+    
+    if (mdfe.protocolo && mdfe.protocolo.codigo_status !== 100) {
+        return 'alert-warning';
+    }
+    
+    return 'alert-secondary';
 }
 
 /**
@@ -1020,90 +1024,77 @@ function getStatusText(mdfe) {
 }
 
 /**
- * Gets ambiente text
- * @param {number} ambiente - Ambiente code
- * @returns {string} - Ambiente description
- */
-function getAmbienteText(ambiente) {
-    switch (ambiente) {
-        case 1: return 'Produção';
-        case 2: return 'Homologação';
-        default: return ambiente || '--';
-    }
-}
-
-/**
- * Gets modal text
+ * Gets modalidade text
  * @param {string} modal - Modal code
  * @returns {string} - Modal description
  */
-function getModalText(modal) {
+function getModalidadeText(modal) {
     switch (modal) {
-        case '01': return 'Rodoviário';
-        case '02': return 'Aéreo';
-        case '03': return 'Aquaviário';
-        case '04': return 'Ferroviário';
-        case '05': return 'Dutoviário';
-        case '06': return 'Multimodal';
+        case '1': return 'Rodoviário';
+        case '2': return 'Aéreo';
+        case '3': return 'Aquaviário';
+        case '4': return 'Ferroviário';
         default: return modal || '--';
     }
 }
 
 /**
- * Gets tipo emissor text
- * @param {number} tpEmit - Tipo emissor code
- * @returns {string} - Tipo emissor description
+ * Gets tipo emissão text
+ * @param {string} tipoEmis - Tipo emissão code
+ * @returns {string} - Tipo emissão description
  */
-function getTipoEmissorText(tpEmit) {
-    switch (tpEmit) {
-        case 1: return 'Prestador de serviço de transporte';
-        case 2: return 'Transportador de Carga Própria';
-        case 3: return 'Prestador de serviço de transporte que emitirá CT-e Globalizado';
-        default: return tpEmit || '--';
+function getTipoEmissaoText(tipoEmis) {
+    switch (tipoEmis) {
+        case '1': return 'Normal';
+        case '2': return 'Contingência';
+        default: return tipoEmis || '--';
     }
 }
 
 /**
- * Gets tipo transportador text
- * @param {number} tpTransp - Tipo transportador code
- * @returns {string} - Tipo transportador description
+ * Gets ambiente text
+ * @param {string} ambiente - Ambiente code
+ * @returns {string} - Ambiente description
  */
-function getTipoTransportadorText(tpTransp) {
-    switch (tpTransp) {
-        case 1: return 'ETC';
-        case 2: return 'TAC';
-        case 3: return 'CTC';
-        default: return tpTransp || '--';
+function getAmbienteText(ambiente) {
+    switch (ambiente) {
+        case '1': return 'Produção';
+        case '2': return 'Homologação';
+        default: return ambiente || '--';
     }
 }
 
 /**
  * Gets tipo rodado text
- * @param {string} tpRod - Tipo rodado code
+ * @param {string} tipoRod - Tipo rodado code
  * @returns {string} - Tipo rodado description
  */
-function getTipoRodadoText(tpRod) {
-    switch (tpRod) {
+function getTipoRodadoText(tipoRod) {
+    switch (tipoRod) {
         case '01': return 'Truck';
         case '02': return 'Toco';
         case '03': return 'Cavalo Mecânico';
         case '04': return 'VAN';
         case '05': return 'Utilitário';
         case '06': return 'Outros';
-        default: return tpRod || '--';
+        default: return tipoRod || '--';
     }
 }
 
 /**
- * Gets unidade de medida text
- * @param {string} cUnid - Código unidade
- * @returns {string} - Unidade de medida description
+ * Gets tipo carroceria text
+ * @param {string} tipoCar - Tipo carroceria code
+ * @returns {string} - Tipo carroceria description
  */
-function getUnidadeMedida(cUnid) {
-    switch (cUnid) {
-        case '01': return 'KG';
-        case '02': return 'TON';
-        default: return cUnid || '--';
+function getTipoCarroceriaText(tipoCar) {
+    switch (tipoCar) {
+        case '00': return 'Não Aplicável';
+        case '01': return 'Aberta';
+        case '02': return 'Fechada/Baú';
+        case '03': return 'Graneleira';
+        case '04': return 'Porta Container';
+        case '05': return 'Sider';
+        default: return tipoCar || '--';
     }
 }
 
@@ -1120,33 +1111,12 @@ function formatCurrency(value) {
 }
 
 /**
- * Formats date
- * @param {string} dateString - Date string
- * @returns {string} - Formatted date
+ * Formats number with thousands separator
+ * @param {number} value - Value to format
+ * @returns {string} - Formatted number
  */
-function formatDate(dateString) {
-    if (!dateString) return '--';
-    
-    try {
-        return new Date(dateString).toLocaleDateString('pt-BR');
-    } catch (e) {
-        return '--';
-    }
-}
-
-/**
- * Formats date and time
- * @param {string} dateString - Date string
- * @returns {string} - Formatted date and time
- */
-function formatDateTime(dateString) {
-    if (!dateString) return '--';
-    
-    try {
-        return new Date(dateString).toLocaleString('pt-BR');
-    } catch (e) {
-        return '--';
-    }
+function formatNumber(value) {
+    return new Intl.NumberFormat('pt-BR').format(value || 0);
 }
 
 /**
@@ -1180,28 +1150,33 @@ function formatCPF(cpf) {
 }
 
 /**
- * Formats CNPJ or CPF depending on which is provided
- * @param {string} cnpj - CNPJ number
- * @param {string} cpf - CPF number
- * @returns {string} - Formatted CNPJ or CPF
+ * Format date
+ * @param {string|Date} date - Date to format
+ * @returns {string} - Formatted date
  */
-function formatCNPJorCPF(cnpj, cpf) {
-    if (cnpj) return formatCNPJ(cnpj);
-    if (cpf) return formatCPF(cpf);
-    return '--';
+function formatDate(date) {
+    if (!date) return '--';
+    
+    try {
+        return new Date(date).toLocaleDateString('pt-BR');
+    } catch (e) {
+        return '--';
+    }
 }
 
 /**
- * Format number with thousands separator
- * @param {number} value - Number to format
- * @param {number} decimals - Number of decimal places
- * @returns {string} - Formatted number
+ * Format date and time
+ * @param {string|Date} date - Date to format
+ * @returns {string} - Formatted date and time
  */
-function formatNumber(value, decimals = 2) {
-    return new Intl.NumberFormat('pt-BR', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-    }).format(value || 0);
+function formatDateTime(date) {
+    if (!date) return '--';
+    
+    try {
+        return new Date(date).toLocaleString('pt-BR');
+    } catch (e) {
+        return '--';
+    }
 }
 
 /**
@@ -1213,4 +1188,64 @@ function formatNumber(value, decimals = 2) {
 function truncateText(text, maxLength) {
     if (!text) return '--';
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+}
+
+/**
+ * Show notification toast
+ * @param {string} message - Message to display
+ * @param {string} type - Notification type (success, error, warning, info)
+ * @param {number} duration - Duration in milliseconds
+ */
+function showNotification(message, type = 'success', duration = 5000) {
+    // Define type colors
+    const typeClasses = {
+        success: 'bg-success text-white',
+        error: 'bg-danger text-white',
+        warning: 'bg-warning text-dark',
+        info: 'bg-info text-dark'
+    };
+    
+    // Get or create toast container
+    let toastContainer = document.querySelector('.toast-container');
+    
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '1080';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Create toast element
+    const toastID = 'toast-' + Date.now();
+    const toastHTML = `
+    <div id="${toastID}" class="toast ${typeClasses[type] || typeClasses.info}" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close ${type === 'success' || type === 'error' ? 'btn-close-white' : ''} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+    `;
+    
+    // Add toast to container
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    
+    // Initialize and show toast
+    const toastElement = document.getElementById(toastID);
+    const toast = new bootstrap.Toast(toastElement, {
+        delay: duration
+    });
+    
+    toast.show();
+    
+    // Remove toast element when hidden
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        this.remove();
+        
+        // Remove container if empty
+        if (toastContainer.children.length === 0) {
+            toastContainer.remove();
+        }
+    });
 }

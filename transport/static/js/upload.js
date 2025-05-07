@@ -1,447 +1,896 @@
 /**
  * upload.js
- * Funcionalidades para upload de arquivos XML (CT-e, MDF-e e eventos)
- * Versão: 1.1.0 (Ajustada)
+ * Functions for the XML upload and processing feature
  */
 
-// Assumindo que 'Auth', 'formatDateTime', 'showNotification' (usando Toasts)
-// e outras funções de formatação/utilidade estão definidas globalmente (ex: em scripts.js e auth.js)
+// Global variables
+let uploadedFiles = [];
+let processingResults = [];
+let batchMode = false;
 
 /**
- * Inicializa a página de upload quando o DOM é carregado
+ * Initializes the upload functionality when page loads
  */
 document.addEventListener('DOMContentLoaded', function() {
-    // Configurar manipulador de submissão do formulário
-    const uploadForm = document.getElementById('uploadForm');
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            uploadXML();
-        });
-    }
-
-    // Carregar histórico de uploads recentes
-    loadUploadHistory();
-
-    // Limpar labels dos inputs de arquivo ao selecionar
-    // (O navegador geralmente já faz isso, mas garante)
-    document.getElementById('arquivo_xml')?.addEventListener('change', function() {
-        // Não precisa atualizar label explicitamente em BS5 com input-group
-    });
-    document.getElementById('arquivo_xml_retorno')?.addEventListener('change', function() {
-        // Não precisa atualizar label explicitamente em BS5 com input-group
-    });
-
+    // Set up event listeners
+    setupEventListeners();
+    
+    // Check for URL parameters
+    checkUrlParameters();
+    
+    // Update upload mode based on default setting
+    updateUploadMode(batchMode);
 });
 
 /**
- * Realiza o upload do arquivo XML
+ * Sets up all event listeners for the upload feature
  */
-function uploadXML() {
-    // Obter elementos do formulário e progresso
-    const uploadForm = document.getElementById('uploadForm');
-    const progressBar = document.querySelector('#uploadProgress .progress-bar');
-    const progressContainer = document.getElementById('uploadProgress');
-    const submitButton = document.querySelector('#uploadForm button[type="submit"]');
-    const fileInput = document.getElementById('arquivo_xml');
-    const retornoInput = document.getElementById('arquivo_xml_retorno');
+function setupEventListeners() {
+    // File input change
+    const fileInput = document.getElementById('xmlFile');
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            handleFileSelection(e.target.files);
+        });
+    }
+    
+    // Multiple file input change
+    const multipleFileInput = document.getElementById('xmlFiles');
+    if (multipleFileInput) {
+        multipleFileInput.addEventListener('change', function(e) {
+            handleMultipleFileSelection(e.target.files);
+        });
+    }
+    
+    // Upload mode toggle
+    const uploadModeSwitch = document.getElementById('uploadMode');
+    if (uploadModeSwitch) {
+        uploadModeSwitch.addEventListener('change', function() {
+            updateUploadMode(this.checked);
+        });
+    }
+    
+    // Drag and drop zone
+    const dropZone = document.getElementById('dropZone');
+    if (dropZone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+        
+        dropZone.addEventListener('drop', handleDrop, false);
+    }
+    
+    // Upload button
+    const uploadButton = document.getElementById('uploadButton');
+    if (uploadButton) {
+        uploadButton.addEventListener('click', function() {
+            processFiles();
+        });
+    }
+    
+    // Clear button
+    const clearButton = document.getElementById('clearFiles');
+    if (clearButton) {
+        clearButton.addEventListener('click', function() {
+            clearFileList();
+        });
+    }
+    
+    // Upload retorno standalone button
+    const uploadRetornoButton = document.getElementById('uploadRetornoButton');
+    if (uploadRetornoButton) {
+        uploadRetornoButton.addEventListener('click', function() {
+            uploadRetornoFile();
+        });
+    }
+}
 
-    // Verificar se o arquivo principal foi selecionado
-    if (!fileInput || !fileInput.files.length) {
-        // Usar a função global de notificação
-        if (typeof showNotification === 'function') {
-            showNotification('Por favor, selecione um arquivo XML para upload.', 'warning');
-        } else {
-            alert('Por favor, selecione um arquivo XML para upload.');
+/**
+ * Checks for URL parameters that might affect the upload behavior
+ */
+function checkUrlParameters() {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Check for batch mode parameter
+    if (urlParams.has('batch')) {
+        batchMode = urlParams.get('batch') === 'true';
+        
+        // Update UI to match
+        const uploadModeSwitch = document.getElementById('uploadMode');
+        if (uploadModeSwitch) {
+            uploadModeSwitch.checked = batchMode;
         }
+    }
+    
+    // Check for type parameter
+    if (urlParams.has('type')) {
+        const type = urlParams.get('type');
+        const typeSelect = document.getElementById('xmlType');
+        if (typeSelect && (type === 'cte' || type === 'mdfe' || type === 'evento')) {
+            typeSelect.value = type;
+        }
+    }
+}
+
+/**
+ * Prevents default behavior for drag and drop events
+ * @param {Event} e - Event object
+ */
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+/**
+ * Highlights the drop zone when files are dragged over
+ * @param {Event} e - Event object
+ */
+function highlight(e) {
+    const dropZone = document.getElementById('dropZone');
+    if (dropZone) {
+        dropZone.classList.add('highlight');
+    }
+}
+
+/**
+ * Removes highlight from drop zone
+ * @param {Event} e - Event object
+ */
+function unhighlight(e) {
+    const dropZone = document.getElementById('dropZone');
+    if (dropZone) {
+        dropZone.classList.remove('highlight');
+    }
+}
+
+/**
+ * Handles file drop event
+ * @param {Event} e - Drop event
+ */
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    
+    if (batchMode) {
+        handleMultipleFileSelection(files);
+    } else {
+        handleFileSelection(files);
+    }
+}
+
+/**
+ * Updates the upload mode UI based on batch mode setting
+ * @param {boolean} isBatchMode - Whether batch mode is enabled
+ */
+function updateUploadMode(isBatchMode) {
+    batchMode = isBatchMode;
+    
+    // Update UI components
+    const singleUploadControls = document.getElementById('singleUploadControls');
+    const batchUploadControls = document.getElementById('batchUploadControls');
+    const dropZoneText = document.getElementById('dropZoneText');
+    
+    if (singleUploadControls && batchUploadControls) {
+        if (isBatchMode) {
+            singleUploadControls.classList.add('d-none');
+            batchUploadControls.classList.remove('d-none');
+            if (dropZoneText) {
+                dropZoneText.textContent = 'Arraste vários arquivos XML aqui ou clique para selecionar';
+            }
+        } else {
+            singleUploadControls.classList.remove('d-none');
+            batchUploadControls.classList.add('d-none');
+            if (dropZoneText) {
+                dropZoneText.textContent = 'Arraste um arquivo XML aqui ou clique para selecionar';
+            }
+        }
+    }
+    
+    // Clear existing file lists
+    clearFileList();
+}
+
+/**
+ * Handles file selection for single file mode
+ * @param {FileList} files - Selected files
+ */
+function handleFileSelection(files) {
+    if (files.length === 0) return;
+    
+    // For single upload mode, only use the first file
+    const file = files[0];
+    
+    // Check if it's an XML file
+    if (!file.name.toLowerCase().endsWith('.xml')) {
+        showNotification('Por favor, selecione apenas arquivos XML.', 'error');
         return;
     }
-
-    // --- Feedback de Carregamento ---
-    if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Processando...';
+    
+    // Update file info display
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+        fileInfo.innerHTML = `
+        <div class="alert alert-info">
+            <strong>Arquivo:</strong> ${file.name} (${formatFileSize(file.size)})
+            <button type="button" class="btn-close float-end" aria-label="Close" onclick="clearFileList()"></button>
+        </div>`;
     }
-    hideMessages(); // Esconder mensagens de erro/sucesso anteriores
-    if (progressContainer && progressBar) {
+    
+    // Update selected file info
+    document.getElementById('xmlFile').setAttribute('data-filename', file.name);
+    
+    // Store file for later processing
+    uploadedFiles = [file];
+    
+    // Enable upload button
+    document.getElementById('uploadButton').disabled = false;
+}
+
+/**
+ * Handles multiple file selection for batch mode
+ * @param {FileList} files - Selected files
+ */
+function handleMultipleFileSelection(files) {
+    if (files.length === 0) return;
+    
+    // Filter XML files
+    const xmlFiles = Array.from(files).filter(file => file.name.toLowerCase().endsWith('.xml'));
+    
+    if (xmlFiles.length === 0) {
+        showNotification('Por favor, selecione apenas arquivos XML.', 'error');
+        return;
+    }
+    
+    if (xmlFiles.length !== files.length) {
+        showNotification(`Apenas os ${xmlFiles.length} arquivos XML foram selecionados.`, 'warning');
+    }
+    
+    // Store files for later processing
+    uploadedFiles = [...uploadedFiles, ...xmlFiles];
+    
+    // Update file list display
+    updateFileListDisplay();
+    
+    // Enable upload button if files selected
+    document.getElementById('uploadButton').disabled = uploadedFiles.length === 0;
+}
+
+/**
+ * Updates the file list display
+ */
+function updateFileListDisplay() {
+    const fileList = document.getElementById('fileList');
+    if (!fileList) return;
+    
+    if (uploadedFiles.length === 0) {
+        fileList.innerHTML = '<p>Nenhum arquivo selecionado.</p>';
+        return;
+    }
+    
+    let html = '<div class="list-group">';
+    
+    uploadedFiles.forEach((file, index) => {
+        html += `
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-file-code text-primary me-2"></i>
+                ${file.name} <small class="text-muted">(${formatFileSize(file.size)})</small>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>`;
+    });
+    
+    html += '</div>';
+    html += `<p class="mt-2 text-muted small">${uploadedFiles.length} arquivo(s) selecionado(s).</p>`;
+    
+    fileList.innerHTML = html;
+}
+
+/**
+ * Removes a file from the list
+ * @param {number} index - File index to remove
+ */
+function removeFile(index) {
+    if (index >= 0 && index < uploadedFiles.length) {
+        uploadedFiles.splice(index, 1);
+        updateFileListDisplay();
+        
+        // Disable upload button if no files left
+        document.getElementById('uploadButton').disabled = uploadedFiles.length === 0;
+    }
+}
+
+/**
+ * Clears the file list
+ */
+function clearFileList() {
+    uploadedFiles = [];
+    
+    // Reset file inputs
+    const fileInput = document.getElementById('xmlFile');
+    if (fileInput) {
+        fileInput.value = '';
+        fileInput.removeAttribute('data-filename');
+    }
+    
+    const multipleFileInput = document.getElementById('xmlFiles');
+    if (multipleFileInput) {
+        multipleFileInput.value = '';
+    }
+    
+    // Clear file displays
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+        fileInfo.innerHTML = '';
+    }
+    
+    const fileList = document.getElementById('fileList');
+    if (fileList) {
+        fileList.innerHTML = '<p>Nenhum arquivo selecionado.</p>';
+    }
+    
+    // Disable upload button
+    document.getElementById('uploadButton').disabled = true;
+}
+
+/**
+ * Processes the uploaded files
+ */
+function processFiles() {
+    if (uploadedFiles.length === 0) {
+        showNotification('Nenhum arquivo selecionado para upload.', 'warning');
+        return;
+    }
+    
+    // Disable upload button
+    const uploadButton = document.getElementById('uploadButton');
+    uploadButton.disabled = true;
+    uploadButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+    
+    // Reset results
+    processingResults = [];
+    
+    // Show progress container
+    const progressContainer = document.getElementById('progressContainer');
+    if (progressContainer) {
         progressContainer.classList.remove('d-none');
-        progressBar.style.width = '0%';
-        progressBar.setAttribute('aria-valuenow', 0);
-        progressBar.classList.remove('bg-success', 'bg-danger'); // Reseta cor
-        progressBar.classList.add('progress-bar-animated');
     }
-    // ---------------------------------
+    
+    // Update progress
+    updateProgressBar(0, uploadedFiles.length);
+    
+    // Process files based on mode
+    if (batchMode) {
+        processBatchFiles();
+    } else {
+        processSingleFile();
+    }
+}
 
-    // Preparar FormData
+/**
+ * Processes single file upload
+ */
+function processSingleFile() {
+    const file = uploadedFiles[0];
+    const xmlType = document.getElementById('xmlType').value;
+    const retornoFile = document.getElementById('xmlRetornoFile').files[0];
+    
     const formData = new FormData();
-    formData.append('arquivo_xml', fileInput.files[0]);
-    if (retornoInput && retornoInput.files.length > 0) {
-        formData.append('arquivo_xml_retorno', retornoInput.files[0]);
+    formData.append('arquivo_xml', file);
+    
+    if (retornoFile) {
+        formData.append('arquivo_xml_retorno', retornoFile);
     }
-
-    // Simulação de Progresso (mantida para UX, mas não reflete o upload real com fetch)
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-        progress += 5;
-        if (progress <= 95 && progressBar) { // Não ir até 100% imediatamente
-            progressBar.style.width = `${progress}%`;
-            progressBar.setAttribute('aria-valuenow', progress);
-        }
-    }, 150);
-
-    // Realizar o upload com autenticação
-    Auth.fetchWithAuth('/api/upload/', {
+    
+    // Send request to API
+    Auth.fetchWithAuth(`/api/upload/${xmlType}/`, {
         method: 'POST',
-        // Não incluir 'Content-Type', o navegador define com 'boundary' correto
         body: formData
     })
-    .then(response => {
-        clearInterval(progressInterval); // Parar simulação
-        // Lidar com a resposta
-        if (progressBar) {
-            progressBar.style.width = '100%';
-            progressBar.setAttribute('aria-valuenow', 100);
-            progressBar.classList.remove('progress-bar-animated');
-        }
+    .then(async response => {
+        const result = await response.json();
+        
         if (!response.ok) {
-            // Se a resposta não for OK, tentar ler o JSON de erro
-            return response.json().then(errData => {
-                // Anexar o status code ao erro para mais contexto
-                errData.statusCode = response.status;
-                throw errData; // Lança o objeto de erro para o catch
-            }).catch(() => {
-                // Se não conseguir ler JSON, lança erro genérico com status
-                 throw new Error(`Erro ${response.status}: ${response.statusText}`);
-            });
+            throw new Error(result.detail || 'Erro ao processar arquivo');
         }
-        return response.json(); // Processa a resposta JSON de sucesso
-    })
-    .then(data => {
-        // --- Sucesso ---
-        if (progressBar) progressBar.classList.add('bg-success');
-        let mensagem = data.message || 'Arquivo processado com sucesso!';
-        if (data.chave) {
-            mensagem += ` Chave: ${formatChave(data.chave)}`; // Usar função global
-        }
-        showUploadSuccess(mensagem);
-        uploadForm.reset(); // Limpar formulário
-        loadUploadHistory(); // Atualizar histórico
-        setTimeout(() => {
-            progressContainer?.classList.add('d-none'); // Esconder barra após sucesso
-            progressBar?.classList.remove('bg-success');
-        }, 3000);
-        // ----------------
+        
+        // Save result
+        processingResults.push({
+            filename: file.name,
+            success: true,
+            result: result
+        });
+        
+        // Update progress
+        updateProgressBar(1, 1);
+        
+        // Show success
+        showUploadSuccess(result);
     })
     .catch(error => {
-        // --- Erro ---
-        clearInterval(progressInterval); // Garante que parou a simulação
-        console.error('Erro de upload:', error);
-        if (progressBar) {
-            progressBar.style.width = '100%'; // Marca 100% mas com erro
-             progressBar.classList.remove('progress-bar-animated');
-             progressBar.classList.add('bg-danger'); // Cor de erro
-        }
-
-        // Formatar a mensagem de erro detalhada
-        let detailedMessage = 'Erro ao processar o arquivo. Tente novamente.';
-        if (error && (error.error || error.detail)) {
-             detailedMessage = error.error || error.detail;
-        } else if (error && typeof error === 'object' && error.message) {
-            detailedMessage = error.message;
-        } else if (typeof error === 'string') {
-             detailedMessage = error;
-        }
-         // Se for um objeto de erros do DRF (ex: validação do serializer)
-         else if (typeof error === 'object' && !error.message && Object.keys(error).length > 0 && error.statusCode !== 500) {
-             detailedMessage = Object.entries(error)
-                 .filter(([key]) => key !== 'statusCode') // Não exibir statusCode na mensagem
-                 .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-                 .join('; ');
-         }
-
-        showUploadError(detailedMessage);
-        setTimeout(() => {
-            progressContainer?.classList.add('d-none'); // Esconder barra após erro
-            progressBar?.classList.remove('bg-danger');
-        }, 5000);
-        // ---------------
+        console.error('Error processing file:', error);
+        
+        // Save error
+        processingResults.push({
+            filename: file.name,
+            success: false,
+            error: error.message
+        });
+        
+        // Update progress
+        updateProgressBar(1, 1);
+        
+        // Show error
+        showUploadError(error.message);
     })
     .finally(() => {
-        // --- Sempre Executa ---
-        if (submitButton) {
-            submitButton.disabled = false;
-            submitButton.innerHTML = '<i class="fas fa-upload me-2"></i>Enviar Arquivo';
-        }
-        // ---------------------
+        // Reset upload button
+        uploadButton.disabled = false;
+        uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Processar';
     });
 }
 
 /**
- * Mostra mensagem de sucesso na área designada.
- * @param {string} message - Mensagem de sucesso.
+ * Processes batch file upload
  */
-function showUploadSuccess(message) {
-    const successAlert = document.getElementById('uploadSuccess');
-    const successMessage = document.getElementById('successMessage');
-
-    if (successAlert && successMessage) {
-        successMessage.textContent = message;
-        successAlert.classList.remove('d-none');
-        hideMessages('uploadError'); // Esconde erro se sucesso
-        successAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-        // Fallback se elementos não encontrados
-        if (typeof showNotification === 'function') {
-             showNotification(message, 'success');
-        } else {
-             alert(message);
-        }
-    }
-}
-
-/**
- * Mostra mensagem de erro na área designada.
- * @param {string} message - Mensagem de erro.
- */
-function showUploadError(message) {
-    const errorAlert = document.getElementById('uploadError');
-    const errorMessage = document.getElementById('errorMessage');
-
-    if (errorAlert && errorMessage) {
-        errorMessage.textContent = message;
-        errorAlert.classList.remove('d-none');
-        hideMessages('uploadSuccess'); // Esconde sucesso se erro
-        errorAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-        // Fallback se elementos não encontrados
-        if (typeof showNotification === 'function') {
-            showNotification(message, 'error');
-        } else {
-            alert(`Erro: ${message}`);
-        }
-    }
-}
-
-/**
- * Esconde uma ou ambas as mensagens de alerta.
- * @param {('uploadSuccess'|'uploadError'|'both')} [which='both'] - Qual alerta esconder.
- */
-function hideMessages(which = 'both') {
-    if (which === 'both' || which === 'uploadSuccess') {
-        document.getElementById('uploadSuccess')?.classList.add('d-none');
-    }
-    if (which === 'both' || which === 'uploadError') {
-        document.getElementById('uploadError')?.classList.add('d-none');
-    }
-}
-
-/**
- * Carrega o histórico de uploads recentes buscando CTes e MDFes.
- */
-function loadUploadHistory() {
-    const tbody = document.getElementById('upload-history');
-    if (!tbody) return;
-
-    // Mostrar mensagem de carregamento
-    tbody.innerHTML = `
-        <tr>
-            <td colspan="5" class="text-center">
-                <div class="spinner-border spinner-border-sm text-secondary me-2" role="status">
-                    <span class="visually-hidden">Carregando...</span>
-                </div>
-                Carregando histórico...
-            </td>
-        </tr>`;
-
-    // Buscar CTes e MDFes mais recentes em paralelo
-    Promise.all([
-        Auth.fetchWithAuth('/api/ctes/?ordering=-data_upload&limit=10'), // Ordena por data de upload
-        Auth.fetchWithAuth('/api/mdfes/?ordering=-data_upload&limit=10') // Ordena por data de upload
-    ])
-    .then(async ([ctesResponse, mdfesResponse]) => {
-        // Processar resultados mesmo se um falhar
-        const ctes = ctesResponse.ok ? await ctesResponse.json() : { results: [] };
-        const mdfes = mdfesResponse.ok ? await mdfesResponse.json() : { results: [] };
-
-        // Mapear para formato comum e adicionar tipo
-        const cteMapped = (ctes.results || []).map(item => ({
-            ...item, // Inclui todos os dados originais
-            tipo: 'CTE',
-            // Usa data_upload se existir, senão data_emissao ou data atual
-            data_ordenacao: item.data_upload || item.data_emissao || new Date(0).toISOString(),
-            // Status pode precisar de lógica mais complexa baseada nos dados completos
-            status: item.status || (item.processado ? (item.autorizado ? 'Autorizado' : (item.cancelado ? 'Cancelado' : 'Processado')) : 'Pendente')
-        }));
-
-        const mdfeMapped = (mdfes.results || []).map(item => ({
-            ...item, // Inclui todos os dados originais
-            tipo: 'MDFE',
-            data_ordenacao: item.data_upload || item.data_emissao || new Date(0).toISOString(),
-            status: item.status || (item.processado ? (item.autorizado ? 'Autorizado' : (item.cancelado ? 'Cancelado' : (item.encerrado ? 'Encerrado' : 'Processado'))) : 'Pendente')
-        }));
-
-        // Combinar, ordenar pela data de ordenação (upload ou emissão) e limitar
-        const combined = [...cteMapped, ...mdfeMapped]
-            .sort((a, b) => new Date(b.data_ordenacao) - new Date(a.data_ordenacao))
-            .slice(0, 10); // Limita aos 10 mais recentes no total
-
-        return combined;
+function processBatchFiles() {
+    const formData = new FormData();
+    
+    // Append all files
+    uploadedFiles.forEach(file => {
+        formData.append('arquivos_xml', file);
+    });
+    
+    // Send request to API
+    Auth.fetchWithAuth('/api/upload/batch/', {
+        method: 'POST',
+        body: formData
     })
-    .then(data => {
-        renderUploadHistory(data, tbody);
+    .then(async response => {
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.detail || 'Erro ao processar arquivos em lote');
+        }
+        
+        // Process batch results
+        handleBatchResults(result);
     })
     .catch(error => {
-        console.error('Erro ao carregar histórico de uploads:', error);
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center text-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    Erro ao carregar histórico. Tente novamente.
-                </td>
-            </tr>`;
-        if (typeof showNotification === 'function') {
-             showNotification('Erro ao carregar histórico de uploads.', 'error');
+        console.error('Error processing batch:', error);
+        
+        // Show error
+        showNotification(`Erro ao processar lote: ${error.message}`, 'error');
+        
+        // Update progress to complete
+        updateProgressBar(uploadedFiles.length, uploadedFiles.length);
+    })
+    .finally(() => {
+        // Reset upload button
+        const uploadButton = document.getElementById('uploadButton');
+        uploadButton.disabled = false;
+        uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Processar';
+    });
+}
+
+/**
+ * Handles batch upload results
+ * @param {Object} result - Batch processing result
+ */
+function handleBatchResults(result) {
+    // Save results
+    if (result.resultados && Array.isArray(result.resultados)) {
+        processingResults = result.resultados.map(item => ({
+            filename: item.arquivo || 'Desconhecido',
+            success: item.sucesso,
+            result: item.resultado,
+            error: item.erro
+        }));
+    }
+    
+    // Update progress to complete
+    updateProgressBar(uploadedFiles.length, uploadedFiles.length);
+    
+    // Show summary
+    showBatchSummary(result);
+}
+
+/**
+ * Updates the progress bar
+ * @param {number} processed - Number of processed files
+ * @param {number} total - Total number of files
+ */
+function updateProgressBar(processed, total) {
+    const progressBar = document.getElementById('uploadProgress');
+    const progressLabel = document.getElementById('progressLabel');
+    
+    if (progressBar && progressLabel) {
+        const percentage = Math.round((processed / total) * 100);
+        progressBar.style.width = `${percentage}%`;
+        progressBar.setAttribute('aria-valuenow', percentage);
+        progressLabel.textContent = `${processed} de ${total} arquivo(s) (${percentage}%)`;
+    }
+}
+
+/**
+ * Shows success message for single file upload
+ * @param {Object} result - Processing result
+ */
+function showUploadSuccess(result) {
+    const resultContainer = document.getElementById('resultContainer');
+    if (!resultContainer) return;
+    
+    resultContainer.classList.remove('d-none');
+    
+    let html = `
+    <div class="alert alert-success">
+        <h5><i class="fas fa-check-circle me-2"></i>Arquivo processado com sucesso!</h5>
+    `;
+    
+    if (result.tipo === 'CT-e' || result.tipo === 'MDF-e') {
+        const tipo = result.tipo;
+        const chave = result.chave;
+        const id = result.id;
+        
+        html += `
+        <p><strong>Tipo:</strong> ${tipo}</p>
+        <p><strong>Chave:</strong> ${chave}</p>
+        <div class="mt-3">
+            <a href="/api/${tipo === 'CT-e' ? 'ctes' : 'mdfes'}/${id}/" class="btn btn-sm btn-outline-primary me-2" target="_blank">
+                <i class="fas fa-eye me-1"></i> Ver Detalhes
+            </a>
+            <a href="/api/${tipo === 'CT-e' ? 'ctes' : 'mdfes'}/${id}/xml/" class="btn btn-sm btn-outline-info me-2" target="_blank">
+                <i class="fas fa-file-code me-1"></i> Download XML
+            </a>
+            <a href="/api/${tipo === 'CT-e' ? 'ctes' : 'mdfes'}/${id}/${tipo === 'CT-e' ? 'dacte' : 'damdfe'}/" class="btn btn-sm btn-outline-success" target="_blank">
+                <i class="fas fa-file-pdf me-1"></i> ${tipo === 'CT-e' ? 'DACTE' : 'DAMDFE'}
+            </a>
+        </div>
+        `;
+    } else if (result.tipo === 'Evento') {
+        html += `
+        <p><strong>Tipo:</strong> ${result.evento || 'Evento'}</p>
+        <p><strong>Chave Documento:</strong> ${result.chave_documento || '--'}</p>
+        <p><strong>Status:</strong> ${result.status || '--'}</p>
+        `;
+    }
+    
+    html += '</div>';
+    
+    resultContainer.innerHTML = html;
+    
+    // Scroll to result
+    resultContainer.scrollIntoView({ behavior: 'smooth' });
+}
+
+/**
+ * Shows error message for single file upload
+ * @param {string} errorMessage - Error message
+ */
+function showUploadError(errorMessage) {
+    const resultContainer = document.getElementById('resultContainer');
+    if (!resultContainer) return;
+    
+    resultContainer.classList.remove('d-none');
+    
+    const html = `
+    <div class="alert alert-danger">
+        <h5><i class="fas fa-exclamation-circle me-2"></i>Erro ao processar arquivo</h5>
+        <p>${errorMessage}</p>
+    </div>
+    `;
+    
+    resultContainer.innerHTML = html;
+    
+    // Scroll to result
+    resultContainer.scrollIntoView({ behavior: 'smooth' });
+}
+
+/**
+ * Shows summary for batch upload
+ * @param {Object} result - Batch processing result
+ */
+function showBatchSummary(result) {
+    const resultContainer = document.getElementById('resultContainer');
+    if (!resultContainer) return;
+    
+    resultContainer.classList.remove('d-none');
+    
+    const processados = result.processados || 0;
+    const sucesso = result.sucesso || 0;
+    const erros = result.erros || 0;
+    
+    let html = `
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">Resultado do Processamento em Lote</h5>
+        </div>
+        <div class="card-body">
+            <div class="row text-center mb-4">
+                <div class="col-md-4">
+                    <h2>${processados}</h2>
+                    <p class="text-muted">Total Processados</p>
+                </div>
+                <div class="col-md-4">
+                    <h2 class="text-success">${sucesso}</h2>
+                    <p class="text-muted">Sucessos</p>
+                </div>
+                <div class="col-md-4">
+                    <h2 class="text-danger">${erros}</h2>
+                    <p class="text-muted">Erros</p>
+                </div>
+            </div>
+    `;
+    
+    // Add detailed results table
+    html += `
+        <h6>Detalhamento do Processamento</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>Arquivo</th>
+                        <th>Status</th>
+                        <th>Detalhes</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    // Add rows for each result
+    processingResults.forEach(item => {
+        html += `
+        <tr>
+            <td>${item.filename}</td>
+            <td>${item.success ? 
+                '<span class="badge bg-success">Sucesso</span>' : 
+                '<span class="badge bg-danger">Erro</span>'}</td>
+            <td>
+                ${item.success ? 
+                    `Tipo: ${item.result?.tipo || '--'}, Chave: ${truncateText(item.result?.chave || '--', 20)}` : 
+                    `Erro: ${item.error || 'Desconhecido'}`}
+            </td>
+        </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    // Add download report button
+    html += `
+        <div class="mt-3">
+            <button class="btn btn-outline-primary" onclick="exportarRelatorio()">
+                <i class="fas fa-file-download me-2"></i>Exportar Relatório
+            </button>
+        </div>
+    `;
+    
+    html += `
+        </div>
+    </div>
+    `;
+    
+    resultContainer.innerHTML = html;
+    
+    // Scroll to result
+    resultContainer.scrollIntoView({ behavior: 'smooth' });
+}
+
+/**
+ * Uploads retorno file as standalone
+ */
+function uploadRetornoFile() {
+    const retornoFile = document.getElementById('xmlRetornoStandalone').files[0];
+    
+    if (!retornoFile) {
+        showNotification('Selecione um arquivo de retorno para upload.', 'warning');
+        return;
+    }
+    
+    // Check if it's an XML file
+    if (!retornoFile.name.toLowerCase().endsWith('.xml')) {
+        showNotification('Por favor, selecione apenas arquivos XML.', 'error');
+        return;
+    }
+    
+    // Disable upload button
+    const uploadButton = document.getElementById('uploadRetornoButton');
+    uploadButton.disabled = true;
+    uploadButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+    
+    const formData = new FormData();
+    formData.append('arquivo_xml_retorno', retornoFile);
+    
+    // Send request to API
+    Auth.fetchWithAuth('/api/upload/retorno/', {
+        method: 'POST',
+        body: formData
+    })
+    .then(async response => {
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.detail || 'Erro ao processar arquivo de retorno');
+        }
+        
+        showNotification('Arquivo de retorno processado com sucesso!', 'success');
+        
+        // Show result
+        const resultContainer = document.getElementById('resultRetornoContainer');
+        if (resultContainer) {
+            resultContainer.classList.remove('d-none');
+            resultContainer.innerHTML = `
+            <div class="alert alert-success">
+                <h5><i class="fas fa-check-circle me-2"></i>Arquivo de retorno processado com sucesso!</h5>
+                <p><strong>Tipo:</strong> ${result.tipo || 'Retorno'}</p>
+                <p><strong>Chave Documento:</strong> ${result.chave_documento || '--'}</p>
+                <p><strong>Status:</strong> ${result.status || '--'}</p>
+            </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error processing retorno file:', error);
+        showNotification(`Erro ao processar arquivo de retorno: ${error.message}`, 'error');
+        
+        // Show error
+        const resultContainer = document.getElementById('resultRetornoContainer');
+        if (resultContainer) {
+            resultContainer.classList.remove('d-none');
+            resultContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <h5><i class="fas fa-exclamation-circle me-2"></i>Erro ao processar arquivo de retorno</h5>
+                <p>${error.message}</p>
+            </div>
+            `;
+        }
+    })
+    .finally(() => {
+        // Reset upload button
+        uploadButton.disabled = false;
+        uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Processar';
+    });
+}
+
+/**
+ * Exports batch processing report to CSV
+ */
+function exportarRelatorio() {
+    if (processingResults.length === 0) {
+        showNotification('Não há resultados para exportar.', 'warning');
+        return;
+    }
+    
+    // Prepare CSV content
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    csvContent += 'Arquivo,Status,Tipo,Chave,Detalhes\n';
+    
+    processingResults.forEach(item => {
+        const filename = item.filename ? item.filename.replace(/,/g, ' ') : '';
+        const status = item.success ? 'Sucesso' : 'Erro';
+        const tipo = item.success ? (item.result?.tipo || '') : '';
+        const chave = item.success ? (item.result?.chave || '') : '';
+        const detalhes = item.success ? '' : (item.error || '').replace(/,/g, ' ');
+        
+        csvContent += `${filename},${status},${tipo},${chave},${detalhes}\n`;
+    });
+    
+    // Create download link
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `relatorio_upload_${new Date().toISOString().substring(0, 10)}.csv`);
+    document.body.appendChild(link);
+    
+    // Trigger download
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+}
+
+/**
+ * Formats file size in human-readable format
+ * @param {number} bytes - File size in bytes
+ * @returns {string} - Formatted file size
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * Truncates text with ellipsis
+ * @param {string} text - Text to truncate
+ * @param {number} maxLength - Maximum length
+ * @returns {string} - Truncated text
+ */
+function truncateText(text, maxLength) {
+    if (!text) return '--';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+}
+
+/**
+ * Shows notification toast
+ * @param {string} message - Message to display
+ * @param {string} type - Notification type (success, error, warning, info)
+ * @param {number} duration - Duration in milliseconds
+ */
+function showNotification(message, type = 'success', duration = 5000) {
+    // Use global function if available
+    if (typeof window.showNotification === 'function') {
+        window.showNotification(message, type, duration);
+        return;
+    }
+    
+    // Define type colors
+    const typeClasses = {
+        success: 'bg-success text-white',
+        error: 'bg-danger text-white',
+        warning: 'bg-warning text-dark',
+        info: 'bg-info text-dark'
+    };
+    
+    // Get or create toast container
+    let toastContainer = document.querySelector('.toast-container');
+    
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '1080';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Create toast element
+    const toastID = 'toast-' + Date.now();
+    const toastHTML = `
+    <div id="${toastID}" class="toast ${typeClasses[type] || typeClasses.info}" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close ${type === 'success' || type === 'error' ? 'btn-close-white' : ''} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+    `;
+    
+    // Add toast to container
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    
+    // Initialize and show toast
+    const toastElement = document.getElementById(toastID);
+    const toast = new bootstrap.Toast(toastElement, {
+        delay: duration
+    });
+    
+    toast.show();
+    
+    // Remove toast element when hidden
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        this.remove();
+        
+        // Remove container if empty
+        if (toastContainer.children.length === 0) {
+            toastContainer.remove();
         }
     });
 }
-
-/**
- * Renderiza o histórico de uploads na tabela.
- * @param {Array} data - Lista de uploads (formato combinado).
- * @param {HTMLElement} tbody - Elemento tbody para renderizar.
- */
-function renderUploadHistory(data, tbody) {
-    if (!data || data.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center">
-                    <i class="fas fa-info-circle me-2 text-info"></i>
-                    Nenhum upload encontrado no histórico recente.
-                </td>
-            </tr>`;
-        return;
-    }
-
-    // Renderizar linhas da tabela
-    let html = '';
-
-    data.forEach(item => {
-        const dataFormatada = typeof formatDateTime === 'function' ? formatDateTime(item.data_ordenacao) : item.data_ordenacao;
-        const tipoDoc = getTipoDocumento(item); // Função auxiliar
-        const statusHTML = getStatusHTML(item); // Função auxiliar
-        const chaveFormatada = formatChave(item.chave || ''); // Função auxiliar
-        const apiPath = getApiPath(item.tipo); // Função auxiliar
-
-        // Link para detalhes (se houver ID)
-        const detailLink = item.id ? `/api/${apiPath}/${item.id}/` : '#';
-        // Link para XML (se houver ID)
-        const xmlLink = item.id ? `/api/${apiPath}/${item.id}/xml/` : '#';
-        const isDisabled = !item.id ? 'disabled' : ''; // Desabilita botões se não houver ID
-
-        html += `
-            <tr>
-                <td>${dataFormatada}</td>
-                <td>${tipoDoc}</td>
-                <td title="${item.chave || ''}">${chaveFormatada}</td>
-                <td>${statusHTML}</td>
-                <td>
-                    <div class="btn-group btn-group-sm">
-                        <a href="${detailLink}"
-                           class="btn btn-outline-primary ${isDisabled}"
-                           title="Ver Detalhes"
-                           ${isDisabled ? 'aria-disabled="true"' : ''}
-                           target="_blank"> <i class="fas fa-eye"></i>
-                        </a>
-                        <a href="${xmlLink}"
-                           class="btn btn-outline-success ${isDisabled}"
-                           title="Download XML"
-                           ${isDisabled ? 'aria-disabled="true"' : ''}
-                           target="_blank"> <i class="fas fa-file-code"></i>
-                        </a>
-                    </div>
-                </td>
-            </tr>`;
-    });
-
-    tbody.innerHTML = html;
-
-    // Reativar tooltips após renderização, se Bootstrap estiver disponível
-    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
-        const tooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
-        tooltips.forEach(tooltip => new bootstrap.Tooltip(tooltip));
-    }
-}
-
-// --- Funções Auxiliares Específicas de Upload ---
-
-/**
- * Obtém o tipo de documento formatado.
- * @param {Object} item - Dados do documento.
- * @returns {string} - Tipo de documento formatado.
- */
-function getTipoDocumento(item) {
-    const tipo = item.tipo?.toUpperCase() || '';
-    if (tipo === 'CTE') return 'CT-e';
-    if (tipo === 'MDFE') return 'MDF-e';
-    // Adicionar lógica para eventos se necessário, baseado em dados extras
-    return item.tipo || 'Documento';
-}
-
-/**
- * Obtém o caminho da API para o tipo de documento.
- * @param {string} tipo - Tipo de documento ('CTE', 'MDFE').
- * @returns {string} - Caminho da API (ex: 'ctes', 'mdfes').
- */
-function getApiPath(tipo) {
-    const tipoUpper = (tipo || '').toUpperCase();
-    if (tipoUpper === 'CTE') return 'ctes';
-    if (tipoUpper === 'MDFE') return 'mdfes';
-    return 'documentos'; // Fallback genérico
-}
-
-/**
- * Obtém o HTML do badge de status.
- * @param {Object} item - Dados do documento/upload.
- * @returns {string} - HTML para o badge de status.
- */
-function getStatusHTML(item) {
-    const status = (item.status || '').toLowerCase();
-
-    if (status.includes('cancelado')) {
-        return '<span class="badge bg-danger">Cancelado</span>';
-    }
-    if (status.includes('encerrado')) {
-        return '<span class="badge bg-secondary">Encerrado</span>';
-    }
-    if (status.includes('autorizado')) {
-        return '<span class="badge bg-success">Autorizado</span>';
-    }
-    if (status.includes('processado')) {
-        return '<span class="badge bg-info text-dark">Processado</span>';
-    }
-     if (status.includes('rejeitado')) {
-        return '<span class="badge bg-warning text-dark">Rejeitado</span>';
-    }
-    return '<span class="badge bg-warning text-dark">Pendente</span>'; // Default
-}
-
-/**
- * Formata a chave do documento (ex: primeiros 4 e últimos 4 dígitos).
- * @param {string} chave - Chave do documento (44 dígitos).
- * @returns {string} - Chave formatada ou original se não tiver 44 dígitos.
- */
-function formatChave(chave) {
-    if (!chave) return '--';
-    if (chave.length === 44) {
-        return `${chave.substring(0, 4)}...${chave.substring(40)}`;
-    }
-    return chave.length > 20 ? chave.substring(0, 17) + '...' : chave;
-}
-
-/**
- * Exporta funções para uso global (ex: botão de refresh manual).
- */
-window.UploadXML = {
-    uploadFile: uploadXML,
-    refreshHistory: loadUploadHistory
-};
