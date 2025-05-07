@@ -38,9 +38,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework.authtoken', 
+    'rest_framework.authtoken',
+    'drf_yasg', 
     'transport',
-    "rest_framework_simplejwt"
+    "rest_framework_simplejwt",
 ]
 
 MIDDLEWARE = [
@@ -51,10 +52,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
-
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
 ]
 
 # URL Configuration
@@ -138,7 +135,6 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'transport/static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-
 # Configuração de arquivos de mídia
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -146,7 +142,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Adicione estas linhas ao final do arquivo
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
-LOGOUT_REDIRECT_URL = '/login/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

@@ -1,9 +1,8 @@
 # transport/serializers.py
 
 from rest_framework import serializers
-# ---> ADICIONAR ESTA IMPORTAÇÃO <---
-from django.contrib.auth.models import User # Importar modelo User
-# ---> FIM DA IMPORTAÇÃO <---
+from django.contrib.auth.models import User
+
 from .models import (
     # Base
     Endereco,
@@ -25,13 +24,16 @@ from .models import (
     MDFeSeguroCarga, MDFeAverbacaoSeguro, MDFeProdutoPredominante, MDFeTotais,
     MDFeLacreRodoviario, MDFeAutXML, MDFeInformacoesAdicionais,
     MDFeResponsavelTecnico, MDFeProtocoloAutorizacao, MDFeSuplementar,
-    MDFeCancelamento,
+    MDFeCancelamento, MDFeCancelamentoEncerramento,  # Adicionado modelo de cancelamento de encerramento
 
     # Veículos e Manutenção
     Veiculo, ManutencaoVeiculo,
 
     # Pagamentos e Parametrização
-    FaixaKM, PagamentoAgregado, PagamentoProprio
+    FaixaKM, PagamentoAgregado, PagamentoProprio,
+    
+    # Configurações do Sistema (Novos modelos)
+    ParametroSistema, ConfiguracaoEmpresa, RegistroBackup
 )
 
 # =============================================
@@ -52,6 +54,16 @@ class UploadXMLSerializer(serializers.Serializer):
         help_text="Selecione o arquivo XML de retorno (usado para eventos)."
     )
 
+class BatchUploadXMLSerializer(serializers.Serializer):
+    """Serializer para upload em lote de múltiplos arquivos XML."""
+    arquivos_xml = serializers.ListField(
+        child=serializers.FileField(),
+        required=True,
+        min_length=1,
+        label="Arquivos XML",
+        help_text="Selecione um ou mais arquivos XML para processamento em lote."
+    )
+
 # ========================
 # === Serializers Base ===
 # ========================
@@ -64,7 +76,7 @@ class EnderecoSerializer(serializers.ModelSerializer):
 
 
 # =======================================
-# === Serializers para Usuários (User) === # <-- ADICIONADOS
+# === Serializers para Usuários (User) ===
 # =======================================
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -89,10 +101,10 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         password_confirm = data.pop('password_confirm', None) # Remove confirmação dos dados a salvar
 
         if password: # Se uma nova senha foi fornecida
-             if not password_confirm:
-                 raise serializers.ValidationError({"password_confirm": "Confirmação de senha é obrigatória ao definir uma nova senha."})
-             if password != password_confirm:
-                 raise serializers.ValidationError({"password_confirm": "As senhas não coincidem."})
+            if not password_confirm:
+                raise serializers.ValidationError({"password_confirm": "Confirmação de senha é obrigatória ao definir uma nova senha."})
+            if password != password_confirm:
+                raise serializers.ValidationError({"password_confirm": "As senhas não coincidem."})
         elif password_confirm:
             # Se a confirmação foi enviada mas a senha não, é um erro
             raise serializers.ValidationError({"password": "Senha é obrigatória se a confirmação for fornecida."})
@@ -130,7 +142,7 @@ class UserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Garante que a senha seja obrigatória na criação
         if 'password' not in validated_data:
-             raise serializers.ValidationError({'password': 'Este campo é obrigatório na criação.'})
+            raise serializers.ValidationError({'password': 'Este campo é obrigatório na criação.'})
 
         # Usa create_user para garantir o hash correto da senha
         user = User.objects.create_user(
@@ -531,10 +543,19 @@ class MDFeSuplementarSerializer(serializers.ModelSerializer):
         exclude = ['id', 'mdfe']
 
 class MDFeCancelamentoSerializer(serializers.ModelSerializer):
-      dh_evento_formatada = serializers.DateTimeField(source='dh_evento', format='%d/%m/%Y %H:%M:%S', read_only=True, allow_null=True)
-      dh_reg_evento_formatada = serializers.DateTimeField(source='dh_reg_evento', format='%d/%m/%Y %H:%M:%S', read_only=True, allow_null=True)
-      class Meta:
+    dh_evento_formatada = serializers.DateTimeField(source='dh_evento', format='%d/%m/%Y %H:%M:%S', read_only=True, allow_null=True)
+    dh_reg_evento_formatada = serializers.DateTimeField(source='dh_reg_evento', format='%d/%m/%Y %H:%M:%S', read_only=True, allow_null=True)
+    class Meta:
         model = MDFeCancelamento
+        exclude = ['id', 'mdfe', 'arquivo_xml_evento']
+
+# NOVO SERIALIZER
+class MDFeCancelamentoEncerramentoSerializer(serializers.ModelSerializer):
+    """Serializer para o modelo de cancelamento de encerramento de MDF-e."""
+    dh_evento_formatada = serializers.DateTimeField(source='dh_evento', format='%d/%m/%Y %H:%M:%S', read_only=True, allow_null=True)
+    dh_reg_evento_formatada = serializers.DateTimeField(source='dh_reg_evento', format='%d/%m/%Y %H:%M:%S', read_only=True, allow_null=True)
+    class Meta:
+        model = MDFeCancelamentoEncerramento
         exclude = ['id', 'mdfe', 'arquivo_xml_evento']
 
 # --- Serializers Principais para MDF-e ---
@@ -557,7 +578,7 @@ class MDFeDocumentoListSerializer(serializers.ModelSerializer):
 
     def get_status(self, obj):
         if hasattr(obj, 'cancelamento') and obj.cancelamento and obj.cancelamento.c_stat == 135: return "Cancelado"
-        # if getattr(obj, 'encerrado', False): return "Encerrado" # Descomente se adicionar campo encerrado
+        if obj.encerrado: return "Encerrado"  # Campo encerrado adicionado ao modelo
         if hasattr(obj, 'protocolo') and obj.protocolo: return "Autorizado" if obj.protocolo.codigo_status == 100 else f"Rejeitado ({obj.protocolo.codigo_status})"
         if obj.processado: return "Processado (s/ Prot.)"
         return "Pendente"
@@ -574,27 +595,42 @@ class MDFeDocumentoDetailSerializer(serializers.ModelSerializer):
     protocolo = MDFeProtocoloAutorizacaoSerializer(read_only=True, allow_null=True)
     suplementar = MDFeSuplementarSerializer(read_only=True, allow_null=True)
     cancelamento = MDFeCancelamentoSerializer(read_only=True, allow_null=True)
+    cancelamento_encerramento = MDFeCancelamentoEncerramentoSerializer(read_only=True, allow_null=True)  # Novo campo
     municipios_descarga = MDFeMunicipioDescargaSerializer(many=True, read_only=True)
     condutores = MDFeCondutorSerializer(many=True, read_only=True)
     seguros_carga = MDFeSeguroCargaSerializer(many=True, read_only=True)
     lacres_rodoviarios = MDFeLacreRodoviarioSerializer(many=True, read_only=True)
     autorizados_xml = MDFeAutXMLSerializer(many=True, read_only=True)
     status_geral = serializers.SerializerMethodField()
+    
+    # Campos de encerramento
+    encerramento_info = serializers.SerializerMethodField()
 
     class Meta:
         model = MDFeDocumento
         fields = [
             'id', 'chave', 'versao', 'data_upload', 'processado', 'status_geral',
-            # Adicionar status de encerramento
-            # 'encerrado', 'data_encerramento', 'protocolo_encerramento',
+            'encerrado', 'data_encerramento', 'municipio_encerramento_cod', 'uf_encerramento', 'protocolo_encerramento',
+            'encerramento_info',
             'identificacao', 'emitente', 'modal_rodoviario', 'prod_pred', 'totais',
-            'adicional', 'resp_tecnico', 'protocolo', 'suplementar', 'cancelamento',
+            'adicional', 'resp_tecnico', 'protocolo', 'suplementar', 'cancelamento', 'cancelamento_encerramento',
             'municipios_descarga', 'condutores', 'seguros_carga', 'lacres_rodoviarios', 'autorizados_xml',
         ]
         read_only_fields = fields
 
     def get_status_geral(self, obj):
         return MDFeDocumentoListSerializer().get_status(obj)
+    
+    def get_encerramento_info(self, obj):
+        """Retorna informações sobre o encerramento do MDF-e, se existirem."""
+        if obj.encerrado:
+            return {
+                'data': obj.data_encerramento.strftime('%d/%m/%Y') if obj.data_encerramento else None,
+                'municipio': obj.municipio_encerramento_cod,
+                'uf': obj.uf_encerramento,
+                'protocolo': obj.protocolo_encerramento
+            }
+        return None
 
 
 # ==============================================
@@ -658,6 +694,67 @@ class PagamentoProprioSerializer(serializers.ModelSerializer):
                             'km_total_periodo', 'valor_base_faixa') # Calculados pela action
         extra_kwargs = { 'veiculo': {'write_only': True, 'required': False},
                          'periodo': {'required': False} }
+
+# =====================================================
+# === Serializadores para Configurações do Sistema ===
+# =====================================================
+
+class ParametroSistemaSerializer(serializers.ModelSerializer):
+    """Serializer para o modelo de parâmetros do sistema."""
+    valor_tipado = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ParametroSistema
+        fields = ['id', 'nome', 'descricao', 'valor', 'valor_tipado', 'grupo', 'tipo_dado', 
+                  'editavel', 'criado_em', 'atualizado_em']
+        read_only_fields = ['id', 'criado_em', 'atualizado_em']
+    
+    def get_valor_tipado(self, obj):
+        """Retorna o valor convertido para o tipo correto."""
+        return obj.get_valor_tipado()
+
+
+class ConfiguracaoEmpresaSerializer(serializers.ModelSerializer):
+    """Serializer para o modelo de configuração da empresa."""
+    class Meta:
+        model = ConfiguracaoEmpresa
+        fields = [
+            'id', 'razao_social', 'nome_fantasia', 'cnpj', 'ie', 'rntrc', 'email', 'telefone',
+            'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio', 'uf',
+            'logo', 'certificado_digital', 'responsavel_tecnico_cnpj', 
+            'responsavel_tecnico_contato', 'responsavel_tecnico_email', 
+            'responsavel_tecnico_fone', 'criado_em', 'atualizado_em'
+        ]
+        read_only_fields = ['id', 'criado_em', 'atualizado_em']
+
+
+class RegistroBackupSerializer(serializers.ModelSerializer):
+    """Serializer para o modelo de registro de backups."""
+    tamanho_formatado = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RegistroBackup
+        fields = [
+            'id', 'data_hora', 'nome_arquivo', 'tamanho_bytes', 'tamanho_formatado',
+            'md5_hash', 'localizacao', 'usuario', 'status', 'detalhes'
+        ]
+        read_only_fields = fields
+    
+    def get_tamanho_formatado(self, obj):
+        """Retorna o tamanho formatado em KB, MB ou GB."""
+        kb = 1024
+        mb = kb * 1024
+        gb = mb * 1024
+        
+        if obj.tamanho_bytes < kb:
+            return f"{obj.tamanho_bytes} bytes"
+        elif obj.tamanho_bytes < mb:
+            return f"{obj.tamanho_bytes / kb:.2f} KB"
+        elif obj.tamanho_bytes < gb:
+            return f"{obj.tamanho_bytes / mb:.2f} MB"
+        else:
+            return f"{obj.tamanho_bytes / gb:.2f} GB"
+
 
 # =====================================================
 # === Serializadores para Dashboards/Painéis ===

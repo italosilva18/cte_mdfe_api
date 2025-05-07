@@ -68,37 +68,34 @@
             <div class="login-body">
                 <h5 class="text-center mb-4">Acesso ao Sistema</h5>
                 
-                {% if form.errors %}
-                <div class="alert alert-danger" role="alert">
+                <div class="alert alert-danger d-none" id="loginAlert" role="alert">
                     <i class="fas fa-exclamation-circle me-2"></i>
-                    <span>Credenciais inválidas. Verifique usuário e senha.</span>
+                    <span id="loginAlertMessage"></span>
                 </div>
-                {% endif %}
                 
-                {% if messages %}
-                <div class="alert alert-info" role="alert">
-                    {% for message in messages %}
-                    {{ message }}
-                    {% endfor %}
-                </div>
-                {% endif %}
-                
-                <form method="post" action="{% url 'login' %}">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{{ next }}">
+                <form id="loginForm">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Usuário</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-user"></i></span>
+                            <input type="text" class="form-control" id="username" name="username" required autofocus>
+                        </div>
+                    </div>
                     
-                    <div class="mb-3">
-                      <label for="id_username" class="form-label">Usuário</label>
-                      <input type="text" class="form-control" id="id_username" name="username" required>
+                    <div class="mb-4">
+                        <label for="password" class="form-label">Senha</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                      <label for="id_password" class="form-label">Senha</label>
-                      <input type="password" class="form-control" id="id_password" name="password" required>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-sign-in-alt me-2"></i>Entrar no Sistema
+                        </button>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">
-                      <i class="fas fa-sign-in-alt me-2"></i>Entrar no Sistema
-                    </button>
-                  </form>
+                </form>
                 
                 <div class="text-center mt-3">
                     <a href="#" class="text-muted small">Esqueceu sua senha?</a>
@@ -116,5 +113,18 @@
     
     <!-- Auth JS -->
     <script src="{% static 'js/auth.js' %}"></script>
+    
+    <script>
+        // Set up form submission
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            // Use auth.js to handle login
+            Auth.login(username, password);
+        });
+    </script>
 </body>
 </html>

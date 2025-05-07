@@ -39,7 +39,7 @@ except ImportError:
 # Importar Modelos relevantes
 from transport.models import (
     CTeDocumento, CTeCancelamento,
-    MDFeDocumento, MDFeCancelamento, MDFeCondutor
+    MDFeDocumento, MDFeCancelamento, MDFeCondutor, MDFeCancelamentoEncerramento
 )
 
 # === Constantes de Tipos de Evento (Manter como referência) ===
@@ -192,7 +192,7 @@ def _handle_cancelamento_cte(cte_doc, evento_info, ret_evento_info, xml_evento_o
         'versao_evento': evento_info.get('ver_evento'),
         'n_prot_original': n_prot_original,
         'x_just': x_just,
-        'arquivo_xml_evento_original': xml_evento_original, # Salva o XML do evento
+        'arquivo_xml_evento': xml_evento_original, # Salva o XML do evento
         **retorno_data # Adiciona os dados do retorno de sucesso
     }
     evento_data_cleaned = {k: v for k, v in evento_data.items() if v is not None}
@@ -344,15 +344,7 @@ def _handle_encerramento_mdfe(mdfe_doc, evento_info, ret_evento_info, xml_evento
         print(f"INFO: Encerramento para MDF-e {mdfe_doc.chave} não confirmado pela SEFAZ.")
         return None
 
-    # --- Lógica para Encerramento ---
-    # Atualiza campos no MDFeDocumento.
-    # **IMPORTANTE:** Adicione estes campos ao seu modelo MDFeDocumento se ainda não existirem:
-    #   encerrado = models.BooleanField(default=False, db_index=True)
-    #   data_encerramento = models.DateField(null=True, blank=True)
-    #   municipio_encerramento_cod = models.CharField(max_length=7, null=True, blank=True)
-    #   uf_encerramento = models.CharField(max_length=2, null=True, blank=True)
-    #   protocolo_encerramento = models.CharField(max_length=15, null=True, blank=True, unique=True)
-
+    # --- Atualiza os campos de encerramento no MDFeDocumento ---
     try:
         mdfe_doc.encerrado = True
         mdfe_doc.data_encerramento = dt_enc
@@ -365,10 +357,10 @@ def _handle_encerramento_mdfe(mdfe_doc, evento_info, ret_evento_info, xml_evento
         ])
         print(f"INFO: Evento de Encerramento (Data: {dt_enc}, Mun: {c_mun_enc}/{uf_enc}, Prot: {protocolo_encerramento}) registrado com sucesso para MDF-e {mdfe_doc.chave}.")
         return True # Indica sucesso na atualização
-    except AttributeError as e:
-         print(f"ERROR: Falha ao atualizar MDF-e {mdfe_doc.chave} com dados de encerramento. Verifique se os campos existem no modelo: {e}")
+    except Exception as e:
+         print(f"ERROR: Falha ao atualizar MDF-e {mdfe_doc.chave} com dados de encerramento: {e}")
          # A transação será revertida
-         raise ValueError(f"Modelo MDFeDocumento não possui campos para encerramento: {e}")
+         raise ValueError(f"Erro ao encerrar MDF-e: {e}")
 
 
 @transaction.atomic
@@ -414,6 +406,88 @@ def _handle_inclusao_condutor_mdfe(mdfe_doc, evento_info, ret_evento_info, xml_e
         print(f"INFO: Evento de Inclusão de Condutor (CPF: {cpf_condutor}, Prot: {protocolo_evento}) recebido para MDF-e {mdfe_doc.chave}, condutor já existia ou foi atualizado.")
 
     return condutor
+
+
+@transaction.atomic
+def _handle_cancel_encerramento_mdfe(mdfe_doc, evento_info, ret_evento_info, xml_evento_original):
+    """Processa um evento de Cancelamento de Encerramento de MDF-e (110113)."""
+    det_evento = safe_get(evento_info, 'det_evento')
+    if not det_evento:
+        raise ValueError("Detalhes do evento de cancelamento de encerramento MDF-e (<detEvento>) não encontrados.")
+
+    # Obtém o protocolo de encerramento a ser cancelado
+    n_prot_cancelar = safe_get(det_evento, 'evCancEncMDFe.nProt')
+    x_just = safe_get(det_evento, 'evCancEncMDFe.xJust')
+
+    if not n_prot_cancelar or not x_just:
+        raise ValueError("Protocolo de encerramento a cancelar (<nProt>) ou justificativa (<xJust>) não encontrados.")
+
+    # Verifica se o protocolo a ser cancelado corresponde ao protocolo de encerramento do MDF-e
+    if mdfe_doc.protocolo_encerramento != n_prot_cancelar:
+        print(f"WARN: Protocolo de encerramento a cancelar ({n_prot_cancelar}) não corresponde ao protocolo registrado ({mdfe_doc.protocolo_encerramento}) para MDF-e {mdfe_doc.chave}.")
+        # Continua mesmo assim, já que pode ser um problema de sincronização
+
+    # Verifica o status do retorno
+    status_sucesso = False
+    retorno_data = {}
+    if ret_evento_info:
+        if ret_evento_info.get('ch_documento') and ret_evento_info.get('ch_documento') != mdfe_doc.chave:
+             raise ValueError(f"Chave do documento no retorno ({ret_evento_info.get('ch_documento')}) não confere com MDF-e ({mdfe_doc.chave}).")
+        if ret_evento_info.get('c_stat') == 135: # 135 = Evento registrado
+            status_sucesso = True
+            retorno_data = {
+                'id_retorno': ret_evento_info.get('id_retorno'),
+                'ver_aplic': ret_evento_info.get('ver_aplic'),
+                'c_stat': ret_evento_info.get('c_stat'),
+                'x_motivo': ret_evento_info.get('x_motivo'),
+                'dh_reg_evento': ret_evento_info.get('dh_reg_evento'),
+                'n_prot_retorno': ret_evento_info.get('n_prot_retorno'),
+            }
+        else:
+            print(f"WARN: Evento de cancelamento de encerramento para MDF-e {mdfe_doc.chave} recebido com status {ret_evento_info.get('c_stat')} - {ret_evento_info.get('x_motivo')}. Cancelamento de encerramento NÃO será processado.")
+            return None
+
+    if not status_sucesso:
+        print(f"INFO: Cancelamento de encerramento para MDF-e {mdfe_doc.chave} não confirmado pela SEFAZ.")
+        return None
+
+    # Salva o evento de cancelamento de encerramento
+    evento_data = {
+        'id_evento': evento_info.get('id_evento'),
+        'c_orgao': evento_info.get('c_orgao'),
+        'tp_amb': evento_info.get('tp_amb'),
+        'cnpj': evento_info.get('cnpj'),
+        'cpf': evento_info.get('cpf'),
+        'dh_evento': evento_info.get('dh_evento'),
+        'tp_evento': evento_info.get('tp_evento'),
+        'n_seq_evento': evento_info.get('n_seq_evento'),
+        'versao_evento': evento_info.get('ver_evento'),
+        'n_prot_cancelar': n_prot_cancelar,
+        'x_just': x_just,
+        'arquivo_xml_evento': xml_evento_original,
+        **retorno_data
+    }
+    evento_data_cleaned = {k: v for k, v in evento_data.items() if v is not None}
+
+    # Cria o registro do cancelamento de encerramento
+    cancelamento_enc, created = MDFeCancelamentoEncerramento.objects.update_or_create(
+        mdfe=mdfe_doc,
+        defaults=evento_data_cleaned
+    )
+    
+    # Limpa os dados de encerramento do MDF-e
+    mdfe_doc.encerrado = False
+    mdfe_doc.data_encerramento = None
+    mdfe_doc.municipio_encerramento_cod = None
+    mdfe_doc.uf_encerramento = None
+    mdfe_doc.protocolo_encerramento = None
+    mdfe_doc.save(update_fields=[
+        'encerrado', 'data_encerramento', 'municipio_encerramento_cod',
+        'uf_encerramento', 'protocolo_encerramento'
+    ])
+    
+    print(f"INFO: Evento de Cancelamento de Encerramento registrado com sucesso para MDF-e {mdfe_doc.chave} (Protocolo: {retorno_data.get('n_prot_retorno')}).")
+    return cancelamento_enc
 
 
 # === Função Principal de Parsing de Eventos ===
@@ -483,8 +557,9 @@ def parse_evento(xml_evento_text, xml_retorno_text=None):
             elif tp_evento == EVENTO_CARTA_CORRECAO:
                 return _handle_cce_cte(doc_principal, evento_info, ret_evento_info, xml_evento_text)
             # Adicionar handlers para outros eventos CT-e (EPEC, etc.)
-            # elif tp_evento == EVENTO_EPEC:
-            #     return _handle_epec_cte(...)
+            elif tp_evento == EVENTO_EPEC:
+                print(f"WARN: Evento EPEC (110113) para CT-e {chave_doc} não implementado ainda.")
+                return None
             else:
                 print(f"WARN: Tipo de evento CT-e não suportado pelo parser: {tp_evento} para chave {chave_doc}")
                 return None # Indica que não foi processado
@@ -496,9 +571,8 @@ def parse_evento(xml_evento_text, xml_retorno_text=None):
                 return _handle_encerramento_mdfe(doc_principal, evento_info, ret_evento_info, xml_evento_text)
             elif tp_evento == EVENTO_MDFE_INC_CONDUTOR:
                 return _handle_inclusao_condutor_mdfe(doc_principal, evento_info, ret_evento_info, xml_evento_text)
-            # Adicionar handlers para outros eventos MDF-e (Cancelamento Encerramento, etc.)
-            # elif tp_evento == EVENTO_MDFE_CANCEL_ENCERRAMENTO:
-            #    return _handle_cancel_encerramento_mdfe(...)
+            elif tp_evento == EVENTO_MDFE_CANCEL_ENCERRAMENTO:
+                return _handle_cancel_encerramento_mdfe(doc_principal, evento_info, ret_evento_info, xml_evento_text)
             else:
                 print(f"WARN: Tipo de evento MDF-e não suportado pelo parser: {tp_evento} para chave {chave_doc}")
                 return None # Indica que não foi processado
