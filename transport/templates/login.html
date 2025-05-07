@@ -5,125 +5,169 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Sistema de Gestão de Transporte</title>
-    
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    
-    <!-- Custom CSS -->
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous"> {# Atualizado para exemplo com SRI #}
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" /> {# Atualizado para exemplo com SRI #}
+
     <link href="{% static 'css/styles.css' %}" rel="stylesheet">
-    
+
     <style>
+        html, body {
+            height: 100%;
+        }
         body {
             background-color: var(--cinza-claro);
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
+            padding-top: 40px;
+            padding-bottom: 40px;
         }
-        
+
         .login-card {
-            max-width: 420px;
+            width: 100%;
+            max-width: 420px; /* Mantido o tamanho máximo */
             box-shadow: var(--sombra-padrao);
             border-radius: var(--borda-raio);
             overflow: hidden;
-            background-color: white;
+            background-color: var(--branco);
         }
-        
+
         .login-header {
             background-color: var(--verde-primario);
-            padding: 20px;
+            padding: 25px; /* Aumentado padding */
             text-align: center;
-            color: white;
+            color: var(--branco);
         }
-        
+
         .login-logo {
-            max-width: 180px;
-            margin-bottom: 10px;
+            max-width: 160px; /* Ajustado tamanho */
+            margin-bottom: 15px;
         }
-        
+
+        .login-header h4 {
+            font-weight: 300; /* Título mais leve */
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
         .login-body {
-            padding: 30px;
+            padding: 30px 40px; /* Ajustado padding lateral */
         }
-        
+
         .login-footer {
             text-align: center;
             padding: 15px;
             background-color: var(--verde-claro);
             color: var(--verde-primario);
-            font-size: 0.9rem;
+            font-size: 0.85rem; /* Levemente menor */
         }
+
+        .form-floating>label {
+            padding-left: 45px; /* Ajuste para acomodar o ícone */
+        }
+
+        .input-group-text {
+            background-color: transparent;
+            border: none;
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 5; /* Para ficar acima do input flutuante */
+            color: #6c757d; /* Cor do ícone */
+        }
+
+        .form-floating>.form-control {
+            padding-left: 45px; /* Espaço para o ícone */
+        }
+
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="login-card mx-auto">
-            <div class="login-header">
-                <img src="{% static 'img/logo.svg' %}" alt="Destack Transportes" class="login-logo">
-                <h4>Sistema de Gestão de Transporte</h4>
+    <main class="login-card">
+        <div class="login-header">
+            <img src="{% static 'img/logo.svg' %}" alt="Destack Transportes" class="login-logo">
+            <h4>Sistema de Gestão de Transporte</h4>
+        </div>
+
+        <div class="login-body">
+            <h5 class="text-center mb-4 fw-normal">Acesso ao Sistema</h5>
+
+            <div class="alert alert-danger d-none mb-4" id="loginAlert" role="alert"> {# Adicionado mb-4 #}
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <span id="loginAlertMessage"></span>
             </div>
-            
-            <div class="login-body">
-                <h5 class="text-center mb-4">Acesso ao Sistema</h5>
-                
-                <div class="alert alert-danger d-none" id="loginAlert" role="alert">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    <span id="loginAlertMessage"></span>
+
+            <form id="loginForm" novalidate> {# Removido needs-validation se não for usar validação HTML5 nativa #}
+                {% csrf_token %} {# Adicionado CSRF Token por segurança #}
+
+                <div class="input-group mb-3"> {# Usando input-group sem form-floating #}
+                     <span class="input-group-text"><i class="fas fa-user fa-fw"></i></span>
+                     <input type="text" class="form-control" id="username" name="username" placeholder="Usuário" required autofocus autocomplete="username">
                 </div>
-                
-                <form id="loginForm">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Usuário</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-user"></i></span>
-                            <input type="text" class="form-control" id="username" name="username" required autofocus>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label for="password" class="form-label">Senha</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                            <input type="password" class="form-control" id="password" name="password" required>
-                        </div>
-                    </div>
-                    
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-sign-in-alt me-2"></i>Entrar no Sistema
-                        </button>
-                    </div>
-                </form>
-                
-                <div class="text-center mt-3">
-                    <a href="#" class="text-muted small">Esqueceu sua senha?</a>
+
+                <div class="input-group mb-4">
+                    <span class="input-group-text"><i class="fas fa-lock fa-fw"></i></span>
+                    <input type="password" class="form-control" id="password" name="password" placeholder="Senha" required autocomplete="current-password">
+                 </div>
+
+                <div class="d-grid mb-3"> {# Adicionado mb-3 #}
+                    <button type="submit" class="btn btn-success btn-lg"> {# Botão maior #}
+                        <span class="button-text"><i class="fas fa-sign-in-alt me-2"></i>Entrar</span>
+                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                    </button>
                 </div>
-            </div>
-            
-            <div class="login-footer">
-                <span>&copy; {% now "Y" %} Destack Transportes. Todos os direitos reservados.</span>
+            </form>
+
+            <div class="text-center">
+                 {# Atualizar o href se/quando implementar a recuperação de senha #}
+                <a href="#" class="text-muted small">Esqueceu sua senha?</a>
             </div>
         </div>
-    </div>
-    
-    <!-- Bootstrap JS Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Auth JS -->
+
+        <div class="login-footer">
+            <span>&copy; {% now "Y" %} Destack Transportes. Todos os direitos reservados.</span>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+
     <script src="{% static 'js/auth.js' %}"></script>
-    
+
     <script>
         // Set up form submission
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            
-            // Use auth.js to handle login
-            Auth.login(username, password);
+            const btn = e.target.querySelector('button[type="submit"]');
+            const btnText = btn.querySelector('.button-text');
+            const spinner = btn.querySelector('.spinner-border');
+
+            // Botão de feedback (compatível com auth.js)
+            btn.disabled = true;
+            if (btnText) btnText.textContent = 'Entrando...'; // Atualiza o texto
+            if (spinner) spinner.classList.remove('d-none'); // Mostra spinner
+            if (window.hideLoginError) hideLoginError(); // Esconde erro anterior (se a função existir)
+
+            // Use auth.js para lidar com o login
+            Auth.login(username, password)
+              .catch(err => {
+                  // Erro já é tratado dentro de Auth.login (showLoginError)
+                  console.error("Falha no login capturada no HTML:", err);
+              })
+              .finally(() => {
+                  // Restaura o botão independentemente do resultado (auth.js já lida com isso internamente, mas é seguro garantir)
+                   btn.disabled = false;
+                   if (btnText) btnText.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Entrar'; // Restaura texto e ícone
+                   if (spinner) spinner.classList.add('d-none'); // Esconde spinner
+              });
         });
     </script>
 </body>

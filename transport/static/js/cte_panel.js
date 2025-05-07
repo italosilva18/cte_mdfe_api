@@ -119,8 +119,8 @@ function loadCTeList() {
     // Build API URL with query params
     let apiUrl = `/api/ctes/?page=${currentPage}&page_size=${pageSize}`;
     
-    if (dataInicio) apiUrl += `&date_from=${dataInicio}`;
-    if (dataFim) apiUrl += `&date_to=${dataFim}`;
+    if (dataInicio) apiUrl += `&data_inicio=${dataInicio}`;
+    if (dataFim) apiUrl += `&data_fim=${dataFim}`;
     if (modalidade) apiUrl += `&modalidade=${modalidade}`;
     
     // Fetch data with authentication

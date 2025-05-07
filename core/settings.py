@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'drf_yasg', 
     'transport',
     "rest_framework_simplejwt",
+    'django.contrib.humanize',
 ]
 
 MIDDLEWARE = [
