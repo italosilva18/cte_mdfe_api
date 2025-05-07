@@ -1,13 +1,17 @@
 /**
  * upload.js
- * Functions for the XML upload functionality
+ * Funcionalidades para upload de arquivos XML (CT-e, MDF-e e eventos)
+ * Versão: 1.1.0 (Ajustada)
  */
 
+// Assumindo que 'Auth', 'formatDateTime', 'showNotification' (usando Toasts)
+// e outras funções de formatação/utilidade estão definidas globalmente (ex: em scripts.js e auth.js)
+
 /**
- * Initializes the upload page when DOM is loaded
+ * Inicializa a página de upload quando o DOM é carregado
  */
 document.addEventListener('DOMContentLoaded', function() {
-    // Set up form submission handler
+    // Configurar manipulador de submissão do formulário
     const uploadForm = document.getElementById('uploadForm');
     if (uploadForm) {
         uploadForm.addEventListener('submit', function(e) {
@@ -15,311 +19,429 @@ document.addEventListener('DOMContentLoaded', function() {
             uploadXML();
         });
     }
-    
-    // Load upload history
+
+    // Carregar histórico de uploads recentes
     loadUploadHistory();
+
+    // Limpar labels dos inputs de arquivo ao selecionar
+    // (O navegador geralmente já faz isso, mas garante)
+    document.getElementById('arquivo_xml')?.addEventListener('change', function() {
+        // Não precisa atualizar label explicitamente em BS5 com input-group
+    });
+    document.getElementById('arquivo_xml_retorno')?.addEventListener('change', function() {
+        // Não precisa atualizar label explicitamente em BS5 com input-group
+    });
+
 });
 
 /**
- * Handles XML file upload
+ * Realiza o upload do arquivo XML
  */
 function uploadXML() {
-    // Get form and progress elements
+    // Obter elementos do formulário e progresso
     const uploadForm = document.getElementById('uploadForm');
     const progressBar = document.querySelector('#uploadProgress .progress-bar');
     const progressContainer = document.getElementById('uploadProgress');
-    
-    // Check if file is selected
-    const fileInput = document.getElementById('arquivoXML');
-    if (!fileInput.files.length) {
-        showUploadError('Por favor, selecione um arquivo XML para upload.');
+    const submitButton = document.querySelector('#uploadForm button[type="submit"]');
+    const fileInput = document.getElementById('arquivo_xml');
+    const retornoInput = document.getElementById('arquivo_xml_retorno');
+
+    // Verificar se o arquivo principal foi selecionado
+    if (!fileInput || !fileInput.files.length) {
+        // Usar a função global de notificação
+        if (typeof showNotification === 'function') {
+            showNotification('Por favor, selecione um arquivo XML para upload.', 'warning');
+        } else {
+            alert('Por favor, selecione um arquivo XML para upload.');
+        }
         return;
     }
-    
-    // Hide previous messages
-    hideMessages();
-    
-    // Show progress bar at 0%
-    progressContainer.classList.remove('d-none');
-    progressBar.style.width = '0%';
-    progressBar.setAttribute('aria-valuenow', 0);
-    
-    // Prepare form data
-    const formData = new FormData(uploadForm);
-    
-    // Start progress animation (simulated)
+
+    // --- Feedback de Carregamento ---
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Processando...';
+    }
+    hideMessages(); // Esconder mensagens de erro/sucesso anteriores
+    if (progressContainer && progressBar) {
+        progressContainer.classList.remove('d-none');
+        progressBar.style.width = '0%';
+        progressBar.setAttribute('aria-valuenow', 0);
+        progressBar.classList.remove('bg-success', 'bg-danger'); // Reseta cor
+        progressBar.classList.add('progress-bar-animated');
+    }
+    // ---------------------------------
+
+    // Preparar FormData
+    const formData = new FormData();
+    formData.append('arquivo_xml', fileInput.files[0]);
+    if (retornoInput && retornoInput.files.length > 0) {
+        formData.append('arquivo_xml_retorno', retornoInput.files[0]);
+    }
+
+    // Simulação de Progresso (mantida para UX, mas não reflete o upload real com fetch)
     let progress = 0;
     const progressInterval = setInterval(() => {
         progress += 5;
-        if (progress <= 90) {
+        if (progress <= 95 && progressBar) { // Não ir até 100% imediatamente
             progressBar.style.width = `${progress}%`;
             progressBar.setAttribute('aria-valuenow', progress);
         }
     }, 150);
-    
-    // Upload file with authentication
-    fetch('/api/upload/', {
+
+    // Realizar o upload com autenticação
+    Auth.fetchWithAuth('/api/upload/', {
         method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${Auth.getToken()}`
-        },
+        // Não incluir 'Content-Type', o navegador define com 'boundary' correto
         body: formData
     })
     .then(response => {
-        // Stop progress animation
-        clearInterval(progressInterval);
-        
-        // Complete progress bar
-        progressBar.style.width = '100%';
-        progressBar.setAttribute('aria-valuenow', 100);
-        
-        // Handle response
+        clearInterval(progressInterval); // Parar simulação
+        // Lidar com a resposta
+        if (progressBar) {
+            progressBar.style.width = '100%';
+            progressBar.setAttribute('aria-valuenow', 100);
+            progressBar.classList.remove('progress-bar-animated');
+        }
         if (!response.ok) {
-            // Handle 409 (Document already exists)
-            if (response.status === 409) {
-                return response.json().then(data => {
-                    throw new Error(data.detail || 'Documento já existe no sistema.');
-                });
-            }
-            
-            // Handle other errors
-            return response.json().then(data => {
-                throw new Error(data.detail || 'Erro no processamento do arquivo.');
+            // Se a resposta não for OK, tentar ler o JSON de erro
+            return response.json().then(errData => {
+                // Anexar o status code ao erro para mais contexto
+                errData.statusCode = response.status;
+                throw errData; // Lança o objeto de erro para o catch
+            }).catch(() => {
+                // Se não conseguir ler JSON, lança erro genérico com status
+                 throw new Error(`Erro ${response.status}: ${response.statusText}`);
             });
         }
-        
-        return response.json();
+        return response.json(); // Processa a resposta JSON de sucesso
     })
     .then(data => {
-        // Show success message
-        showUploadSuccess(`Arquivo processado com sucesso! Tipo: ${data.tipo || 'Documento'}`);
-        
-        // Reset form
-        uploadForm.reset();
-        
-        // Update upload history
+        // --- Sucesso ---
+        if (progressBar) progressBar.classList.add('bg-success');
+        let mensagem = data.message || 'Arquivo processado com sucesso!';
+        if (data.chave) {
+            mensagem += ` Chave: ${formatChave(data.chave)}`; // Usar função global
+        }
+        showUploadSuccess(mensagem);
+        uploadForm.reset(); // Limpar formulário
+        loadUploadHistory(); // Atualizar histórico
         setTimeout(() => {
-            loadUploadHistory();
-        }, 1000);
-        
-        // Hide progress bar after delay
-        setTimeout(() => {
-            progressContainer.classList.add('d-none');
-        }, 2000);
+            progressContainer?.classList.add('d-none'); // Esconder barra após sucesso
+            progressBar?.classList.remove('bg-success');
+        }, 3000);
+        // ----------------
     })
     .catch(error => {
-        console.error('Upload error:', error);
-        
-        // Show error message
-        showUploadError(error.message || 'Erro ao processar o arquivo. Tente novamente.');
-        
-        // Hide progress bar after delay
+        // --- Erro ---
+        clearInterval(progressInterval); // Garante que parou a simulação
+        console.error('Erro de upload:', error);
+        if (progressBar) {
+            progressBar.style.width = '100%'; // Marca 100% mas com erro
+             progressBar.classList.remove('progress-bar-animated');
+             progressBar.classList.add('bg-danger'); // Cor de erro
+        }
+
+        // Formatar a mensagem de erro detalhada
+        let detailedMessage = 'Erro ao processar o arquivo. Tente novamente.';
+        if (error && (error.error || error.detail)) {
+             detailedMessage = error.error || error.detail;
+        } else if (error && typeof error === 'object' && error.message) {
+            detailedMessage = error.message;
+        } else if (typeof error === 'string') {
+             detailedMessage = error;
+        }
+         // Se for um objeto de erros do DRF (ex: validação do serializer)
+         else if (typeof error === 'object' && !error.message && Object.keys(error).length > 0 && error.statusCode !== 500) {
+             detailedMessage = Object.entries(error)
+                 .filter(([key]) => key !== 'statusCode') // Não exibir statusCode na mensagem
+                 .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+                 .join('; ');
+         }
+
+        showUploadError(detailedMessage);
         setTimeout(() => {
-            progressContainer.classList.add('d-none');
-        }, 1000);
+            progressContainer?.classList.add('d-none'); // Esconder barra após erro
+            progressBar?.classList.remove('bg-danger');
+        }, 5000);
+        // ---------------
+    })
+    .finally(() => {
+        // --- Sempre Executa ---
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.innerHTML = '<i class="fas fa-upload me-2"></i>Enviar Arquivo';
+        }
+        // ---------------------
     });
 }
 
 /**
- * Shows upload success message
- * @param {string} message - Success message
+ * Mostra mensagem de sucesso na área designada.
+ * @param {string} message - Mensagem de sucesso.
  */
 function showUploadSuccess(message) {
     const successAlert = document.getElementById('uploadSuccess');
     const successMessage = document.getElementById('successMessage');
-    
+
     if (successAlert && successMessage) {
         successMessage.textContent = message;
         successAlert.classList.remove('d-none');
+        hideMessages('uploadError'); // Esconde erro se sucesso
+        successAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+        // Fallback se elementos não encontrados
+        if (typeof showNotification === 'function') {
+             showNotification(message, 'success');
+        } else {
+             alert(message);
+        }
     }
 }
 
 /**
- * Shows upload error message
- * @param {string} message - Error message
+ * Mostra mensagem de erro na área designada.
+ * @param {string} message - Mensagem de erro.
  */
 function showUploadError(message) {
     const errorAlert = document.getElementById('uploadError');
     const errorMessage = document.getElementById('errorMessage');
-    
+
     if (errorAlert && errorMessage) {
         errorMessage.textContent = message;
         errorAlert.classList.remove('d-none');
+        hideMessages('uploadSuccess'); // Esconde sucesso se erro
+        errorAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+        // Fallback se elementos não encontrados
+        if (typeof showNotification === 'function') {
+            showNotification(message, 'error');
+        } else {
+            alert(`Erro: ${message}`);
+        }
     }
 }
 
 /**
- * Hides all alert messages
+ * Esconde uma ou ambas as mensagens de alerta.
+ * @param {('uploadSuccess'|'uploadError'|'both')} [which='both'] - Qual alerta esconder.
  */
-function hideMessages() {
-    document.getElementById('uploadSuccess')?.classList.add('d-none');
-    document.getElementById('uploadError')?.classList.add('d-none');
+function hideMessages(which = 'both') {
+    if (which === 'both' || which === 'uploadSuccess') {
+        document.getElementById('uploadSuccess')?.classList.add('d-none');
+    }
+    if (which === 'both' || which === 'uploadError') {
+        document.getElementById('uploadError')?.classList.add('d-none');
+    }
 }
 
 /**
- * Loads upload history from API
+ * Carrega o histórico de uploads recentes buscando CTes e MDFes.
  */
 function loadUploadHistory() {
     const tbody = document.getElementById('upload-history');
     if (!tbody) return;
-    
-    // Show loading message
+
+    // Mostrar mensagem de carregamento
     tbody.innerHTML = `
-    <tr>
-        <td colspan="5" class="text-center">
-            <div class="spinner-border spinner-border-sm text-success me-2" role="status">
-                <span class="visually-hidden">Carregando...</span>
-            </div>
-            Carregando histórico...
-        </td>
-    </tr>`;
-    
-    // Fetch upload history
-    Auth.fetchWithAuth('/api/uploads/recent/')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Erro ao buscar histórico de uploads');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data || data.length === 0) {
-                tbody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="text-center">
-                        Nenhum upload encontrado.
-                    </td>
-                </tr>`;
-                return;
-            }
-            
-            // Render table rows
-            let html = '';
-            
-            data.forEach(item => {
-                const dataFormatada = formatDateTime(item.data_upload);
-                const tipoDoc = getTipoDocumento(item);
-                const statusHTML = getStatusHTML(item);
-                
-                html += `
-                <tr>
-                    <td>${dataFormatada}</td>
-                    <td>${tipoDoc}</td>
-                    <td>${truncateText(item.chave || '', 20)}</td>
-                    <td>${statusHTML}</td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="/api/${getApiPath(item.tipo)}/${item.id}/" class="btn btn-outline-primary" title="Ver Detalhes">
-                                <i class="fas fa-eye"></i>
-                            </a>
-                            <a href="/api/${getApiPath(item.tipo)}/${item.id}/xml/" class="btn btn-outline-success" title="Download XML">
-                                <i class="fas fa-file-code"></i>
-                            </a>
-                        </div>
-                    </td>
-                </tr>
-                `;
-            });
-            
-            tbody.innerHTML = html;
-        })
-        .catch(error => {
-            console.error('Error loading upload history:', error);
-            
-            tbody.innerHTML = `
+        <tr>
+            <td colspan="5" class="text-center">
+                <div class="spinner-border spinner-border-sm text-secondary me-2" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                Carregando histórico...
+            </td>
+        </tr>`;
+
+    // Buscar CTes e MDFes mais recentes em paralelo
+    Promise.all([
+        Auth.fetchWithAuth('/api/ctes/?ordering=-data_upload&limit=10'), // Ordena por data de upload
+        Auth.fetchWithAuth('/api/mdfes/?ordering=-data_upload&limit=10') // Ordena por data de upload
+    ])
+    .then(async ([ctesResponse, mdfesResponse]) => {
+        // Processar resultados mesmo se um falhar
+        const ctes = ctesResponse.ok ? await ctesResponse.json() : { results: [] };
+        const mdfes = mdfesResponse.ok ? await mdfesResponse.json() : { results: [] };
+
+        // Mapear para formato comum e adicionar tipo
+        const cteMapped = (ctes.results || []).map(item => ({
+            ...item, // Inclui todos os dados originais
+            tipo: 'CTE',
+            // Usa data_upload se existir, senão data_emissao ou data atual
+            data_ordenacao: item.data_upload || item.data_emissao || new Date(0).toISOString(),
+            // Status pode precisar de lógica mais complexa baseada nos dados completos
+            status: item.status || (item.processado ? (item.autorizado ? 'Autorizado' : (item.cancelado ? 'Cancelado' : 'Processado')) : 'Pendente')
+        }));
+
+        const mdfeMapped = (mdfes.results || []).map(item => ({
+            ...item, // Inclui todos os dados originais
+            tipo: 'MDFE',
+            data_ordenacao: item.data_upload || item.data_emissao || new Date(0).toISOString(),
+            status: item.status || (item.processado ? (item.autorizado ? 'Autorizado' : (item.cancelado ? 'Cancelado' : (item.encerrado ? 'Encerrado' : 'Processado'))) : 'Pendente')
+        }));
+
+        // Combinar, ordenar pela data de ordenação (upload ou emissão) e limitar
+        const combined = [...cteMapped, ...mdfeMapped]
+            .sort((a, b) => new Date(b.data_ordenacao) - new Date(a.data_ordenacao))
+            .slice(0, 10); // Limita aos 10 mais recentes no total
+
+        return combined;
+    })
+    .then(data => {
+        renderUploadHistory(data, tbody);
+    })
+    .catch(error => {
+        console.error('Erro ao carregar histórico de uploads:', error);
+        tbody.innerHTML = `
             <tr>
                 <td colspan="5" class="text-center text-danger">
                     <i class="fas fa-exclamation-circle me-2"></i>
                     Erro ao carregar histórico. Tente novamente.
                 </td>
             </tr>`;
-        });
+        if (typeof showNotification === 'function') {
+             showNotification('Erro ao carregar histórico de uploads.', 'error');
+        }
+    });
 }
 
 /**
- * Gets formatted document type
- * @param {Object} item - Document data
- * @returns {string} - Formatted document type
+ * Renderiza o histórico de uploads na tabela.
+ * @param {Array} data - Lista de uploads (formato combinado).
+ * @param {HTMLElement} tbody - Elemento tbody para renderizar.
+ */
+function renderUploadHistory(data, tbody) {
+    if (!data || data.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center">
+                    <i class="fas fa-info-circle me-2 text-info"></i>
+                    Nenhum upload encontrado no histórico recente.
+                </td>
+            </tr>`;
+        return;
+    }
+
+    // Renderizar linhas da tabela
+    let html = '';
+
+    data.forEach(item => {
+        const dataFormatada = typeof formatDateTime === 'function' ? formatDateTime(item.data_ordenacao) : item.data_ordenacao;
+        const tipoDoc = getTipoDocumento(item); // Função auxiliar
+        const statusHTML = getStatusHTML(item); // Função auxiliar
+        const chaveFormatada = formatChave(item.chave || ''); // Função auxiliar
+        const apiPath = getApiPath(item.tipo); // Função auxiliar
+
+        // Link para detalhes (se houver ID)
+        const detailLink = item.id ? `/api/${apiPath}/${item.id}/` : '#';
+        // Link para XML (se houver ID)
+        const xmlLink = item.id ? `/api/${apiPath}/${item.id}/xml/` : '#';
+        const isDisabled = !item.id ? 'disabled' : ''; // Desabilita botões se não houver ID
+
+        html += `
+            <tr>
+                <td>${dataFormatada}</td>
+                <td>${tipoDoc}</td>
+                <td title="${item.chave || ''}">${chaveFormatada}</td>
+                <td>${statusHTML}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <a href="${detailLink}"
+                           class="btn btn-outline-primary ${isDisabled}"
+                           title="Ver Detalhes"
+                           ${isDisabled ? 'aria-disabled="true"' : ''}
+                           target="_blank"> <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="${xmlLink}"
+                           class="btn btn-outline-success ${isDisabled}"
+                           title="Download XML"
+                           ${isDisabled ? 'aria-disabled="true"' : ''}
+                           target="_blank"> <i class="fas fa-file-code"></i>
+                        </a>
+                    </div>
+                </td>
+            </tr>`;
+    });
+
+    tbody.innerHTML = html;
+
+    // Reativar tooltips após renderização, se Bootstrap estiver disponível
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        const tooltips = tbody.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltips.forEach(tooltip => new bootstrap.Tooltip(tooltip));
+    }
+}
+
+// --- Funções Auxiliares Específicas de Upload ---
+
+/**
+ * Obtém o tipo de documento formatado.
+ * @param {Object} item - Dados do documento.
+ * @returns {string} - Tipo de documento formatado.
  */
 function getTipoDocumento(item) {
-    switch (item.tipo?.toUpperCase()) {
-        case 'CTE': return 'CT-e';
-        case 'MDFE': return 'MDF-e';
-        case 'EVENTO':
-            // Format event type if available
-            if (item.evento_tipo) {
-                // Map event type codes to readable names
-                const eventTypesMap = {
-                    '110111': 'Cancelamento',
-                    '110110': 'Carta Correção',
-                    // Add more event types as needed
-                };
-                
-                const eventName = eventTypesMap[item.evento_tipo] || item.evento_tipo;
-                return `Evento (${eventName})`;
-            }
-            return 'Evento';
-        default: return item.tipo || 'Documento';
-    }
+    const tipo = item.tipo?.toUpperCase() || '';
+    if (tipo === 'CTE') return 'CT-e';
+    if (tipo === 'MDFE') return 'MDF-e';
+    // Adicionar lógica para eventos se necessário, baseado em dados extras
+    return item.tipo || 'Documento';
 }
 
 /**
- * Gets API path for document type
- * @param {string} tipo - Document type
- * @returns {string} - API path
+ * Obtém o caminho da API para o tipo de documento.
+ * @param {string} tipo - Tipo de documento ('CTE', 'MDFE').
+ * @returns {string} - Caminho da API (ex: 'ctes', 'mdfes').
  */
 function getApiPath(tipo) {
-    switch (tipo?.toUpperCase()) {
-        case 'CTE': return 'ctes';
-        case 'MDFE': return 'mdfes';
-        case 'EVENTO': return 'eventos';
-        default: return 'documentos';
-    }
+    const tipoUpper = (tipo || '').toUpperCase();
+    if (tipoUpper === 'CTE') return 'ctes';
+    if (tipoUpper === 'MDFE') return 'mdfes';
+    return 'documentos'; // Fallback genérico
 }
 
 /**
- * Gets status HTML badge
- * @param {Object} item - Document data
- * @returns {string} - HTML for status badge
+ * Obtém o HTML do badge de status.
+ * @param {Object} item - Dados do documento/upload.
+ * @returns {string} - HTML para o badge de status.
  */
 function getStatusHTML(item) {
-    if (item.cancelado) {
+    const status = (item.status || '').toLowerCase();
+
+    if (status.includes('cancelado')) {
         return '<span class="badge bg-danger">Cancelado</span>';
     }
-    
-    if (item.autorizado) {
+    if (status.includes('encerrado')) {
+        return '<span class="badge bg-secondary">Encerrado</span>';
+    }
+    if (status.includes('autorizado')) {
         return '<span class="badge bg-success">Autorizado</span>';
     }
-    
-    if (item.processado) {
-        return '<span class="badge bg-info">Processado</span>';
+    if (status.includes('processado')) {
+        return '<span class="badge bg-info text-dark">Processado</span>';
     }
-    
-    return '<span class="badge bg-warning text-dark">Pendente</span>';
+     if (status.includes('rejeitado')) {
+        return '<span class="badge bg-warning text-dark">Rejeitado</span>';
+    }
+    return '<span class="badge bg-warning text-dark">Pendente</span>'; // Default
 }
 
 /**
- * Formats date and time
- * @param {string} dateString - Date string
- * @returns {string} - Formatted date and time
+ * Formata a chave do documento (ex: primeiros 4 e últimos 4 dígitos).
+ * @param {string} chave - Chave do documento (44 dígitos).
+ * @returns {string} - Chave formatada ou original se não tiver 44 dígitos.
  */
-function formatDateTime(dateString) {
-    if (!dateString) return '--';
-    
-    try {
-        return new Date(dateString).toLocaleString('pt-BR');
-    } catch (e) {
-        return '--';
+function formatChave(chave) {
+    if (!chave) return '--';
+    if (chave.length === 44) {
+        return `${chave.substring(0, 4)}...${chave.substring(40)}`;
     }
+    return chave.length > 20 ? chave.substring(0, 17) + '...' : chave;
 }
 
 /**
- * Truncates text with ellipsis
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length
- * @returns {string} - Truncated text
+ * Exporta funções para uso global (ex: botão de refresh manual).
  */
-function truncateText(text, maxLength) {
-    if (!text) return '--';
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-}
+window.UploadXML = {
+    uploadFile: uploadXML,
+    refreshHistory: loadUploadHistory
+};

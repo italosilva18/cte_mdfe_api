@@ -1,0 +1,450 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Relatórios{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item active">Relatórios</li>
+{% endblock %}
+
+{% block page_actions %}
+<button class="btn btn-sm btn-success" id="btnGerarRelatorio">
+    <i class="fas fa-file-export me-1"></i>Gerar Relatório
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Filter Form -->
+<div class="card shadow mb-4" style="border-left: 4px solid var(--verde-primario);">
+    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+        <i class="fas fa-filter me-2"></i>Filtros para Relatório
+    </div>
+    <div class="card-body">
+        <form id="reportFilterForm" class="row g-3">
+            <div class="col-md-4">
+                <label for="tipo_relatorio" class="form-label">Tipo de Relatório</label>
+                <select class="form-select" id="tipo_relatorio" name="tipo" required>
+                    <option value="">Selecione...</option>
+                    <option value="faturamento">Faturamento</option>
+                    <option value="veiculos">Veículos</option>
+                    <option value="ctes">Documentos CT-e</option>
+                    <option value="mdfes">Documentos MDF-e</option>
+                    <option value="pagamentos">Pagamentos</option>
+                    <option value="km_rodado">Quilometragem Rodada</option>
+                    <option value="manutencoes">Manutenções</option>
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="formato" class="form-label">Formato</label>
+                <select class="form-select" id="formato" name="formato" required>
+                    <option value="csv">CSV</option>
+                    <option value="xlsx">Excel (XLSX)</option>
+                    <option value="pdf">PDF</option>
+                    <option value="json">JSON</option>
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="periodo" class="form-label">Período Predefinido</label>
+                <select class="form-select" id="periodo" name="periodo">
+                    <option value="">Personalizado</option>
+                    <option value="hoje">Hoje</option>
+                    <option value="ontem">Ontem</option>
+                    <option value="7dias">Últimos 7 dias</option>
+                    <option value="30dias">Últimos 30 dias</option>
+                    <option value="mes_atual">Mês atual</option>
+                    <option value="mes_anterior">Mês anterior</option>
+                    <option value="ano_atual">Ano atual</option>
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="data_inicio" class="form-label">Data Inicial</label>
+                <input type="date" class="form-control" id="data_inicio" name="data_inicio">
+            </div>
+            
+            <div class="col-md-4">
+                <label for="data_fim" class="form-label">Data Final</label>
+                <input type="date" class="form-control" id="data_fim" name="data_fim">
+            </div>
+            
+            <!-- Filtros dinâmicos baseados no tipo de relatório -->
+            <div id="filtros_dinamicos" class="col-md-4">
+                <!-- Será preenchido via JavaScript -->
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tipo de Relatório - Detalhes -->
+<div class="card shadow mb-4">
+    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+        <i class="fas fa-info-circle me-2"></i>Detalhes do Relatório
+    </div>
+    <div class="card-body">
+        <!-- Detalhes de Faturamento -->
+        <div id="details_faturamento" class="report-details d-none">
+            <h5 class="mb-3">Relatório de Faturamento</h5>
+            <p>Este relatório apresenta dados consolidados de faturamento no período selecionado.</p>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Agrupamento</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="agrupamento" id="agrupar_mes" value="mes" checked>
+                            <label class="form-check-label" for="agrupar_mes">Por Mês</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="agrupamento" id="agrupar_dia" value="dia">
+                            <label class="form-check-label" for="agrupar_dia">Por Dia</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="agrupamento" id="agrupar_cliente" value="cliente">
+                            <label class="form-check-label" for="agrupar_cliente">Por Cliente</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="tipo_cliente" class="form-label">Tipo de Cliente</label>
+                        <select class="form-select" id="tipo_cliente" name="tipo_cliente">
+                            <option value="destinatario">Destinatário</option>
+                            <option value="remetente">Remetente</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modalidade" class="form-label">Modalidade</label>
+                        <select class="form-select" id="modalidade" name="modalidade">
+                            <option value="">Todas</option>
+                            <option value="CIF">CIF</option>
+                            <option value="FOB">FOB</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Detalhes de Veículos -->
+        <div id="details_veiculos" class="report-details d-none">
+            <h5 class="mb-3">Relatório de Veículos</h5>
+            <p>Este relatório apresenta informações detalhadas sobre os veículos cadastrados.</p>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="tipo_proprietario" class="form-label">Tipo de Proprietário</label>
+                        <select class="form-select" id="tipo_proprietario" name="tipo_proprietario">
+                            <option value="">Todos</option>
+                            <option value="00">Próprio</option>
+                            <option value="01">Terceiro</option>
+                            <option value="02">Agregado</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="ativo" id="veiculo_todos" value="" checked>
+                            <label class="form-check-label" for="veiculo_todos">Todos</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="ativo" id="veiculo_ativo" value="true">
+                            <label class="form-check-label" for="veiculo_ativo">Ativos</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="ativo" id="veiculo_inativo" value="false">
+                            <label class="form-check-label" for="veiculo_inativo">Inativos</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="ordenacao" class="form-label">Ordenação</label>
+                <select class="form-select" id="ordenacao" name="ordenacao">
+                    <option value="placa">Placa (A-Z)</option>
+                    <option value="-placa">Placa (Z-A)</option>
+                    <option value="proprietario_nome">Proprietário (A-Z)</option>
+                    <option value="tipo_proprietario">Tipo de Proprietário</option>
+                    <option value="-capacidade_kg">Capacidade (maior para menor)</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Detalhes de CT-es -->
+        <div id="details_ctes" class="report-details d-none">
+            <h5 class="mb-3">Relatório de CT-es</h5>
+            <p>Este relatório apresenta informações sobre os CT-es no período selecionado.</p>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="status_cte" class="form-label">Status</label>
+                        <select class="form-select" id="status_cte" name="status">
+                            <option value="">Todos</option>
+                            <option value="autorizado">Autorizado</option>
+                            <option value="cancelado">Cancelado</option>
+                            <option value="rejeitado">Rejeitado</option>
+                            <option value="pendente">Pendente</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="modalidade_cte" class="form-label">Modalidade</label>
+                        <select class="form-select" id="modalidade_cte" name="modalidade">
+                            <option value="">Todas</option>
+                            <option value="CIF">CIF</option>
+                            <option value="FOB">FOB</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="cliente_cnpj" class="form-label">CNPJ do Cliente</label>
+                        <input type="text" class="form-control" id="cliente_cnpj" name="cliente_cnpj" placeholder="Opcional">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="tipo_cliente_cte" class="form-label">Tipo de Cliente</label>
+                        <select class="form-select" id="tipo_cliente_cte" name="tipo_cliente">
+                            <option value="destinatario">Destinatário</option>
+                            <option value="remetente">Remetente</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Detalhes de MDF-es -->
+        <div id="details_mdfes" class="report-details d-none">
+            <h5 class="mb-3">Relatório de MDF-es</h5>
+            <p>Este relatório apresenta informações sobre os MDF-es no período selecionado.</p>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="status_mdfe" class="form-label">Status</label>
+                        <select class="form-select" id="status_mdfe" name="status">
+                            <option value="">Todos</option>
+                            <option value="autorizado">Autorizado</option>
+                            <option value="encerrado">Encerrado</option>
+                            <option value="cancelado">Cancelado</option>
+                            <option value="rejeitado">Rejeitado</option>
+                            <option value="pendente">Pendente</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="placa_mdfe" class="form-label">Placa do Veículo</label>
+                        <input type="text" class="form-control" id="placa_mdfe" name="placa" placeholder="Opcional">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Detalhes de Pagamentos -->
+        <div id="details_pagamentos" class="report-details d-none">
+            <h5 class="mb-3">Relatório de Pagamentos</h5>
+            <p>Este relatório apresenta informações sobre pagamentos realizados ou pendentes.</p>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="tipo_pagamento" class="form-label">Tipo de Pagamento</label>
+                        <select class="form-select" id="tipo_pagamento" name="tipo">
+                            <option value="agregados">Agregados</option>
+                            <option value="proprios">Próprios</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="status_pagamento" class="form-label">Status</label>
+                        <select class="form-select" id="status_pagamento" name="status">
+                            <option value="">Todos</option>
+                            <option value="pendente">Pendente</option>
+                            <option value="pago">Pago</option>
+                            <option value="atrasado">Atrasado</option>
+                            <option value="cancelado">Cancelado</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div id="pagamento_agregado_fields">
+                        <div class="mb-3">
+                            <label for="placa_agregado" class="form-label">Placa</label>
+                            <input type="text" class="form-control" id="placa_agregado" name="placa" placeholder="Opcional">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="cpf_condutor" class="form-label">CPF Condutor</label>
+                            <input type="text" class="form-control" id="cpf_condutor" name="condutor_cpf" placeholder="Opcional">
+                        </div>
+                    </div>
+                    
+                    <div id="pagamento_proprio_fields" class="d-none">
+                        <div class="mb-3">
+                            <label for="veiculo_id" class="form-label">Veículo</label>
+                            <select class="form-select" id="veiculo_id" name="veiculo_id">
+                                <option value="">Todos</option>
+                                <!-- Será preenchido via JavaScript -->
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="periodo_pagamento" class="form-label">Período</label>
+                            <input type="text" class="form-control" id="periodo_pagamento" name="periodo" placeholder="AAAA-MM ou AAAA-MM-1Q">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Detalhes de KM Rodado -->
+        <div id="details_km_rodado" class="report-details d-none">
+            <h5 class="mb-3">Relatório de Quilometragem Rodada</h5>
+            <p>Este relatório apresenta informações sobre a quilometragem rodada por veículo no período selecionado.</p>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="placa_km" class="form-label">Placa</label>
+                        <input type="text" class="form-control" id="placa_km" name="placa" placeholder="Opcional">
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="agrupamento_km" class="form-label">Agrupamento</label>
+                        <select class="form-select" id="agrupamento_km" name="agrupamento">
+                            <option value="veiculo">Por Veículo</option>
+                            <option value="mes">Por Mês</option>
+                            <option value="tipo_proprietario">Por Tipo de Proprietário</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Detalhes de Manutenções -->
+        <div id="details_manutencoes" class="report-details d-none">
+            <h5 class="mb-3">Relatório de Manutenções</h5>
+            <p>Este relatório apresenta informações sobre as manutenções realizadas no período selecionado.</p>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="placa_manutencao" class="form-label">Placa</label>
+                        <input type="text" class="form-control" id="placa_manutencao" name="placa" placeholder="Opcional">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="status_manutencao" class="form-label">Status</label>
+                        <select class="form-select" id="status_manutencao" name="status">
+                            <option value="">Todos</option>
+                            <option value="PENDENTE">Pendente</option>
+                            <option value="AGENDADO">Agendado</option>
+                            <option value="PAGO">Pago</option>
+                            <option value="CANCELADO">Cancelado</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="ordenacao_manutencao" class="form-label">Ordenação</label>
+                        <select class="form-select" id="ordenacao_manutencao" name="ordenacao">
+                            <option value="-data_servico">Data (mais recente)</option>
+                            <option value="data_servico">Data (mais antiga)</option>
+                            <option value="-valor_total">Valor (maior para menor)</option>
+                            <option value="valor_total">Valor (menor para maior)</option>
+                            <option value="veiculo__placa">Placa (A-Z)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Previsualizacao do Relatorio -->
+<div class="card shadow mb-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Prévia do Relatório</h5>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary me-2" id="btnVisualizarPrevia">
+                <i class="fas fa-eye me-1"></i>Visualizar
+            </button>
+            <button class="btn btn-sm btn-success" id="btnBaixarRelatorio">
+                <i class="fas fa-download me-1"></i>Baixar Relatório
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div id="preview-container" class="overflow-auto" style="max-height: 400px;">
+            <div class="d-flex justify-content-center align-items-center py-5">
+                <div class="text-center">
+                    <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Selecione os filtros acima e clique em "Visualizar" para gerar uma prévia do relatório.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Sucesso -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="successModalLabel">Relatório Gerado</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                    <h5>Relatório gerado com sucesso!</h5>
+                    <p id="relatorio-info">O relatório foi gerado e está pronto para download.</p>
+                </div>
+                <div class="d-grid">
+                    <a href="#" class="btn btn-success" id="downloadLink">
+                        <i class="fas fa-download me-2"></i>Baixar Agora
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Erro -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="errorModalLabel">Erro ao Gerar Relatório</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <i class="fas fa-exclamation-circle fa-4x text-danger mb-3"></i>
+                    <h5>Ocorreu um erro!</h5>
+                    <p id="error-message">Não foi possível gerar o relatório. Por favor, tente novamente.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" id="btnTryAgain">Tentar Novamente</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/relatorios.js' %}"></script>
+{% endblock %}

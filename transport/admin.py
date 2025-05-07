@@ -27,11 +27,13 @@ from .models import (
     MDFeSeguroCarga, MDFeAverbacaoSeguro, MDFeProdutoPredominante, MDFeTotais,
     MDFeLacreRodoviario, MDFeAutXML, MDFeInformacoesAdicionais,
     MDFeResponsavelTecnico, MDFeProtocoloAutorizacao, MDFeSuplementar,
-    MDFeCancelamento,
+    MDFeCancelamento, MDFeCancelamentoEncerramento,
     # Veículos e Manutenção
     Veiculo, ManutencaoVeiculo,
     # Pagamentos e Parametrização
-    FaixaKM, PagamentoAgregado, PagamentoProprio
+    FaixaKM, PagamentoAgregado, PagamentoProprio,
+    # Configurações do Sistema
+    ParametroSistema, ConfiguracaoEmpresa, RegistroBackup
 )
 
 # ===========================
@@ -76,6 +78,26 @@ class ManutencoesVeiculoFilter(SimpleListFilter):
             return queryset.filter(manutencoes__isnull=True)
         elif self.value() == 'manutencao_pendente':
             return queryset.filter(manutencoes__status='PENDENTE').distinct()
+        return queryset
+
+class StatusEncerramentoMDFeFilter(SimpleListFilter):
+    title = _('Status de Encerramento')
+    parameter_name = 'status_encerramento'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('encerrado', _('Encerrado')),
+            ('nao_encerrado', _('Não Encerrado')),
+            ('cancelado_enc', _('Encerramento Cancelado')),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'encerrado':
+            return queryset.filter(encerrado=True)
+        elif self.value() == 'nao_encerrado':
+            return queryset.filter(encerrado=False)
+        elif self.value() == 'cancelado_enc':
+            return queryset.filter(cancelamento_encerramento__isnull=False)
         return queryset
 
 # ===========================
@@ -737,12 +759,12 @@ class CTeCancelamentoAdmin(admin.ModelAdmin):
 @admin.register(MDFeDocumento)
 class MDFeDocumentoAdmin(admin.ModelAdmin):
     list_display = ('chave', 'numero_mdfe', 'serie_mdfe', 'data_emissao_mdfe', 'uf_inicio', 'uf_fim', 'placa_tracao', 'total_documentos', 'processado', 'status_geral')
-    list_filter = ('processado', 'identificacao__tp_amb', 'identificacao__modal', ('identificacao__dh_emi', admin.DateFieldListFilter))
+    list_filter = ('processado', 'encerrado', 'identificacao__tp_amb', 'identificacao__modal', ('identificacao__dh_emi', admin.DateFieldListFilter), StatusEncerramentoMDFeFilter)
     search_fields = ('chave', 'identificacao__n_mdf', 'emitente__razao_social', 'modal_rodoviario__veiculo_tracao__placa')
     readonly_fields = (
         'id', 'chave', 'versao', 'data_upload', 'processado', 'xml_original_preview',
         'status_protocolo_display', 'status_cancelamento_display', 'status_encerramento_display',
-        'link_identificacao', 'link_emitente', 'link_modal', 'link_totais', 'link_protocolo', 'link_cancelamento',
+        'link_identificacao', 'link_emitente', 'link_modal', 'link_totais', 'link_protocolo', 'link_cancelamento', 'link_cancelamento_encerramento',
         'ctes_count', 'total_documentos'
     )
     date_hierarchy = 'identificacao__dh_emi'
@@ -753,10 +775,9 @@ class MDFeDocumentoAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Documento', {'fields': ('id', 'chave', 'versao', 'processado', 'data_upload', 'arquivo_xml', 'xml_original_preview')}),
         ('Status', {'fields': ('status_protocolo_display', 'status_cancelamento_display', 'status_encerramento_display')}),
+        ('Encerramento', {'fields': ('encerrado', 'data_encerramento', 'municipio_encerramento_cod', 'uf_encerramento', 'protocolo_encerramento')}),
         ('Resumo', {'fields': ('ctes_count', 'total_documentos')}),
-        ('Links Rápidos', {'fields': ('link_identificacao', 'link_emitente', 'link_modal', 'link_totais', 'link_protocolo', 'link_cancelamento'), 'classes': ('collapse',)}),
-        # Adicionar fieldset para dados de encerramento se existirem no modelo
-        # ('Encerramento', {'fields': ('encerrado', 'data_encerramento', 'municipio_encerramento_cod', 'uf_encerramento', 'protocolo_encerramento'), 'classes': ('collapse',)})
+        ('Links Rápidos', {'fields': ('link_identificacao', 'link_emitente', 'link_modal', 'link_totais', 'link_protocolo', 'link_cancelamento', 'link_cancelamento_encerramento'), 'classes': ('collapse',)}),
     )
 
     # Funções de display (métodos)
@@ -816,15 +837,14 @@ class MDFeDocumentoAdmin(admin.ModelAdmin):
 
     @admin.display(description='Encerrado', boolean=True)
     def status_encerramento_display(self, obj):
-        # Verifica se o campo 'encerrado' existe e é True
-        return getattr(obj, 'encerrado', False)
+        return obj.encerrado
 
     @admin.display(description='Status Geral')
     def status_geral(self, obj):
         if hasattr(obj, 'cancelamento') and obj.cancelamento and obj.cancelamento.c_stat == 135:
             return format_html('<span style="color: white; background-color: red; padding: 2px 5px; border-radius: 3px; font-weight: bold;">CANCELADO</span>')
         # Adiciona verificação de encerramento ANTES de autorizado
-        if getattr(obj, 'encerrado', False):
+        if obj.encerrado:
              return format_html('<span style="color: black; background-color: gray; padding: 2px 5px; border-radius: 3px;">ENCERRADO</span>')
         if hasattr(obj, 'protocolo') and obj.protocolo:
              if obj.protocolo.codigo_status == 100:
@@ -858,6 +878,8 @@ class MDFeDocumentoAdmin(admin.ModelAdmin):
     def link_protocolo(self, obj): return self._create_related_link_mdfe(obj, 'protocolo', 'mdfeprotocoloautorizacao', 'Ver Protocolo')
     @admin.display(description='Cancelamento')
     def link_cancelamento(self, obj): return self._create_related_link_mdfe(obj, 'cancelamento', 'mdfecancelamento', 'Ver Cancelamento')
+    @admin.display(description='Canc. Encerramento')
+    def link_cancelamento_encerramento(self, obj): return self._create_related_link_mdfe(obj, 'cancelamento_encerramento', 'mdfecancelamentoencerramento', 'Ver Canc. Encerramento')
 
     @admin.action(description="Reprocessar MDF-es selecionados")
     def reprocessar_mdfes_selecionados(self, request, queryset):
@@ -897,7 +919,7 @@ class MDFeDocumentoAdmin(admin.ModelAdmin):
         # Dados
         for mdfe in queryset:
             status = "Cancelado" if hasattr(mdfe, 'cancelamento') and mdfe.cancelamento and mdfe.cancelamento.c_stat == 135 else (
-                "Encerrado" if getattr(mdfe, 'encerrado', False) else (
+                "Encerrado" if mdfe.encerrado else (
                     "Autorizado" if hasattr(mdfe, 'protocolo') and mdfe.protocolo and mdfe.protocolo.codigo_status == 100 else "Pendente"
                 )
             )
@@ -918,6 +940,36 @@ class MDFeDocumentoAdmin(admin.ModelAdmin):
             ])
         
         return response
+
+
+# NOVO ADMIN: MDFeCancelamentoEncerramento - para gerenciar eventos de cancelamento de encerramento
+@admin.register(MDFeCancelamentoEncerramento)
+class MDFeCancelamentoEncerramentoAdmin(admin.ModelAdmin):
+    """ModelAdmin para o cancelamento de encerramento de MDF-e"""
+    list_display = ('mdfe_link', 'dh_evento', 'n_prot_cancelar', 'n_prot_retorno', 'status_cancelamento')
+    search_fields = ('mdfe__chave', 'n_prot_cancelar', 'n_prot_retorno', 'x_just')
+    readonly_fields = tuple(f.name for f in MDFeCancelamentoEncerramento._meta.get_fields() if f.name != 'id')
+    list_select_related = ('mdfe',)
+    
+    @admin.display(description='MDF-e', ordering='mdfe__chave')
+    def mdfe_link(self, obj):
+        if obj.mdfe:
+            link = reverse("admin:transport_mdfedocumento_change", args=[obj.mdfe.pk])
+            return format_html('<a href="{}">{}</a>', link, obj.mdfe.chave)
+        return "-"
+    
+    @admin.display(description='Status', ordering='c_stat')
+    def status_cancelamento(self, obj):
+        if obj.c_stat == 135:
+            return format_html('<span style="color: white; background-color: red; padding: 2px 5px; border-radius: 3px; font-weight: bold;">CANCELADO</span>')
+        else:
+            return format_html('<span style="color: black; background-color: orange; padding: 2px 5px; border-radius: 3px;">Pendente ({})</span>', obj.c_stat or '?')
+
+    def has_add_permission(self, request):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 # =====================================================
@@ -1024,6 +1076,103 @@ class PagamentoProprioAdmin(admin.ModelAdmin):
     def marcar_como_pendente(self, request, queryset):
         updated = queryset.update(status='pendente', data_pagamento=None)
         self.message_user(request, f"{updated} pagamentos foram marcados como pendentes.")
+
+
+# =====================================================
+# === ModelAdmin para Configurações do Sistema ===
+# =====================================================
+
+@admin.register(ParametroSistema)
+class ParametroSistemaAdmin(admin.ModelAdmin):
+    """Admin para parâmetros do sistema."""
+    list_display = ('nome', 'valor', 'grupo', 'tipo_dado', 'editavel', 'atualizado_em')
+    list_filter = ('grupo', 'tipo_dado', 'editavel')
+    search_fields = ('nome', 'descricao', 'valor')
+    readonly_fields = ('criado_em', 'atualizado_em')
+    fieldsets = (
+        (None, {'fields': ('nome', 'descricao')}),
+        ('Configuração', {'fields': ('valor', 'grupo', 'tipo_dado', 'editavel')}),
+        ('Datas', {'fields': ('criado_em', 'atualizado_em'), 'classes': ('collapse',)}),
+    )
+    ordering = ('grupo', 'nome')
+    list_editable = ('valor', 'editavel')
+    
+    def has_delete_permission(self, request, obj=None):
+        # Parâmetros críticos não devem ser excluídos
+        if obj and obj.grupo in ('GERAL', 'EMAIL', 'BACKUP'):
+            return False
+        return super().has_delete_permission(request, obj)
+    
+    def get_readonly_fields(self, request, obj=None):
+        # Parâmetros do sistema criados não devem ter o nome alterado
+        readonly_fields = list(self.readonly_fields)
+        if obj:  # Se estiver editando (não criando)
+            readonly_fields.append('nome')
+            readonly_fields.append('tipo_dado')  # Tipo de dado não deve mudar
+        return readonly_fields
+
+
+@admin.register(ConfiguracaoEmpresa)
+class ConfiguracaoEmpresaAdmin(admin.ModelAdmin):
+    """Admin para configuração da empresa."""
+    list_display = ('razao_social', 'cnpj', 'email', 'telefone', 'atualizado_em')
+    search_fields = ('razao_social', 'nome_fantasia', 'cnpj', 'email')
+    readonly_fields = ('criado_em', 'atualizado_em')
+    fieldsets = (
+        ('Dados Principais', {'fields': ('razao_social', 'nome_fantasia', 'cnpj', 'ie', 'rntrc')}),
+        ('Contato', {'fields': ('email', 'telefone')}),
+        ('Endereço', {'fields': ('cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio', 'uf')}),
+        ('Visual', {'fields': ('logo',)}),
+        ('Responsável Técnico', {'fields': ('responsavel_tecnico_cnpj', 'responsavel_tecnico_contato', 
+                                          'responsavel_tecnico_email', 'responsavel_tecnico_fone')}),
+        ('Certificado Digital', {'fields': ('certificado_digital',)}),
+        ('Datas', {'fields': ('criado_em', 'atualizado_em'), 'classes': ('collapse',)}),
+    )
+    
+    def has_add_permission(self, request):
+        # Verificar se já existe uma configuração
+        if ConfiguracaoEmpresa.objects.exists():
+            return False
+        return super().has_add_permission(request)
+    
+    def has_delete_permission(self, request, obj=None):
+        # Não permitir excluir a configuração da empresa
+        return False
+
+
+@admin.register(RegistroBackup)
+class RegistroBackupAdmin(admin.ModelAdmin):
+    """Admin para registros de backup."""
+    list_display = ('nome_arquivo', 'data_hora', 'tamanho_formatado', 'status', 'usuario')
+    list_filter = ('status', 'data_hora')
+    search_fields = ('nome_arquivo', 'usuario', 'detalhes')
+    readonly_fields = ('nome_arquivo', 'data_hora', 'tamanho_bytes', 'md5_hash', 
+                      'localizacao', 'usuario', 'status', 'detalhes', 'tamanho_formatado')
+    ordering = ('-data_hora',)
+    
+    def has_add_permission(self, request):
+        # Não permitir criar backups manualmente pelo admin (use a API)
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        # Não permitir editar registros de backup
+        return False
+    
+    def tamanho_formatado(self, obj):
+        """Formata o tamanho do arquivo em KB, MB ou GB."""
+        kb = 1024
+        mb = kb * 1024
+        gb = mb * 1024
+        
+        if obj.tamanho_bytes < kb:
+            return f"{obj.tamanho_bytes} bytes"
+        elif obj.tamanho_bytes < mb:
+            return f"{obj.tamanho_bytes / kb:.2f} KB"
+        elif obj.tamanho_bytes < gb:
+            return f"{obj.tamanho_bytes / mb:.2f} MB"
+        else:
+            return f"{obj.tamanho_bytes / gb:.2f} GB"
+    tamanho_formatado.short_description = "Tamanho"
 
 
 # ==========================================================

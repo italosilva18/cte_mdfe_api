@@ -1,83 +1,98 @@
-{% extends 'base.html' %}
+
+<!-- upload.html -->
+{% extends "base.html" %}
 {% load static %}
 
-{% block page_title %}Importar XML{% endblock %}
+{% block title %}Upload de XML{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-lg-8 mx-auto">
-        <div class="card shadow mb-4">
-            <div class="card-header text-white" style="background-color: var(--verde-primario);">
-                <i class="fas fa-file-import me-2"></i>Upload de Arquivos XML
-            </div>
-            <div class="card-body">
-                <form id="uploadForm" enctype="multipart/form-data">
-                    <div class="mb-4">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            O sistema aceita documentos XML de CT-e, MDF-e e eventos relacionados.
-                            Para eventos, você pode fornecer o XML de retorno opcionalmente.
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-0">Upload de XML</h4>
+                </div>
+                <div class="card-body">
+                    <form id="uploadForm" class="needs-validation" novalidate>
+                        <div class="mb-3">
+                            <label for="tipoUpload" class="form-label">Tipo de Upload</label>
+                            <select class="form-select" id="tipoUpload">
+                                <option value="auto" selected>Detectar Automaticamente</option>
+                                <option value="cte">CT-e / CTeProc</option>
+                                <option value="mdfe">MDF-e / MDFeProc</option>
+                                <option value="evento">Evento (Cancelamento, Encerramento, etc.)</option>
+                            </select>
+                            <div class="form-text">O sistema tentará detectar automaticamente o tipo de documento, mas você pode especificar para mais clareza.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="arquivoXml" class="form-label">Arquivo XML Principal</label>
+                            <input type="file" class="form-control" id="arquivoXml" accept=".xml" required>
+                            <div class="invalid-feedback">
+                                Por favor, selecione um arquivo XML.
+                            </div>
+                        </div>
+
+                        <div class="mb-3" id="retornoGroup">
+                            <label for="arquivoRetorno" class="form-label">Arquivo XML de Retorno <span class="text-muted">(opcional)</span></label>
+                            <input type="file" class="form-control" id="arquivoRetorno" accept=".xml">
+                            <div class="form-text">Necessário apenas para eventos (Ex: XML do evento + XML do retorno da SEFAZ)</div>
+                        </div>
+
+                        <div class="alert alert-info" id="eventoInfo" style="display: none;">
+                            <i class="bi bi-info-circle-fill me-2"></i>
+                            <strong>Importante:</strong> Para enviar eventos (Cancelamento, Encerramento, etc.), 
+                            o documento principal (CT-e ou MDF-e) já deve existir no sistema.
+                            Faça o upload do documento principal primeiro.
+                        </div>
+
+                        <div class="alert alert-warning" id="alertWarning" style="display: none;"></div>
+                        <div class="alert alert-danger" id="alertError" style="display: none;"></div>
+                        <div class="alert alert-success" id="alertSuccess" style="display: none;"></div>
+
+                        <div class="progress mb-3" style="height: 25px; display: none;" id="progressContainer">
+                            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" type="submit" id="btnSubmit">
+                                <i class="bi bi-upload me-2"></i>Upload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card-footer text-muted">
+                    <div class="row">
+                        <div class="col-6">
+                            <small>Formatos suportados: <strong>CT-e, MDF-e, Eventos</strong></small>
+                        </div>
+                        <div class="col-6 text-end">
+                            <small>Tamanho máximo: <strong>10 MB</strong></small>
                         </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="arquivoXML" class="form-label fw-bold">Arquivo XML Principal</label>
-                        <input type="file" class="form-control" id="arquivoXML" name="arquivo_xml" accept=".xml" required>
-                        <div class="form-text">Selecione o arquivo XML do CT-e, MDF-e ou Evento</div>
-                    </div>
+                </div>
+            </div>
 
-                    <div class="mb-3">
-                        <label for="arquivoRetorno" class="form-label fw-bold">Arquivo XML de Retorno (opcional)</label>
-                        <input type="file" class="form-control" id="arquivoRetorno" name="arquivo_xml_retorno" accept=".xml">
-                        <div class="form-text">Selecione o arquivo XML de retorno para eventos (opcional)</div>
-                    </div>
-
-                    <div class="progress mb-3 d-none" id="uploadProgress">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-
-                    <div class="alert alert-success d-none" id="uploadSuccess">
-                        <i class="fas fa-check-circle me-2"></i>
-                        <span id="successMessage">Arquivo processado com sucesso!</span>
-                    </div>
-
-                    <div class="alert alert-danger d-none" id="uploadError">
-                        <i class="fas fa-exclamation-circle me-2"></i>
-                        <span id="errorMessage"></span>
-                    </div>
-
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-success btn-lg">
-                            <i class="fas fa-upload me-2"></i>Processar XML
+            <!-- Resultado do processamento -->
+            <div class="card mt-4" id="resultadoCard" style="display: none;">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Resultado do Processamento</h5>
+                </div>
+                <div class="card-body" id="resultadoContent">
+                    <!-- Preenchido via JavaScript -->
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-outline-secondary" id="btnNovoUpload">
+                            <i class="bi bi-arrow-repeat me-2"></i>Novo Upload
+                        </button>
+                        <button class="btn btn-outline-primary" id="btnVerDocumento" style="display: none;">
+                            <i class="bi bi-eye me-2"></i>Ver Documento
                         </button>
                     </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Histórico de Uploads -->
-        <div class="card shadow">
-            <div class="card-header text-white" style="background-color: var(--verde-primario);">
-                <i class="fas fa-history me-2"></i>Últimos Uploads
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped mb-0">
-                        <thead style="background-color: var(--verde-claro);">
-                            <tr>
-                                <th>Data/Hora</th>
-                                <th>Tipo</th>
-                                <th>Chave</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="upload-history">
-                            <tr>
-                                <td colspan="5" class="text-center">Carregando histórico...</td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
         </div>
@@ -85,6 +100,6 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script src="{% static 'js/upload.js' %}"></script>
 {% endblock %}
