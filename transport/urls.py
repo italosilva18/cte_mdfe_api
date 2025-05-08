@@ -13,12 +13,9 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
 # --- Views ---
-# Substitua o import antigo por imports dos novos módulos
-# from .views import ( ... views antigas ... )
-
 # Importar Views dos novos arquivos/módulos
 from .views.auth_views import UserViewSet, CurrentUserAPIView
-from .views.upload_views import UnifiedUploadViewSet, BatchUploadViewSet # Batch agora está aqui também
+from .views.upload_views import UnifiedUploadViewSet # Unica view de upload necessária aqui
 from .views.cte_views import CTeDocumentoViewSet
 from .views.mdfe_views import MDFeDocumentoViewSet
 from .views.vehicle_views import VeiculoViewSet, ManutencaoVeiculoViewSet, ManutencaoPainelViewSet
@@ -50,26 +47,23 @@ schema_view = get_schema_view(
 # DRF routers
 # ------------------------------------------------------------------ #
 router = DefaultRouter()
-# Registros do router permanecem os mesmos, usando os nomes das classes importadas
+# Registros do router (sem o BatchUploadViewSet)
 router.register(r"upload", UnifiedUploadViewSet, basename="unified-upload") # View de upload unificado
-router.register(r"upload/batch", BatchUploadViewSet, basename="batch-upload") # Action de upload em lote
 router.register(r"ctes", CTeDocumentoViewSet, basename="cte-documento")
 router.register(r"mdfes", MDFeDocumentoViewSet, basename="mdfe-documento")
 router.register(r"veiculos", VeiculoViewSet, basename="veiculo")
 router.register(r"pagamentos/agregados", PagamentoAgregadoViewSet, basename="pagamento-agregado")
 router.register(r"pagamentos/proprios", PagamentoProprioViewSet, basename="pagamento-proprio")
 router.register(r"faixas-km", FaixaKMViewSet, basename="faixa-km")
-router.register(r"manutencao/painel", ManutencaoPainelViewSet, basename="manutencao-painel") # Renomeado para evitar conflito
+router.register(r"manutencao/painel", ManutencaoPainelViewSet, basename="manutencao-painel")
 router.register(r"usuarios", UserViewSet, basename="usuario")
 router.register(r"configuracoes/empresa", ConfiguracaoEmpresaViewSet, basename="configuracao-empresa")
 router.register(r"configuracoes/parametros", ParametroSistemaViewSet, basename="parametros-sistema")
 router.register(r"backup", BackupAPIView, basename="backup")
-# router.register(r"relatorios", RelatorioAPIView, basename="relatorio") # RelatorioAPIView não é um ViewSet padrão
 
 # Rotas aninhadas para manutenções de veículos
-# O lookup="veiculo" refere-se ao argumento da URL (ex: veiculo_pk)
 veiculos_router = routers.NestedSimpleRouter(router, r"veiculos", lookup="veiculo")
-veiculos_router.register(r"manutencoes", ManutencaoVeiculoViewSet, basename="veiculo-manutencao") # View de CRUD de manutenção
+veiculos_router.register(r"manutencoes", ManutencaoVeiculoViewSet, basename="veiculo-manutencao")
 
 # ------------------------------------------------------------------ #
 # URL patterns
@@ -79,14 +73,17 @@ urlpatterns = [
     path("api/", include(router.urls)), # Inclui as rotas do router principal
     path("api/", include(veiculos_router.urls)), # Inclui as rotas aninhadas
 
+    # Rota manual para a action batch_upload da UnifiedUploadViewSet
+    path("api/upload/batch/", UnifiedUploadViewSet.as_view({'post': 'batch_upload'}), name="upload-batch"),
+
     # APIViews avulsas (não gerenciadas pelo router)
     path("api/dashboard/", DashboardGeralAPIView.as_view(), name="dashboard-geral"),
-    path("api/painel/cte/", CtePainelAPIView.as_view(), name="painel-cte"), # Renomeado path para clareza
-    path("api/painel/mdfe/", MdfePainelAPIView.as_view(), name="painel-mdfe"), # Renomeado path
-    path("api/painel/financeiro/", FinanceiroPainelAPIView.as_view(), name="painel-financeiro"), # Renomeado path
+    path("api/painel/cte/", CtePainelAPIView.as_view(), name="painel-cte"),
+    path("api/painel/mdfe/", MdfePainelAPIView.as_view(), name="painel-mdfe"),
+    path("api/painel/financeiro/", FinanceiroPainelAPIView.as_view(), name="painel-financeiro"),
     path("api/financeiro/mensal/", FinanceiroMensalAPIView.as_view(), name="financeiro-mensal"),
     path("api/financeiro/detalhe/", FinanceiroDetalheAPIView.as_view(), name="financeiro-detalhe"),
-    path("api/painel/geografico/", GeograficoPainelAPIView.as_view(), name="painel-geografico"), # Renomeado path
+    path("api/painel/geografico/", GeograficoPainelAPIView.as_view(), name="painel-geografico"),
     path("api/alertas/pagamentos/", AlertasPagamentoAPIView.as_view(), name="alertas-pagamentos"),
 
     # Endpoint de Relatórios (APIView)
@@ -105,12 +102,10 @@ urlpatterns = [
     path('api/redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 
     # --- Autenticação e Páginas HTML ---
-    # Mantém o login customizado e o logout (redirecionando para admin/login/ após sair)
     path("login/", LoginView.as_view(template_name="login.html"), name="login"),
-    path("logout/", LogoutView.as_view(next_page="/admin/login/"), name="logout"), # Ajustado next_page
+    path("logout/", LogoutView.as_view(next_page="/admin/login/"), name="logout"), # Redireciona para login do admin
 
     # Páginas HTML (requerem login via @login_required)
-    # Os nomes das rotas permanecem os mesmos
     path("dashboard/", login_required(TemplateView.as_view(template_name="dashboard.html")), name="dashboard"),
     path("cte/", login_required(TemplateView.as_view(template_name="cte_panel.html")), name="cte_panel"),
     path("mdfe/", login_required(TemplateView.as_view(template_name="mdfe_panel.html")), name="mdfe_panel"),
