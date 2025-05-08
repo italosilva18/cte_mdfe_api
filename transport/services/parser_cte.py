@@ -7,6 +7,9 @@ from datetime import datetime
 from dateutil import parser as date_parser # pip install python-dateutil
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.utils import timezone
+from dateutil import parser as date_parser
+from django.conf import settings
 
 # Importar todos os modelos CT-e e o Endereco base
 from transport.models import (
@@ -82,16 +85,21 @@ def to_boolean(value, default=False):
     return default
 
 def parse_datetime(value, default=None):
-    """Converte string de data/hora (com ou sem timezone) para objeto datetime."""
+    """Converte string de data/hora (com ou sem timezone) para objeto datetime AWARE."""
     if not value:
         return default
     try:
-        # dateutil.parser lida com vários formatos, incluindo timezone
         dt = date_parser.parse(value)
-        # Se precisar que seja timezone-aware no Django (USE_TZ=True), ajuste aqui
-        # from django.utils import timezone
-        # if timezone.is_naive(dt):
-        #     dt = timezone.make_aware(dt, timezone.get_default_timezone())
+        # Torna o datetime AWARE se o Django estiver configurado para usar timezones
+        if settings.USE_TZ and timezone.is_naive(dt):
+            # Assume o timezone default do Django se a string não tiver info de timezone
+            # Cuidado: Se o XML tiver datas em fusos diferentes, isso pode não ser ideal.
+            # Uma solução mais robusta seria exigir timezones nos dados de entrada ou
+            # ter uma configuração para o fuso horário dos XMLs.
+            dt = timezone.make_aware(dt, timezone.get_default_timezone())
+        elif not settings.USE_TZ and timezone.is_aware(dt):
+             # Se Django não usa TZ mas o datetime tem, torna naive
+             dt = timezone.make_naive(dt, timezone.get_default_timezone())
         return dt
     except (ValueError, TypeError, OverflowError):
         print(f"WARN: Falha ao converter data/hora: {value}")
