@@ -19,10 +19,11 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
 # Imports Locais
-from ..serializers import ( # Use .. para voltar um nível
-    CTeDocumentoListSerializer,
+from ..serializers.cte_serializers import (
+    CTeDocumentoListSerializer, 
     CTeDocumentoDetailSerializer
 )
+
 from ..models import ( # Modelos usados pelo ViewSet e filtros
     CTeDocumento,
     CTeIdentificacao, # Usado no filtro

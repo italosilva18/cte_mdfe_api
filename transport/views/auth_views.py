@@ -12,7 +12,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 # Imports locais (serializers)
 # Usamos '..' para indicar que serializers está um nível acima (na pasta 'transport')
-from ..serializers import UserSerializer, UserUpdateSerializer
+from ..serializers.user_serializers import UserSerializer, UserUpdateSerializer
 
 # ===============================================================
 # ==> USUÁRIOS e AUTENTICAÇÃO

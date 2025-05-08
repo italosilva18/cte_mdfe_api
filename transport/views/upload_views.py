@@ -33,7 +33,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 # Imports Locais
-from ..serializers import UploadXMLSerializer, BatchUploadXMLSerializer # Serializers necessários
+from ..serializers  import UploadXMLSerializer, BatchUploadXMLSerializer # Serializers necessários
 from ..models import ( # Modelos usados para criar/atualizar registros
     CTeDocumento, CTeCancelamento,
     MDFeDocumento, MDFeCancelamento, MDFeCancelamentoEncerramento
@@ -41,6 +41,7 @@ from ..models import ( # Modelos usados para criar/atualizar registros
 from ..services.parser_cte import parse_cte_completo # Serviços de parsing
 from ..services.parser_mdfe import parse_mdfe_completo
 from ..services.parser_eventos import parse_evento
+
 
 # Lib Externa
 import xmltodict # Para parsing inicial
