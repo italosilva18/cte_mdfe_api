@@ -73,13 +73,27 @@ TEMPLATES = [
     },
 ]
 
-# Configurações de autenticação
 REST_FRAMEWORK = {
+    # ↓ AUTENTICAÇÃO (o que você já tinha)
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ),
+
+    # ↓ RENDERIZAÇÃO – inclui o Browsable API e o JSON (padrão)
+    "DEFAULT_RENDERER_CLASSES": (
+        "rest_framework.renderers.JSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ),
+
+    # (Opcional) ↓ Caso queira definir globalmente parsers de formulário/arquivo
+    # "DEFAULT_PARSER_CLASSES": (
+    #     "rest_framework.parsers.JSONParser",
+    #     "rest_framework.parsers.FormParser",
+    #     "rest_framework.parsers.MultiPartParser",
+    # ),
 }
+
 
 
 WSGI_APPLICATION = 'core.wsgi.application'
