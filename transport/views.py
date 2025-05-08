@@ -12,9 +12,9 @@ import zipfile
 import xmltodict
 import re
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal # Import Decimal
 from io import StringIO, BytesIO
-from django.db.models import Case, When
+from django.db.models import Case, When, Sum, Count, Q, F, Value, CharField, DecimalField # Import DecimalField, Value, F
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
@@ -22,7 +22,6 @@ from django.http import HttpResponse, JsonResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Sum, Count, Q, F, Value, CharField, DecimalField
 from django.db.models.functions import Coalesce, TruncDate, TruncMonth
 from django.contrib.auth.models import User
 from django.utils.decorators import method_decorator
@@ -1710,164 +1709,121 @@ class PagamentoProprioViewSet(viewsets.ModelViewSet):
 class DashboardGeralAPIView(APIView):
     """
     API para obter dados consolidados para o dashboard.
+    (Versão AJUSTADA para corrigir erro FieldError: Mixed Types)
     """
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request, format=None):
         """Retorna dados consolidados para o dashboard geral."""
         # Obter parâmetros de filtro
-        periodo = request.query_params.get('periodo', 'mes')  # mes, trimestre, ano
-        data_inicio = request.query_params.get('data_inicio')
-        data_fim = request.query_params.get('data_fim')
-        
+        periodo = request.query_params.get('periodo', 'mes') # Padrão 'mes'
+        data_inicio_str = request.query_params.get('data_inicio')
+        data_fim_str = request.query_params.get('data_fim')
+
         # Definir período padrão se não informado
-        if not data_inicio or not data_fim:
+        if not data_inicio_str or not data_fim_str:
             hoje = date.today()
             if periodo == 'mes':
                 data_inicio = date(hoje.year, hoje.month, 1)
-                # Último dia do mês atual
-                if hoje.month == 12:
-                    data_fim = date(hoje.year, 12, 31)
-                else:
-                    data_fim = date(hoje.year, hoje.month + 1, 1) - timedelta(days=1)
+                if hoje.month == 12: data_fim = date(hoje.year, 12, 31)
+                else: data_fim = date(hoje.year, hoje.month + 1, 1) - timedelta(days=1)
             elif periodo == 'trimestre':
-                # Primeiro dia do trimestre atual
                 trimestre = ((hoje.month - 1) // 3) + 1
                 data_inicio = date(hoje.year, ((trimestre - 1) * 3) + 1, 1)
-                # Último dia do trimestre atual
-                if trimestre == 4:
-                    data_fim = date(hoje.year, 12, 31)
-                else:
-                    data_fim = date(hoje.year, trimestre * 3 + 1, 1) - timedelta(days=1)
-            else:  # ano
+                if trimestre == 4: data_fim = date(hoje.year, 12, 31)
+                else: data_fim = date(hoje.year, trimestre * 3 + 1, 1) - timedelta(days=1)
+            elif periodo == '7dias':
+                data_fim = hoje
+                data_inicio = hoje - timedelta(days=6)
+            elif periodo == '30dias':
+                 data_fim = hoje
+                 data_inicio = hoje - timedelta(days=29)
+            else: # ano ou padrão 'ano'
+                periodo = 'ano' # Garante que periodo seja 'ano' se não for outro válido
                 data_inicio = date(hoje.year, 1, 1)
                 data_fim = date(hoje.year, 12, 31)
         else:
             # Converter strings para objetos date
-            data_inicio = datetime.strptime(data_inicio, '%Y-%m-%d').date()
-            data_fim = datetime.strptime(data_fim, '%Y-%m-%d').date()
-        
-        # Construir filtros para consultas
+            try:
+                 data_inicio = datetime.strptime(data_inicio_str, '%Y-%m-%d').date()
+                 data_fim = datetime.strptime(data_fim_str, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                 return Response({"error": "Formato de data inválido. Use AAAA-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # --- Definição de Valor Decimal Zero com output_field ---
+        decimal_zero = Value(Decimal('0.00'), output_field=DecimalField())
+
+        # --- Filtros ---
         filtro_periodo_cte = Q(
             identificacao__data_emissao__date__gte=data_inicio,
             identificacao__data_emissao__date__lte=data_fim
         )
-        
+        filtro_cte_valido = Q(
+            processado=True,
+            protocolo__codigo_status=100
+        ) & ~Q(cancelamento__c_stat=135) # Atenção: Verifique se cancelamento pode ser null
+
         filtro_periodo_mdfe = Q(
             identificacao__dh_emi__date__gte=data_inicio,
             identificacao__dh_emi__date__lte=data_fim
         )
-        
-        # Filtro para CT-es autorizados e não cancelados
-        filtro_cte_valido = Q(
-            processado=True,
-            protocolo__codigo_status=100
-        ) & ~Q(cancelamento__c_stat=135)
-        
-        # Filtro para MDF-es autorizados e não cancelados
         filtro_mdfe_valido = Q(
             processado=True,
             protocolo__codigo_status=100
-        ) & ~Q(cancelamento__c_stat=135)
-        
+        ) & ~Q(cancelamento__c_stat=135) # Atenção: Verifique se cancelamento pode ser null
+
         # === Obter dados para cards ===
-        # Total de CT-es válidos no período
-        total_ctes = CTeDocumento.objects.filter(
-            filtro_periodo_cte & filtro_cte_valido
-        ).count()
-        
-        # Total de MDF-es válidos no período
-        total_mdfes = MDFeDocumento.objects.filter(
-            filtro_periodo_mdfe & filtro_mdfe_valido
-        ).count()
-        
-        # Valor total de fretes no período
-        valor_total_fretes = CTeDocumento.objects.filter(
-            filtro_periodo_cte & filtro_cte_valido
-        ).aggregate(
-            total=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal('0'))
-        )['total']
-        
-        # Valor total de fretes CIF e FOB
-        valor_cif = CTeDocumento.objects.filter(
-            filtro_periodo_cte & filtro_cte_valido,
-            modalidade='CIF'
-        ).aggregate(
-            total=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal('0'))
-        )['total']
-        
-        valor_fob = CTeDocumento.objects.filter(
-            filtro_periodo_cte & filtro_cte_valido,
-            modalidade='FOB'
-        ).aggregate(
-            total=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal('0'))
-        )['total']
-        
+        ctes_validos_qs = CTeDocumento.objects.filter(filtro_periodo_cte & filtro_cte_valido)
+        mdfes_validos_qs = MDFeDocumento.objects.filter(filtro_periodo_mdfe & filtro_mdfe_valido)
+
+        total_ctes = ctes_validos_qs.count()
+        total_mdfes = mdfes_validos_qs.count()
+
+        # --- Agregações com Coalesce e output_field ---
+        agregados = ctes_validos_qs.aggregate(
+            total_fretes=Coalesce(Sum('prestacao__valor_total_prestado', output_field=DecimalField()), decimal_zero),
+            total_cif=Coalesce(Sum(Case(When(modalidade='CIF', then=F('prestacao__valor_total_prestado')), default=decimal_zero), output_field=DecimalField()), decimal_zero),
+            total_fob=Coalesce(Sum(Case(When(modalidade='FOB', then=F('prestacao__valor_total_prestado')), default=decimal_zero), output_field=DecimalField()), decimal_zero)
+        )
+        valor_total_fretes = agregados['total_fretes']
+        valor_cif = agregados['total_cif']
+        valor_fob = agregados['total_fob']
+
         # === Dados para gráficos ===
-        # Evolução mensal CIF/FOB
         evolucao_mensal = []
-        
-        # Define o intervalo para o gráfico
-        if periodo == 'mes':
-            # Diário dentro do mês
-            inicio_grafico = data_inicio
-            fim_grafico = data_fim
-            intervalo = 'dia'
-        elif periodo == 'trimestre':
-            # Mensal dentro do trimestre
-            inicio_grafico = date(data_inicio.year, ((data_inicio.month - 1) // 3) * 3 + 1, 1)
-            fim_grafico = date(data_fim.year, min(12, ((data_fim.month - 1) // 3) * 3 + 3), 1) - timedelta(days=1)
-            intervalo = 'mes'
-        else:  # ano
-            # Mensal para o ano inteiro
-            inicio_grafico = date(data_inicio.year, 1, 1)
-            fim_grafico = date(data_fim.year, 12, 31)
-            intervalo = 'mes'
-        
-        # Gerar dados para o gráfico
-        if intervalo == 'dia':
-            # Agrupar por dia
-            ctes_por_dia = CTeDocumento.objects.filter(
-                filtro_periodo_cte & filtro_cte_valido
-            ).annotate(
-                data=TruncDate('identificacao__data_emissao')
-            ).values('data').annotate(
-                total=Count('id'),
-                valor_cif=Sum(Case(When(modalidade='CIF', then='prestacao__valor_total_prestado'), default=0)),
-                valor_fob=Sum(Case(When(modalidade='FOB', then='prestacao__valor_total_prestado'), default=0))
-            ).order_by('data')
-            
-            # Converter para formato esperado pelo frontend
-            for item in ctes_por_dia:
-                evolucao_mensal.append({
-                    'data': item['data'].strftime('%d/%m/%Y'),
-                    'cif': float(item['valor_cif'] or 0),
-                    'fob': float(item['valor_fob'] or 0),
-                    'total': float((item['valor_cif'] or 0) + (item['valor_fob'] or 0))
-                })
-        else:  # mes
-            # Agrupar por mês
-            ctes_por_mes = CTeDocumento.objects.filter(
-                filtro_periodo_cte & filtro_cte_valido
-            ).annotate(
-                mes=TruncMonth('identificacao__data_emissao')
-            ).values('mes').annotate(
-                total=Count('id'),
-                valor_cif=Sum(Case(When(modalidade='CIF', then='prestacao__valor_total_prestado'), default=0)),
-                valor_fob=Sum(Case(When(modalidade='FOB', then='prestacao__valor_total_prestado'), default=0))
-            ).order_by('mes')
-            
-            # Converter para formato esperado pelo frontend
-            for item in ctes_por_mes:
-                evolucao_mensal.append({
-                    'data': item['mes'].strftime('%m/%Y'),
-                    'cif': float(item['valor_cif'] or 0),
-                    'fob': float(item['valor_fob'] or 0),
-                    'total': float((item['valor_cif'] or 0) + (item['valor_fob'] or 0))
-                })
-        
+
+        # --- CORREÇÃO: Definir intervalo com base nas datas calculadas ---
+        if (data_fim - data_inicio) <= timedelta(days=60): # Ex: <= 2 meses, agrupa por dia
+             intervalo = 'dia'
+             trunc_func = TruncDate('identificacao__data_emissao')
+             periodo_format_str = '%d/%m/%Y'
+        else: # Agrupa por mês
+             intervalo = 'mes'
+             trunc_func = TruncMonth('identificacao__data_emissao')
+             periodo_format_str = '%m/%Y'
+
+        # --- Agrupamento com output_field explícito ---
+        ctes_por_periodo = ctes_validos_qs.annotate(
+            periodo=trunc_func
+        ).values('periodo').annotate(
+            total=Count('id'),
+            # --- CORREÇÃO output_field ---
+            valor_cif=Sum(Case(When(modalidade='CIF', then=F('prestacao__valor_total_prestado')), default=decimal_zero), output_field=DecimalField()),
+            valor_fob=Sum(Case(When(modalidade='FOB', then=F('prestacao__valor_total_prestado')), default=decimal_zero), output_field=DecimalField())
+        ).order_by('periodo')
+
+        # Converter para formato esperado pelo frontend
+        for item in ctes_por_periodo:
+            v_cif = item['valor_cif'] or Decimal('0.00')
+            v_fob = item['valor_fob'] or Decimal('0.00')
+            evolucao_mensal.append({
+                'data': item['periodo'].strftime(periodo_format_str),
+                'cif': float(v_cif),
+                'fob': float(v_fob),
+                'total': float(v_cif + v_fob)
+            })
+
         # === Últimos Lançamentos ===
-        # Últimos CT-es
         ultimos_ctes = CTeDocumento.objects.filter(
             processado=True
         ).select_related(
@@ -1875,36 +1831,42 @@ class DashboardGeralAPIView(APIView):
         ).order_by(
             '-identificacao__data_emissao'
         )[:5]
-        
-        # Últimos MDF-es
+
         ultimos_mdfes = MDFeDocumento.objects.filter(
-            processado=True
-        ).select_related(
-            'identificacao', 'modal_rodoviario__veiculo_tracao'
-        ).order_by(
-            '-identificacao__dh_emi'
-        )[:5]
-        
-        # Dados para metas (exemplo: compara com mesmo período anterior)
-        # Dados para metas (exemplo: compara com mesmo período anterior)
-        data_inicio_anterior = date(data_inicio.year - 1, data_inicio.month, data_inicio.day)
-        data_fim_anterior = date(data_fim.year - 1, data_fim.month, data_fim.day)
-        
-        # Valor total de fretes no período anterior (para comparação)
+             processado=True
+         ).select_related(
+             'identificacao', 'modal_rodoviario__veiculo_tracao'
+         ).order_by(
+             '-identificacao__dh_emi'
+         )[:5]
+
+        # === Dados para metas ===
+        try:
+            data_inicio_anterior = data_inicio.replace(year=data_inicio.year - 1)
+            data_fim_anterior = data_fim.replace(year=data_fim.year - 1)
+        except ValueError: # Trata caso de ano bissexto (29/02)
+            data_inicio_anterior = data_inicio.replace(year=data_inicio.year - 1, day=28)
+            data_fim_anterior = data_fim.replace(year=data_fim.year - 1, day=28)
+
+        # --- Agregação com Coalesce e output_field ---
         valor_total_fretes_anterior = CTeDocumento.objects.filter(
             filtro_cte_valido,
             identificacao__data_emissao__date__gte=data_inicio_anterior,
             identificacao__data_emissao__date__lte=data_fim_anterior
         ).aggregate(
-            total=Coalesce(Sum('prestacao__valor_total_prestado'), Decimal('0'))
+            total=Coalesce(Sum('prestacao__valor_total_prestado', output_field=DecimalField()), decimal_zero)
         )['total']
-        
+
         # Calcular crescimento percentual
-        if valor_total_fretes_anterior > 0:
-            crescimento_percentual = ((valor_total_fretes / valor_total_fretes_anterior) - 1) * 100
-        else:
-            crescimento_percentual = 100  # 100% de crescimento se não havia valor anterior
-        
+        crescimento_percentual = None
+        if valor_total_fretes_anterior is not None and valor_total_fretes is not None:
+            if valor_total_fretes_anterior > 0:
+                crescimento_percentual = ((valor_total_fretes / valor_total_fretes_anterior) - 1) * 100
+            elif valor_total_fretes > 0:
+                 crescimento_percentual = Decimal('inf') # Crescimento infinito
+            else:
+                 crescimento_percentual = Decimal('0.0') # Nenhum crescimento
+
         # Compilar resposta final
         response_data = {
             'filtros': {
@@ -1924,37 +1886,36 @@ class DashboardGeralAPIView(APIView):
                 {
                     'label': f"Período {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}",
                     'valor': float(valor_total_fretes),
-                    'meta': float(valor_total_fretes * Decimal('1.1')),  # Meta: 10% maior que o realizado
-                    'crescimento': float(crescimento_percentual)
+                    'meta': float(valor_total_fretes * Decimal('1.1')), # Exemplo: meta 10% maior
+                    'crescimento': float(crescimento_percentual) if crescimento_percentual is not None and crescimento_percentual.is_finite() else None
                 }
             ],
             'ultimos_lancamentos': {
-                'ctes': [{
-                    'id': str(cte.id),
-                    'chave': cte.chave,
-                    'numero': cte.identificacao.numero if hasattr(cte, 'identificacao') else None,
-                    'data_emissao': cte.identificacao.data_emissao.strftime('%d/%m/%Y %H:%M') if hasattr(cte, 'identificacao') and cte.identificacao.data_emissao else None,
-                    'remetente': cte.remetente.razao_social if hasattr(cte, 'remetente') else None,
-                    'destinatario': cte.destinatario.razao_social if hasattr(cte, 'destinatario') else None,
-                    'valor': float(cte.prestacao.valor_total_prestado) if hasattr(cte, 'prestacao') else None,
-                    'modalidade': cte.modalidade
-                } for cte in ultimos_ctes],
-                'mdfes': [{
-                    'id': str(mdfe.id),
-                    'chave': mdfe.chave,
-                    'numero': mdfe.identificacao.n_mdf if hasattr(mdfe, 'identificacao') else None,
-                    'data_emissao': mdfe.identificacao.dh_emi.strftime('%d/%m/%Y %H:%M') if hasattr(mdfe, 'identificacao') and mdfe.identificacao.dh_emi else None,
-                    'uf_ini': mdfe.identificacao.uf_ini if hasattr(mdfe, 'identificacao') else None,
-                    'uf_fim': mdfe.identificacao.uf_fim if hasattr(mdfe, 'identificacao') else None,
-                    'placa': mdfe.modal_rodoviario.veiculo_tracao.placa if hasattr(mdfe, 'modal_rodoviario') and hasattr(mdfe.modal_rodoviario, 'veiculo_tracao') else None
-                } for mdfe in ultimos_mdfes]
+                 'ctes': [{
+                     'id': str(cte.id),
+                     'chave': cte.chave,
+                     'numero': cte.identificacao.numero if hasattr(cte, 'identificacao') else None,
+                     'data_emissao': cte.identificacao.data_emissao.strftime('%d/%m/%Y %H:%M') if hasattr(cte, 'identificacao') and cte.identificacao.data_emissao else None,
+                     'remetente': cte.remetente.razao_social if hasattr(cte, 'remetente') else None,
+                     'destinatario': cte.destinatario.razao_social if hasattr(cte, 'destinatario') else None,
+                     'valor': float(cte.prestacao.valor_total_prestado) if hasattr(cte, 'prestacao') else None,
+                     'modalidade': cte.modalidade
+                 } for cte in ultimos_ctes],
+                 'mdfes': [{
+                     'id': str(mdfe.id),
+                     'chave': mdfe.chave,
+                     'numero': mdfe.identificacao.n_mdf if hasattr(mdfe, 'identificacao') else None,
+                     'data_emissao': mdfe.identificacao.dh_emi.strftime('%d/%m/%Y %H:%M') if hasattr(mdfe, 'identificacao') and mdfe.identificacao.dh_emi else None,
+                     'uf_ini': mdfe.identificacao.uf_ini if hasattr(mdfe, 'identificacao') else None,
+                     'uf_fim': mdfe.identificacao.uf_fim if hasattr(mdfe, 'identificacao') else None,
+                     'placa': mdfe.modal_rodoviario.veiculo_tracao.placa if hasattr(mdfe, 'modal_rodoviario') and hasattr(mdfe.modal_rodoviario, 'veiculo_tracao') else None
+                 } for mdfe in ultimos_mdfes]
             }
         }
-        
+
         # Serializar e retornar
         serializer = DashboardGeralDataSerializer(response_data)
         return Response(serializer.data)
-
 
 class FinanceiroPainelAPIView(APIView):
     """
