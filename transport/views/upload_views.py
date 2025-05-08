@@ -33,7 +33,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 # Imports Locais
-from ..serializers  import UploadXMLSerializer, BatchUploadXMLSerializer # Serializers necessários
+from ..serializers.upload_serializers  import UploadXMLSerializer, BatchUploadXMLSerializer # Serializers necessários
 from ..models import ( # Modelos usados para criar/atualizar registros
     CTeDocumento, CTeCancelamento,
     MDFeDocumento, MDFeCancelamento, MDFeCancelamentoEncerramento
@@ -49,15 +49,18 @@ import xmltodict # Para parsing inicial
 # ===============================================================
 # ==> UPLOAD e PROCESSAMENTO de XML
 # ===============================================================
-
-class UnifiedUploadViewSet(viewsets.ViewSet):
+class UnifiedUploadViewSet(viewsets.GenericViewSet):
     """
     API para upload e processamento unificado de arquivos XML.
     Detecta automaticamente o tipo de XML e direciona para o parser correto.
     """
     parser_classes = (MultiPartParser, FormParser)
     permission_classes = [IsAuthenticated]
-    serializer_class = UploadXMLSerializer # Define o serializer padrão para o ViewSet
+    serializer_class = UploadXMLSerializer # Mantém o serializer padrão
+
+    # Ação 'create' mapeada para POST (precisamos do CreateModelMixin ou definir o método create)
+    # Como você já tem um método 'create' customizado, mantê-lo está correto.
+    # A herança de GenericViewSet apenas fornecerá o método get_serializer.
 
     @swagger_auto_schema(
         operation_description="Envie arquivos XML para processamento automático",

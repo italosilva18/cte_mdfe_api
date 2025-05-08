@@ -21,7 +21,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
 # Imports Locais
-from ..serializers import ( # Use .. para voltar um nível
+from ..serializers.payment_serializers import ( # Use .. para voltar um nível
     FaixaKMSerializer,
     PagamentoAgregadoSerializer,
     PagamentoProprioSerializer

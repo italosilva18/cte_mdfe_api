@@ -28,7 +28,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser # IsAdminUse
 from rest_framework import serializers # Para ValidationError
 
 # Imports Locais
-from ..serializers import ( # Use .. para voltar um nível
+from ..serializers.config_serializers import ( # Use .. para voltar um nível
     ParametroSistemaSerializer,
     ConfiguracaoEmpresaSerializer,
     RegistroBackupSerializer,

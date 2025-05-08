@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status # Usado para retornos de erro, se necessário
 
 # Imports Locais
-from ..serializers import ( # Use .. para voltar um nível
+from ..serializers.dashboard_serializers import ( # Use .. para voltar um nível
     DashboardGeralDataSerializer, FinanceiroPainelSerializer, FinanceiroMensalSerializer,
     FinanceiroDetalheSerializer, CtePainelSerializer, MdfePainelSerializer,
     GeograficoPainelSerializer, AlertaPagamentoSerializer
