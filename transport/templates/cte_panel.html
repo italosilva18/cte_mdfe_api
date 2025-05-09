@@ -3,31 +3,56 @@
 
 {% block page_title %}Painel CT-e{% endblock %}
 
+{% block breadcrumbs %}
+<li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+<li class="breadcrumb-item active" aria-current="page">Painel CT-e</li>
+{% endblock %}
+
+{% block page_actions %}
+    <button class="btn btn-sm btn-outline-primary" id="btnAtualizarListaCTe">
+        <i class="fas fa-sync-alt me-1"></i>Atualizar Lista
+    </button>
+{% endblock %}
+
 {% block content %}
 <div class="card shadow mb-4" style="border-left: 4px solid var(--verde-primario);">
     <div class="card-header text-white" style="background-color: var(--verde-primario);">
-        <i class="fas fa-filter me-2"></i>Filtros
+        <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros de Pesquisa</h5>
     </div>
     <div class="card-body">
-        <form id="filterForm" class="row g-3">
-            <div class="col-md-3">
+        <form id="filterForm" class="row g-3 align-items-end">
+            <div class="col-md-3 col-lg-2">
                 <label for="data_inicio" class="form-label">Data Inicial</label>
-                <input type="date" class="form-control" id="data_inicio" name="date_from">
+                <input type="date" class="form-control form-control-sm" id="data_inicio" name="data_inicio">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 col-lg-2">
                 <label for="data_fim" class="form-label">Data Final</label>
-                <input type="date" class="form-control" id="data_fim" name="date_to">
+                <input type="date" class="form-control form-control-sm" id="data_fim" name="data_fim">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 col-lg-2">
                 <label for="modalidade" class="form-label">Modalidade</label>
-                <select class="form-select" id="modalidade" name="modalidade">
+                <select class="form-select form-select-sm" id="modalidade" name="modalidade">
                     <option value="">Todas</option>
                     <option value="CIF">CIF</option>
                     <option value="FOB">FOB</option>
                 </select>
             </div>
-            <div class="col-md-3 d-flex align-items-end">
-                <button type="button" class="btn btn-success w-100" onclick="loadCTeList()">
+            <div class="col-md-3 col-lg-2">
+                <label for="status_filtro" class="form-label">Status</label>
+                <select class="form-select form-select-sm" id="status_filtro" name="status_filtro">
+                    <option value="">Todos</option>
+                    <option value="autorizado">Autorizado</option>
+                    <option value="cancelado">Cancelado</option>
+                    <option value="pendente">Pendente</option>
+                    <option value="rejeitado">Rejeitado</option>
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label for="search_text_cte" class="form-label">Chave/Nº/Partes</label>
+                <input type="text" class="form-control form-control-sm" id="search_text_cte" name="search_text_cte" placeholder="Pesquisar...">
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <button type="submit" class="btn btn-success btn-sm w-100">
                     <i class="fas fa-filter me-2"></i>Filtrar
                 </button>
             </div>
@@ -35,98 +60,129 @@
     </div>
 </div>
 
-<!-- Cards resumo -->
-<div class="row mb-4 g-4">
-    <div class="col-md-3">
-        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+<div class="row mb-4 g-3">
+    <div class="col-lg col-md-6">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
-                <h5 class="card-title" style="color: var(--verde-secundario);">Total CT-e</h5>
-                <p class="card-text h2" id="total-cte">0</p>
+                <div class="text-xs fw-bold text-primary text-uppercase mb-1">Total CT-es (Período)</div>
+                <div class="h4 mb-0 fw-bold text-gray-800" id="total-cte">
+                    <span class="spinner-border spinner-border-sm text-secondary" style="display: none;" role="status"></span>0
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+    <div class="col-lg col-md-6">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
-                <h5 class="card-title" style="color: var(--verde-secundario);">Valor Total</h5>
-                <p class="card-text h2" id="valor-total">R$ 0,00</p>
+                <div class="text-xs fw-bold text-success text-uppercase mb-1">Valor Total (R$)</div>
+                <div class="h4 mb-0 fw-bold text-gray-800" id="valor-total">
+                    <span class="spinner-border spinner-border-sm text-secondary" style="display: none;" role="status"></span>R$ 0,00
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+    <div class="col-lg col-md-6">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
-                <h5 class="card-title" style="color: var(--verde-secundario);">CIF</h5>
-                <p class="card-text h2" id="total-cif">0</p>
+                <div class="text-xs fw-bold text-info text-uppercase mb-1">Total CIF (Qtd)</div>
+                <div class="h4 mb-0 fw-bold text-gray-800" id="total-cif-qtd">
+                    <span class="spinner-border spinner-border-sm text-secondary" style="display: none;" role="status"></span>0
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+    <div class="col-lg col-md-6">
+        <div class="card shadow-sm h-100">
             <div class="card-body">
-                <h5 class="card-title" style="color: var(--verde-secundario);">FOB</h5>
-                <p class="card-text h2" id="total-fob">0</p>
+                <div class="text-xs fw-bold text-warning text-uppercase mb-1">Total FOB (Qtd)</div>
+                <div class="h4 mb-0 fw-bold text-gray-800" id="total-fob-qtd">
+                    <span class="spinner-border spinner-border-sm text-secondary" style="display: none;" role="status"></span>0
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Tabela de CT-es -->
+<div class="row mb-4 g-3">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-light">
+                <h6 class="m-0 fw-bold text-primary">Distribuição CT-e por Modalidade (Quantidade)</h6>
+            </div>
+            <div class="card-body">
+                <div id="cteModalidadeQtdChartContainer" class="chart-container" style="position: relative; height:300px; width:100%">
+                    <canvas id="cteModalidadeQtdChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-light">
+                <h6 class="m-0 fw-bold text-primary">Top 5 Remetentes (Valor)</h6>
+            </div>
+            <div class="card-body">
+                 <div id="cteTopRemetentesChartContainer" class="chart-container" style="position: relative; height:300px; width:100%">
+                    <canvas id="cteTopRemetentesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card shadow">
     <div class="card-header text-white" style="background-color: var(--verde-primario);">
         <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <i class="fas fa-file-invoice me-2"></i>Lista de CT-e
-            </div>
-            <button type="button" class="btn btn-sm btn-light" onclick="exportCSV()">
+            <h5 class="mb-0"><i class="fas fa-file-invoice me-2"></i>Lista de CT-e</h5>
+            <button type="button" class="btn btn-sm btn-light" id="btnExportarCsvCte">
                 <i class="fas fa-download me-1"></i>Exportar CSV
             </button>
         </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-striped mb-0">
+            <table class="table table-hover table-striped table-sm mb-0">
                 <thead style="background-color: var(--verde-claro);">
                     <tr>
                         <th>Nº CT-e</th>
-                        <th>Chave</th>
+                        <th>Chave (Início...Fim)</th>
                         <th>Data Emissão</th>
                         <th>Remetente</th>
                         <th>Destinatário</th>
-                        <th>Valor</th>
+                        <th class="text-end">Valor (R$)</th>
                         <th>Modal.</th>
-                        <th>Status</th>
-                        <th>Ações</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Ações</th>
                     </tr>
                 </thead>
                 <tbody id="cte-list">
                     <tr>
-                        <td colspan="9" class="text-center">Carregando dados...</td>
+                        <td colspan="9" class="text-center p-4">
+                            <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+                            <span class="ms-2">Carregando dados...</span>
+                        </td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
-    <div class="card-footer">
+    <div class="card-footer bg-light">
         <nav aria-label="Paginação de CT-e">
             <ul class="pagination justify-content-center mb-0" id="pagination">
-                <!-- Paginação será inserida via JavaScript -->
             </ul>
         </nav>
     </div>
 </div>
 
-<!-- Modal de Detalhes -->
 <div class="modal fade" id="cteDetailModal" tabindex="-1" aria-labelledby="cteDetailModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title" id="cteDetailModalLabel">Detalhes do CT-e</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body" id="cteDetailContent">
-                <!-- Conteúdo será carregado via API -->
-                <div class="d-flex justify-content-center">
+                <div class="d-flex justify-content-center p-5">
                     <div class="spinner-border text-success" role="status">
                         <span class="visually-hidden">Carregando...</span>
                     </div>
@@ -136,7 +192,7 @@
                 <button type="button" class="btn btn-primary" id="btnPrintCTe">
                     <i class="fas fa-print me-2"></i>Imprimir DACTE
                 </button>
-                <button type="button" class="btn btn-success" id="btnDownloadXML">
+                <button type="button" class="btn btn-info text-white" id="btnDownloadXML">
                     <i class="fas fa-file-code me-2"></i>Download XML
                 </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -147,5 +203,6 @@
 {% endblock %}
 
 {% block scripts %}
+{# Chart.js já deve estar em base.html ou scripts.js global #}
 <script src="{% static 'js/cte_panel.js' %}"></script>
 {% endblock %}
