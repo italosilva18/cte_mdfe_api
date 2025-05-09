@@ -1,20 +1,21 @@
 /**
  * auth.js
- * v1.1.0 - Helpers para autenticação JWT com auto-refresh e Content-Type dinâmico.
+ * v1.2.0 - Helpers para autenticação JWT, feedback visual e redirecionamento.
  */
 
 /* ===== CONSTANTES ====================================================== */
 const AUTH_TOKEN_KEY = 'authToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
-const USER_DATA_KEY = 'userData';
+const USER_DATA_KEY = 'userData'; // Para armazenar dados básicos do usuário
 
 const API_ENDPOINTS = {
-  LOGIN: '/api/token/',
-  REFRESH: '/api/token/refresh/',
-  USER_ME: '/api/users/me/'
+  LOGIN: '/api/token/', // Endpoint do Simple JWT para obter o token
+  REFRESH: '/api/token/refresh/', // Endpoint do Simple JWT para refresh
+  USER_ME: '/api/users/me/' // Endpoint da sua API para buscar dados do usuário logado
 };
 
-const PUBLIC_ROUTES = ['/', '/login', '/login/']; // Rotas que não exigem login
+// Rotas que não exigem login
+const PUBLIC_ROUTES = ['/', '/login', '/login/']; // Inclui a raiz e a página de login
 
 // Variável para controlar se um refresh já está em andamento
 let isRefreshing = false;
@@ -34,132 +35,164 @@ const processFailedQueue = (error, token = null) => {
 
 
 /* ===== INIT ============================================================ */
+// Verifica o status da autenticação quando o DOM é carregado
 document.addEventListener('DOMContentLoaded', () => {
-  checkAuthStatus();
+  checkAuthStatus(); // Verifica se precisa redirecionar
   setupLogoutButtons(); // Configura botões de logout genéricos
 });
 
-/* ===== FLUXO PRINCIPAL ================================================= */
+/* ===== FLUXO PRINCIPAL DE VERIFICAÇÃO E REDIRECIONAMENTO ===== */
 function checkAuthStatus() {
   const token = getAuthToken();
-  const path = window.location.pathname;
-  const isPublic = PUBLIC_ROUTES.includes(path);
+  const currentPath = window.location.pathname;
+  const isPublicRoute = PUBLIC_ROUTES.includes(currentPath);
 
-  if (isPublic && token) {
-    console.log("Usuário logado em rota pública, redirecionando para /dashboard/");
-    window.location.href = '/dashboard/';
+  console.log(`Auth Check: Path: ${currentPath}, Token: ${token ? 'Exists' : 'None'}, IsPublic: ${isPublicRoute}`);
+
+  if (isPublicRoute && token) {
+    // Usuário está em rota pública (ex: /login/) mas TEM token.
+    // Tentar buscar dados do usuário para confirmar validade do token antes de redirecionar.
+    console.log("Token exists on public route. Verifying and fetching user info...");
+    fetchUserInfo().then(userData => {
+        if (userData) {
+            console.log("User data fetched, redirecting to /dashboard/");
+            window.location.href = '/dashboard/';
+        } else {
+            // Token pode ser inválido ou expirado, limpar e deixar na página pública
+            console.log("Failed to fetch user data with existing token. Clearing tokens.");
+            clearAuthData();
+        }
+    }).catch(() => {
+        console.log("Error fetching user info with existing token. Clearing tokens.");
+        clearAuthData();
+    });
     return;
   }
 
-  if (!isPublic && !token) {
-    console.log("Usuário não logado em rota privada, redirecionando para /login/");
+  if (!isPublicRoute && !token) {
+    // Usuário está em rota privada (ex: /dashboard/) mas NÃO TEM token.
+    console.log("No token on private route. Redirecting to /login/");
+    clearAuthData(); // Garante que qualquer resquício seja limpo
     window.location.href = '/login/';
     return;
   }
 
-  if (!isPublic && token) {
-    // Validação inicial ou periódica pode ser adicionada aqui se necessário
-    console.log("Usuário logado em rota privada.");
-    // validateTokenExpiration(); // Descomente se quiser validação proativa
+  if (!isPublicRoute && token) {
+    // Usuário em rota privada com token. Validar o token e/ou buscar dados do usuário.
+    // fetchUserInfo é chamado por muitas páginas, então a validação já ocorre lá.
+    console.log("Token exists on private route. User should be authenticated.");
   }
 }
 
 /* ===== LOGIN / LOGOUT ================================================== */
-function loginUser(username, password) {
-  const btn = document.querySelector('#loginForm button[type="submit"]');
-  // (Feedback visual do botão já está sendo tratado no HTML/JS do login.html)
+function login(username, password) {
   hideLoginError(); // Garante que erros anteriores sumam
 
   return fetch(API_ENDPOINTS.LOGIN, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' }, // Login sempre usa JSON
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
   })
-  .then(async res => { // Usa async para poder usar await no res.json() em caso de erro
+  .then(async res => {
     if (!res.ok) {
         let errorMsg = 'Erro de conexão. Tente novamente.';
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 400) { // DRF Simple JWT retorna 400 ou 401 para credenciais inválidas
             try {
                 const errorData = await res.json();
                 errorMsg = errorData.detail || 'Credenciais inválidas. Verifique usuário e senha.';
+                // Se houver erros de campo específicos (menos comum para /token/)
+                if (typeof errorData === 'object' && !errorData.detail) {
+                    const fieldErrors = Object.entries(errorData)
+                        .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+                        .join('; ');
+                    if (fieldErrors) errorMsg = fieldErrors;
+                }
             } catch (e) {
                  errorMsg = 'Credenciais inválidas. Verifique usuário e senha.';
             }
         }
-        throw new Error(errorMsg);
+        throw new Error(errorMsg); // Lança o erro para o .catch()
     }
     return res.json();
   })
   .then(data => {
     localStorage.setItem(AUTH_TOKEN_KEY, data.access);
     if (data.refresh) localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
+
     // Busca dados do usuário APÓS salvar os tokens
-    return fetchUserInfo().then(() => {
-        window.location.href = '/dashboard/'; // Redireciona após sucesso
-        return true; // Indica sucesso no login
+    return fetchUserInfo().then((userData) => {
+        if (userData) { // Verifica se os dados do usuário foram realmente obtidos
+            window.location.href = '/dashboard/'; // Redireciona após sucesso
+            return true; // Indica sucesso no login
+        } else {
+            // Se fetchUserInfo falhar (ex: usuário inativo, token recém-obtido é inválido por algum motivo)
+            clearAuthData(); // Limpa tokens
+            showLoginError("Falha ao obter dados do usuário após login.");
+            return false; // Indica falha
+        }
     });
   })
   .catch(err => {
-    showLoginError(err.message);
+    showLoginError(err.message); // Exibe a mensagem de erro processada
     console.error('Login error:', err);
-    // (Feedback visual do botão já está sendo tratado no HTML/JS do login.html)
     return false; // Indica falha no login
   });
 }
 
-function logoutUser() {
+function logout() {
   console.log("Efetuando logout...");
-  localStorage.removeItem(AUTH_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(USER_DATA_KEY);
-  window.location.href = '/login/'; // Redireciona para a página de login
+  clearAuthData();
+  window.location.href = '/login/';
+}
+
+function clearAuthData() {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(USER_DATA_KEY);
 }
 
 function setupLogoutButtons() {
-  // Adiciona listener a qualquer elemento com a classe 'logout-btn' ou data-action='logout'
   document.body.addEventListener('click', function(event) {
-      if (event.target.matches('.logout-btn, [data-action="logout"]') || event.target.closest('.logout-btn, [data-action="logout"]')) {
+      const logoutButton = event.target.closest('.logout-btn, [data-action="logout"], #logoutBtn');
+      if (logoutButton) {
           event.preventDefault();
-          logoutUser();
+          logout();
       }
   });
-   // Garante que o botão específico na sidebar também funcione
-   const logoutSidebarBtn = document.getElementById('logoutBtn');
-   if (logoutSidebarBtn && !logoutSidebarBtn.classList.contains('logout-btn') && !logoutSidebarBtn.hasAttribute('data-action')) {
-        logoutSidebarBtn.addEventListener('click', function(e){
-            e.preventDefault();
-            logoutUser();
-        });
-   }
 }
 
 /* ===== USER INFO ======================================================= */
 function fetchUserInfo() {
-  // Usa fetchWithAuth para garantir que o token é válido/atualizado
-  return fetchWithAuth(API_ENDPOINTS.USER_ME)
+  console.log("Fetching user info...");
+  return fetchWithAuth(API_ENDPOINTS.USER_ME) // fetchWithAuth já lida com refresh se necessário
     .then(res => {
         if (!res.ok) {
-            // Se falhar mesmo após refresh, pode indicar problema no refresh token
             console.error(`Erro ${res.status} ao buscar dados do usuário.`);
-            // Decide se quer deslogar ou apenas retornar null
-             // logoutUser(); // Descomente para deslogar se fetchUserInfo falhar
-            return null;
+            // Se fetchWithAuth falhou mesmo após tentar refresh, o token de refresh pode ser inválido.
+            // Nesse caso, o próprio fetchWithAuth (via refreshAuthToken) já deveria ter deslogado.
+            // Mas, como uma segurança adicional:
+            if (res.status === 401) {
+                console.log("Falha ao buscar dados do usuário (401), limpando autenticação.");
+                logout(); // Desloga se o token for inválido e não puder ser atualizado
+            }
+            return null; // Retorna null em caso de erro para que a chamada possa tratar
         }
         return res.json();
     })
     .then(data => {
       if (data) {
-          console.log("Dados do usuário recebidos:", data);
+          console.log("User data received:", data);
           localStorage.setItem(USER_DATA_KEY, JSON.stringify(data));
       } else {
-           localStorage.removeItem(USER_DATA_KEY); // Limpa se não receber dados
+           localStorage.removeItem(USER_DATA_KEY);
       }
       return data;
     })
     .catch(err => {
       console.error('Falha crítica ao buscar dados do usuário:', err);
-       localStorage.removeItem(USER_DATA_KEY);
-      // logoutUser(); // Considerar deslogar em caso de falha crítica
+      // Se chegou aqui, fetchWithAuth já tentou refresh e falhou, ou houve outro erro de rede.
+      // O logout já deve ter sido chamado por refreshAuthToken em caso de falha no refresh.
+      localStorage.removeItem(USER_DATA_KEY);
       return null;
     });
 }
@@ -178,82 +211,64 @@ function getUserData() {
   }
 }
 
-function getAuthHeaders(contentType = 'application/json') {
-    const token = getAuthToken();
-    const headers = {};
-
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-    // Define Content-Type apenas se não for FormData (que será tratado depois)
-    if (contentType) {
-        headers['Content-Type'] = contentType;
-    }
-
-    return headers;
-}
-
 /* ===== FETCH COM AUTO-REFRESH ========================================= */
 function fetchWithAuth(url, options = {}) {
   const makeRequest = (token) => {
-      const headers = { ...options.headers }; // Começa com os headers passados
+      const headers = { ...options.headers };
 
-      // Adiciona token de autorização
       if (token) {
           headers['Authorization'] = `Bearer ${token}`;
       }
 
-      // *** CORREÇÃO PRINCIPAL: Não definir Content-Type se for FormData ***
       if (options.body instanceof FormData) {
-          // Se o body é FormData, REMOVE qualquer Content-Type explícito.
-          // O navegador definirá 'multipart/form-data' com o boundary correto.
           delete headers['Content-Type'];
-      } else {
-          // Para outros tipos de body (ex: JSON), define se não foi passado.
-          if (!headers['Content-Type'] && typeof options.body === 'string') { // Verifica se body é string (provavelmente JSON)
-              headers['Content-Type'] = 'application/json';
+      } else if (typeof options.body === 'object' && options.body !== null && !(options.body instanceof FormData)) {
+          // Se for um objeto (não FormData), assume JSON e stringify
+          options.body = JSON.stringify(options.body);
+          if (!headers['Content-Type']) { // Define apenas se não foi definido externamente
+            headers['Content-Type'] = 'application/json';
           }
+      } else if (typeof options.body === 'string' && !headers['Content-Type']){
+           // Se já é uma string JSON e não tem Content-Type, define.
+           try { JSON.parse(options.body); headers['Content-Type'] = 'application/json'; }
+           catch (e) { /* não é JSON, deixa como está */ }
       }
+
 
       return fetch(url, { ...options, headers });
   };
 
   return makeRequest(getAuthToken()).then(response => {
       if (response.status !== 401) {
-          return response; // Retorna a resposta se não for 401
+          return response;
       }
 
-      // --- Tratamento do 401 (Token Expirado/Inválido) ---
-
       if (isRefreshing) {
-          // Se um refresh já está em andamento, adiciona à fila
           return new Promise((resolve, reject) => {
               failedQueue.push({ resolve, reject });
           })
-          .then(refreshedToken => makeRequest(refreshedToken)) // Tenta novamente com o novo token
+          .then(refreshedToken => makeRequest(refreshedToken))
            .catch(err => {
-                console.error("Requisição falhou mesmo após aguardar refresh:", err);
-                throw err; // Re-throw para a chamada original
+                console.error("Requisição falhou mesmo após aguardar refresh (fila):", err);
+                throw err;
            });
       }
 
-      // Inicia o processo de refresh
       isRefreshing = true;
-
       return new Promise((resolve, reject) => {
           refreshAuthToken()
               .then(newAccessToken => {
-                  processFailedQueue(null, newAccessToken); // Processa fila com sucesso
-                  resolve(makeRequest(newAccessToken)); // Tenta a requisição original novamente
+                  processFailedQueue(null, newAccessToken);
+                  resolve(makeRequest(newAccessToken));
               })
               .catch(refreshError => {
-                  console.error("Falha no refresh do token:", refreshError);
-                  processFailedQueue(refreshError, null); // Processa fila com erro
-                  logoutUser(); // Desloga o usuário se o refresh falhar
-                  reject(refreshError); // Rejeita a promise original
+                  console.error("Falha no refresh do token (fetchWithAuth):", refreshError);
+                  processFailedQueue(refreshError, null);
+                  // refreshAuthToken já chama logout() em caso de falha de refresh
+                  reject(refreshError);
               })
               .finally(() => {
-                  isRefreshing = false; // Marca que o refresh terminou
+                  isRefreshing = false;
               });
       });
   });
@@ -264,11 +279,12 @@ function fetchWithAuth(url, options = {}) {
 function refreshAuthToken() {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
-    console.log("Nenhum refresh token encontrado para atualizar.");
-    return Promise.reject("No refresh token"); // Rejeita se não houver refresh token
+    console.warn("Nenhum refresh token encontrado. Não é possível atualizar.");
+    logout(); // Se não há refresh token, desloga.
+    return Promise.reject("No refresh token");
   }
 
-  console.log("Tentando atualizar token...");
+  console.log("Tentando atualizar token de acesso...");
   return fetch(API_ENDPOINTS.REFRESH, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -276,10 +292,8 @@ function refreshAuthToken() {
   })
   .then(res => {
     if (!res.ok) {
-        // Se o refresh falhar (ex: token inválido ou expirado), limpa tudo
-        console.error(`Erro ${res.status} ao atualizar token.`);
-         localStorage.removeItem(AUTH_TOKEN_KEY);
-         localStorage.removeItem(REFRESH_TOKEN_KEY);
+        console.error(`Erro ${res.status} ao atualizar token. Refresh token pode estar inválido ou expirado.`);
+        logout(); // Desloga se o refresh token falhar
         throw new Error("Refresh token inválido ou expirado.");
     }
     return res.json();
@@ -288,82 +302,51 @@ function refreshAuthToken() {
     if (!data.access) {
          throw new Error("Resposta de refresh não contém novo access token.");
     }
-    console.log("Token atualizado com sucesso.");
+    console.log("Token de acesso atualizado com sucesso.");
     localStorage.setItem(AUTH_TOKEN_KEY, data.access);
-    // Atualiza o refresh token SE um novo for retornado (opcional, depende do backend)
-    if (data.refresh) {
+    if (data.refresh) { // Alguns backends retornam um novo refresh token
         localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
     }
-    return data.access; // Retorna o novo access token
+    return data.access;
+  }).catch(error => {
+      console.error("Erro durante o refreshAuthToken:", error.message);
+      // O logout já foi chamado se a requisição falhou com !res.ok
+      // Se o erro foi outro (ex: 'Failed to fetch'), desloga também.
+      if (!error.message.includes("Refresh token inválido")) {
+          logout();
+      }
+      throw error; // Re-lança o erro para a promise original
   });
-  // O catch é tratado na chamada de fetchWithAuth
-}
-
-
-/* ===== EXPIRAÇÃO (Opcional - Validação Proativa) ====================== */
-function isTokenExpired(token) {
-    if (!token) return true;
-    try {
-        // Decodifica a parte do payload (sem verificar assinatura aqui)
-        const payloadBase64 = token.split('.')[1];
-        const decodedJson = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
-        const payload = JSON.parse(decodedJson);
-
-        // 'exp' está em segundos, Date.now() em milissegundos
-        const expiryTime = payload.exp * 1000;
-        const now = Date.now();
-
-        // Verifica se expirou ou está prestes a expirar (ex: nos próximos 60 segundos)
-        const buffer = 60 * 1000; // 60 segundos de buffer
-        return expiryTime < (now - buffer);
-
-    } catch (e) {
-        console.error("Erro ao decodificar ou verificar token:", e);
-        return true; // Assume expirado se houver erro
-    }
-}
-
-// Função para validar proativamente (chamar periodicamente ou antes de ações importantes)
-function validateTokenExpiration() {
-  const token = getAuthToken();
-  if (isTokenExpired(token)) {
-      console.log("Token expirado ou perto de expirar, tentando refresh...");
-      return refreshAuthToken().catch(err => {
-          console.error("Falha ao atualizar token expirado:", err);
-          logoutUser(); // Desloga se não conseguir atualizar
-      });
-  }
-  return Promise.resolve(); // Token ainda é válido
 }
 
 
 /* ===== LOGIN FORM FEEDBACK ============================================ */
 function showLoginError(msg) {
-  const alert = document.getElementById('loginAlert');
-  const text = document.getElementById('loginAlertMessage');
-  if (alert && text) {
-    text.textContent = msg || "Ocorreu um erro inesperado.";
-    alert.classList.remove('d-none');
+  const alertEl = document.getElementById('loginAlert');
+  const textEl = document.getElementById('loginAlertMessage');
+  if (alertEl && textEl) {
+    textEl.textContent = msg || "Ocorreu um erro inesperado.";
+    alertEl.classList.remove('d-none');
   } else {
-      // Fallback se os elementos não existirem
-      alert(msg || "Ocorreu um erro inesperado.");
+      alert(msg || "Ocorreu um erro inesperado."); // Fallback
   }
 }
 function hideLoginError() {
-  const alert = document.getElementById('loginAlert');
-  if (alert) alert.classList.add('d-none');
+  const alertEl = document.getElementById('loginAlert');
+  if (alertEl) alertEl.classList.add('d-none');
 }
 
 /* ===== EXPORTA PARA OUTROS SCRIPTS ==================================== */
-// Disponibiliza as funções principais globalmente sob o namespace Auth
 window.Auth = {
-  login: loginUser,
-  logout: logoutUser,
+  login: login, // Note que 'loginUser' foi renomeado para 'login' para uso externo
+  logout: logout,
   getToken: getAuthToken,
-  getHeaders: getAuthHeaders, // Pode ser útil para chamadas fora do fetchWithAuth
   fetchWithAuth: fetchWithAuth,
   getUserData: getUserData,
-  isTokenExpired: isTokenExpired // Expõe para verificações manuais se necessário
+  // Funções de feedback de login podem ser chamadas pelo JS do login.html
+  showLoginError: showLoginError,
+  hideLoginError: hideLoginError,
+  checkAuthStatus: checkAuthStatus // Expor para verificações manuais se necessário
 };
 
-console.log("auth.js carregado e configurado.");
+console.log("auth.js carregado e configurado (v1.2.0).");

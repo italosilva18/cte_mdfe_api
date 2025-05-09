@@ -1,12 +1,12 @@
 /**
  * dashboard.js
  * Functions for the main dashboard panel
+ * v1.1 - Correções de IDs de gráfico e lógica de Últimos Lançamentos.
  */
 
 // Global chart objects to allow destruction/updates
-let faturamentoChart = null;
-let clientesChart = null;
-let rotasChart = null;
+let cifFobChart = null;
+let metasChart = null;
 
 // Dashboard data cache
 let dashboardData = {};
@@ -15,12 +15,18 @@ let dashboardData = {};
  * Initializes dashboard when page loads
  */
 document.addEventListener('DOMContentLoaded', function() {
-    // Set default date range (last 30 days)
-    setDefaultDateRange();
-    
+    // Define período padrão inicial (ex: 'ano')
+    const periodoSelect = document.getElementById('periodo');
+    if (periodoSelect) {
+        periodoSelect.value = 'ano'; // Define 'Este Ano' como padrão inicial
+        handlePeriodChange('ano'); // Aplica o range de data para o ano atual
+    } else {
+        setDefaultDateRangeForYear(); // Fallback
+    }
+
     // Load initial dashboard data
     loadDashboardData();
-    
+
     // Set up event listeners
     setupEventListeners();
 });
@@ -34,350 +40,376 @@ function setupEventListeners() {
     if (periodoSelect) {
         periodoSelect.addEventListener('change', function() {
             handlePeriodChange(this.value);
-            loadDashboardData();
+            // Se for personalizado, não carrega automaticamente, espera o botão Filtrar
+            if (this.value !== 'personalizado') {
+                loadDashboardData();
+            }
         });
     }
-    
+
     // Filter button
     const filterBtn = document.getElementById('btnFiltrar');
     if (filterBtn) {
         filterBtn.addEventListener('click', function() {
+            // Se o usuário clicou em filtrar, assume que quer usar as datas (mesmo que o select não seja 'personalizado')
+            // Forçar personalizado aqui garante que as datas selecionadas sejam usadas.
+            // const periodoSelect = document.getElementById('periodo');
+            // if (periodoSelect.value !== 'personalizado') {
+            //     periodoSelect.value = 'personalizado';
+            //     handlePeriodChange('personalizado'); // Habilita as datas
+            // }
             loadDashboardData();
         });
     }
-    
+
     // Reset filters button
     const resetBtn = document.getElementById('btnResetarFiltros');
     if (resetBtn) {
         resetBtn.addEventListener('click', function() {
-            resetFilters();
+            resetFiltersAndLoad();
         });
     }
-    
-    // Refresh button
-    const refreshBtn = document.getElementById('btnAtualizar');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', function() {
+
+    // Refresh button in header (se existir)
+    const refreshBtnHeader = document.getElementById('btnAtualizarDashboard');
+    if (refreshBtnHeader) {
+        refreshBtnHeader.addEventListener('click', function() {
             loadDashboardData();
         });
     }
-    
-    // Modal detail button in CTes recentes
+
+    // Modal detail button delegation
     document.addEventListener('click', function(e) {
-        if (e.target && e.target.classList.contains('btn-detail') || 
-            (e.target.parentElement && e.target.parentElement.classList.contains('btn-detail'))) {
-            const btn = e.target.classList.contains('btn-detail') ? e.target : e.target.parentElement;
-            const id = btn.getAttribute('data-id');
-            const tipo = btn.getAttribute('data-tipo');
-            
+        const btnDetalhe = e.target.closest('.btn-detail');
+        if (btnDetalhe) {
+            e.preventDefault(); // Previne comportamento padrão do link/botão
+            const id = btnDetalhe.getAttribute('data-id');
+            const tipo = btnDetalhe.getAttribute('data-tipo');
             if (id && tipo) {
-                showDocumentDetails(id, tipo);
+                // Implementar showDocumentDetails(id, tipo); se os modais forem definidos em base.html ou carregados dinamicamente.
+                // Ou redirecionar para a página específica:
+                 window.location.href = `/${tipo === 'cte' ? 'cte' : 'mdfe'}/#detalhe-${id}`; // Exemplo de redirecionamento com hash
+                console.log(`Redirecionar ou abrir modal para ${tipo} ID ${id}`);
+                 // showNotification(`Funcionalidade de detalhe para ${tipo.toUpperCase()} ID ${id} a implementar.`, 'info');
             }
         }
     });
 }
 
 /**
- * Handles period change from dropdown
- * @param {string} period - Selected period
+ * Handles period change from dropdown and updates date inputs
+ * @param {string} period - Selected period value
  */
 function handlePeriodChange(period) {
     const today = new Date();
-    const dataInicio = document.getElementById('data_inicio');
-    const dataFim = document.getElementById('data_fim');
-    
+    const dataInicioInput = document.getElementById('data_inicio');
+    const dataFimInput = document.getElementById('data_fim');
+
+    // Assegura que os inputs existem antes de tentar acessá-los
+    if (!dataInicioInput || !dataFimInput) {
+        console.error("Inputs de data não encontrados.");
+        return;
+    }
+
+    let startDate, endDate;
+
     switch (period) {
-        case 'hoje':
-            dataInicio.value = formatDateForInput(today);
-            dataFim.value = formatDateForInput(today);
+        case 'mes':
+            startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
             break;
-        case 'ontem':
-            const yesterday = new Date(today);
-            yesterday.setDate(today.getDate() - 1);
-            dataInicio.value = formatDateForInput(yesterday);
-            dataFim.value = formatDateForInput(yesterday);
+        case 'trimestre':
+            const currentMonth = today.getMonth();
+            const currentQuarter = Math.floor(currentMonth / 3);
+            startDate = new Date(today.getFullYear(), currentQuarter * 3, 1);
+            endDate = new Date(today.getFullYear(), startDate.getMonth() + 3, 0);
+            break;
+        case 'ano':
+            startDate = new Date(today.getFullYear(), 0, 1);
+            endDate = new Date(today.getFullYear(), 11, 31);
             break;
         case '7dias':
-            const sevenDaysAgo = new Date(today);
-            sevenDaysAgo.setDate(today.getDate() - 6); // -6 because it includes today
-            dataInicio.value = formatDateForInput(sevenDaysAgo);
-            dataFim.value = formatDateForInput(today);
+            endDate = today;
+            startDate = new Date();
+            startDate.setDate(today.getDate() - 6);
             break;
         case '30dias':
-            const thirtyDaysAgo = new Date(today);
-            thirtyDaysAgo.setDate(today.getDate() - 29); // -29 because it includes today
-            dataInicio.value = formatDateForInput(thirtyDaysAgo);
-            dataFim.value = formatDateForInput(today);
-            break;
-        case 'mes_atual':
-            const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-            dataInicio.value = formatDateForInput(firstDayOfMonth);
-            dataFim.value = formatDateForInput(today);
-            break;
-        case 'mes_anterior':
-            const firstDayOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const lastDayOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-            dataInicio.value = formatDateForInput(firstDayOfLastMonth);
-            dataFim.value = formatDateForInput(lastDayOfLastMonth);
-            break;
-        case 'ano_atual':
-            const firstDayOfYear = new Date(today.getFullYear(), 0, 1);
-            dataInicio.value = formatDateForInput(firstDayOfYear);
-            dataFim.value = formatDateForInput(today);
+            endDate = today;
+            startDate = new Date();
+            startDate.setDate(today.getDate() - 29);
             break;
         case 'personalizado':
-            // Keep current dates
+            dataInicioInput.disabled = false;
+            dataFimInput.disabled = false;
+            return; // Mantém datas atuais e habilita
+        default: // Default para 'ano'
+            startDate = new Date(today.getFullYear(), 0, 1);
+            endDate = new Date(today.getFullYear(), 11, 31);
             break;
     }
-    
-    // Enable/disable date inputs based on selection
-    const isCustom = period === 'personalizado';
-    dataInicio.disabled = !isCustom;
-    dataFim.disabled = !isCustom;
+
+    dataInicioInput.value = formatDateForInput(startDate);
+    dataFimInput.value = formatDateForInput(endDate);
+    dataInicioInput.disabled = true;
+    dataFimInput.disabled = true;
 }
 
 /**
- * Sets default date range (last 30 days)
+ * Resets filters to default and loads data
  */
-function setDefaultDateRange() {
-    const today = new Date();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(today.getDate() - 30);
-    
-    // Format dates for input fields (YYYY-MM-DD)
-    document.getElementById('data_inicio').value = formatDateForInput(thirtyDaysAgo);
-    document.getElementById('data_fim').value = formatDateForInput(today);
+function resetFiltersAndLoad() {
+    const filterForm = document.getElementById('filterForm');
+    if(filterForm) filterForm.reset();
+
+    const periodoSelect = document.getElementById('periodo');
+    if (periodoSelect) {
+        periodoSelect.value = 'ano'; // Define 'ano' como padrão
+        handlePeriodChange('ano'); // Atualiza as datas e desabilita
+    } else {
+        setDefaultDateRangeForYear(); // Fallback
+    }
+
+    loadDashboardData(); // Recarrega com os filtros padrão
 }
 
 /**
- * Formats date for input fields
+ * Sets default date range (current year) - Fallback
+ */
+function setDefaultDateRangeForYear() {
+    const today = new Date();
+    const firstDayOfYear = new Date(today.getFullYear(), 0, 1);
+    const lastDayOfYear = new Date(today.getFullYear(), 11, 31);
+
+    const dataInicioInput = document.getElementById('data_inicio');
+    const dataFimInput = document.getElementById('data_fim');
+
+    if(dataInicioInput) dataInicioInput.value = formatDateForInput(firstDayOfYear);
+    if(dataFimInput) dataFimInput.value = formatDateForInput(lastDayOfYear);
+}
+
+
+/**
+ * Formats date for input fields (YYYY-MM-DD)
  * @param {Date} date - Date object to format
- * @returns {string} - Formatted date string (YYYY-MM-DD)
+ * @returns {string} - Formatted date string
  */
 function formatDateForInput(date) {
-    return date.toISOString().split('T')[0];
+    if (!date || isNaN(date.getTime())) { return ''; } // Retorna vazio se data for inválida
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
-/**
- * Resets filters and loads data
- */
-function resetFilters() {
-    document.getElementById('filterForm').reset();
-    setDefaultDateRange();
-    const periodoSelect = document.getElementById('periodo');
-    if (periodoSelect) periodoSelect.value = '30dias';
-    loadDashboardData();
-}
 
 /**
  * Loads dashboard data from the API
  */
 function loadDashboardData() {
-    // Show loading state
     showLoading();
-    
-    // Get filter values
+
     const dataInicio = document.getElementById('data_inicio').value;
     const dataFim = document.getElementById('data_fim').value;
-    const periodo = document.getElementById('periodo')?.value || '30dias';
-    
-    // Build API URL with query params
+    const periodo = document.getElementById('periodo')?.value;
+
+    // Monta a URL da API
     let apiUrl = `/api/dashboard/?`;
-    
-    if (dataInicio) apiUrl += `&data_inicio=${dataInicio}`;
-    if (dataFim) apiUrl += `&data_fim=${dataFim}`;
-    if (periodo !== 'personalizado') apiUrl += `&periodo=${periodo}`;
-    
-    // Fetch data with authentication
+    if (periodo === 'personalizado') {
+        // Usa as datas apenas se for personalizado
+        if (dataInicio) apiUrl += `data_inicio=${dataInicio}&`;
+        if (dataFim) apiUrl += `data_fim=${dataFim}&`;
+    } else if (periodo) {
+        // Envia o nome do período para a view calcular
+        apiUrl += `periodo=${periodo}&`;
+    }
+    apiUrl = apiUrl.replace(/&$/, ""); // Remove '&' final
+
+    console.log("Fetching dashboard data from:", apiUrl);
+
     Auth.fetchWithAuth(apiUrl)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Falha ao carregar dados do dashboard');
+                return response.json().then(errData => {
+                    throw new Error(errData.detail || `Erro ${response.status}`);
+                }).catch(() => {
+                     throw new Error(`Erro ${response.status} ao buscar dados.`);
+                });
             }
             return response.json();
         })
         .then(data => {
-            // Cache the data
+            console.log("Dashboard data received:", data);
+            // Verifica se a estrutura básica esperada está presente
+             if (!data || typeof data !== 'object') {
+                 throw new Error("Resposta da API inválida ou vazia.");
+             }
             dashboardData = data;
-            
-            // Update dashboard components
-            updateDashboardCards(data.cards);
+            updateDashboardCards(data.cards || {}); // Passa objeto vazio se cards não existir
             updateDashboardCharts(data);
-            updateRecentEntries(data.ultimos_lancamentos);
-            
-            // Hide loading indicator
+            updateRecentEntries(data.ultimos_lancamentos || { ctes: [], mdfes: [] }); // Passa objeto vazio se não existir
             hideLoading();
         })
         .catch(error => {
-            console.error('Error loading dashboard data:', error);
-            showNotification('Não foi possível carregar os dados do dashboard. Tente novamente.', 'error');
+            console.error('Erro ao carregar dados do dashboard:', error);
+            showNotification(`Falha ao carregar dados do dashboard: ${error.message}`, 'error');
+            clearDashboardUIOnError();
             hideLoading();
         });
 }
 
 /**
- * Shows loading state for dashboard
+ * Mostra indicadores de carregamento na UI.
  */
 function showLoading() {
-    // Show loading indicator for charts
-    const chartContainers = document.querySelectorAll('.chart-container');
-    chartContainers.forEach(container => {
-        container.innerHTML = `
-        <div class="d-flex justify-content-center align-items-center h-100">
-            <div class="spinner-border text-success" role="status">
-                <span class="visually-hidden">Carregando...</span>
-            </div>
-        </div>`;
+    console.log("Showing loading state...");
+    const cardPlaceholders = ['card-total-ctes', 'card-total-mdfes', 'card-valor-total-fretes', 'card-valor-cif', 'card-valor-fob'];
+    cardPlaceholders.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = `<span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>`;
     });
-    
-    // Show loading for recent entries
-    const entriesContainer = document.getElementById('ultimosLancamentosBody');
-    if (entriesContainer) {
-        entriesContainer.innerHTML = `
-        <tr>
-            <td colspan="5" class="text-center">
-                <div class="spinner-border spinner-border-sm text-secondary" role="status">
-                    <span class="visually-hidden">Carregando...</span>
-                </div>
-                <span class="ms-2">Carregando dados...</span>
-            </td>
-        </tr>`;
+
+    const chartContainers = ['chart-cif-fob-container', 'chart-metas-container'];
+    chartContainers.forEach(id => {
+        const container = document.getElementById(id);
+        if (container) {
+            const oldCanvas = container.querySelector('canvas');
+            if (oldCanvas) oldCanvas.remove();
+            container.innerHTML = `<div class="d-flex justify-content-center align-items-center h-100"><div class="spinner-border text-success" role="status"><span class="visually-hidden">Carregando...</span></div></div>`;
+        }
+    });
+
+    const tableBody = document.getElementById('tbody-ultimos-lancamentos');
+    if (tableBody) {
+        tableBody.innerHTML = `<tr><td colspan="7" class="text-center p-4"><div class="spinner-border spinner-border-sm text-secondary" role="status"><span class="visually-hidden">Carregando...</span></div><span class="ms-2 text-muted">Carregando lançamentos...</span></td></tr>`;
     }
-    
-    // Disable filter buttons during loading
-    const buttons = document.querySelectorAll('#filterForm button');
-    buttons.forEach(button => {
-        button.disabled = true;
-    });
+
+    document.getElementById('btnFiltrar')?.setAttribute('disabled', true);
+    document.getElementById('btnResetarFiltros')?.setAttribute('disabled', true);
+    document.getElementById('btnAtualizarDashboard')?.setAttribute('disabled', true);
 }
 
 /**
- * Hides loading state
+ * Esconde indicadores de carregamento.
  */
 function hideLoading() {
-    // Re-enable filter buttons
-    const buttons = document.querySelectorAll('#filterForm button');
-    buttons.forEach(button => {
-        button.disabled = false;
-    });
+    console.log("Hiding loading state...");
+    document.getElementById('btnFiltrar')?.removeAttribute('disabled');
+    document.getElementById('btnResetarFiltros')?.removeAttribute('disabled');
+    document.getElementById('btnAtualizarDashboard')?.removeAttribute('disabled');
 }
+
+/**
+ * Limpa a UI do dashboard em caso de erro de carregamento.
+ */
+function clearDashboardUIOnError() {
+    const cardPlaceholders = ['card-total-ctes', 'card-total-mdfes', 'card-valor-total-fretes', 'card-valor-cif', 'card-valor-fob'];
+    cardPlaceholders.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = 'Erro!';
+    });
+
+    const chartContainers = ['chart-cif-fob-container', 'chart-metas-container'];
+    chartContainers.forEach(id => {
+        const container = document.getElementById(id);
+        if (container) container.innerHTML = `<div class="alert alert-danger m-3">Erro ao carregar gráfico.</div>`;
+    });
+
+    const tableBody = document.getElementById('tbody-ultimos-lancamentos');
+    if (tableBody) tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle me-2"></i>Erro ao carregar lançamentos.</td></tr>`;
+}
+
 
 /**
  * Updates dashboard cards with latest data
- * @param {Object} cards - Cards data
+ * @param {Object} cards - Cards data from API (e.g., data.cards)
  */
 function updateDashboardCards(cards) {
-    if (!cards) return;
-    
-    // Update CT-e card
-    if (document.getElementById('total-cte')) {
-        document.getElementById('total-cte').textContent = formatNumber(cards.total_ctes || 0);
-    }
-    if (document.getElementById('valor-frete')) {
-        document.getElementById('valor-frete').textContent = formatCurrency(cards.valor_total_fretes || 0);
-    }
-    
-    // Update MDF-e card
-    if (document.getElementById('total-mdfe')) {
-        document.getElementById('total-mdfe').textContent = formatNumber(cards.total_mdfes || 0);
-    }
-    
-    // Update CIF card
-    if (document.getElementById('total-cif')) {
-        document.getElementById('total-cif').textContent = formatCurrency(cards.valor_cif || 0);
-    }
-    
-    // Update FOB card
-    if (document.getElementById('total-fob')) {
-        document.getElementById('total-fob').textContent = formatCurrency(cards.valor_fob || 0);
-    }
+    console.log("Updating cards:", cards);
+     if (!cards || typeof cards !== 'object') {
+         console.warn("Dados dos cards inválidos ou ausentes.");
+         cards = {}; // Define como objeto vazio para evitar erros abaixo
+     }
+    document.getElementById('card-total-ctes').textContent = formatNumber(cards.total_ctes || 0);
+    document.getElementById('card-total-mdfes').textContent = formatNumber(cards.total_mdfes || 0);
+    document.getElementById('card-valor-total-fretes').textContent = formatCurrency(cards.valor_total_fretes || 0);
+    document.getElementById('card-valor-cif').textContent = formatCurrency(cards.valor_cif || 0);
+    document.getElementById('card-valor-fob').textContent = formatCurrency(cards.valor_fob || 0);
 }
 
 /**
  * Updates all dashboard charts
- * @param {Object} data - Dashboard data
+ * @param {Object} data - Full dashboard data from API
  */
 function updateDashboardCharts(data) {
-    // Render faturamento chart
-    if (document.getElementById('faturamentoChart')) {
-        renderFaturamentoChart(data.grafico_cif_fob || []);
-    }
-    
-    // Render clientes chart
-    if (document.getElementById('clientesChart')) {
-        renderClientesChart(data.grafico_cliente || []);
-    }
-    
-    // Render rotas chart
-    if (document.getElementById('rotasChart')) {
-        renderRotasChart(data.grafico_metas || []);
-    }
+    if (!data || typeof data !== 'object') {
+         console.warn("Dados para gráficos ausentes ou inválidos.");
+         data = {}; // Evita erros
+     }
+    renderCifFobChart(data.grafico_cif_fob || []);
+    renderMetasChart(data.grafico_metas || []);
 }
 
+
 /**
- * Renders the faturamento chart
- * @param {Array} chartData - Chart data
+ * Renders the Faturamento CIF/FOB chart
+ * @param {Array} chartData - Data for the chart (data.grafico_cif_fob)
  */
-function renderFaturamentoChart(chartData) {
-    const canvas = document.getElementById('faturamentoChart');
-    if (!canvas) return;
-    
-    // Clear chart container if there's no data
-    if (!chartData || chartData.length === 0) {
-        const container = canvas.parentElement;
-        container.innerHTML = `
-        <div class="alert alert-info m-3">
-            <i class="fas fa-info-circle me-2"></i>
-            Nenhum dado disponível para o período selecionado.
-        </div>`;
+function renderCifFobChart(chartData) {
+    const containerId = 'chart-cif-fob-container';
+    const canvasId = 'chartCifFob';
+    const container = document.getElementById(containerId);
+    if (!container) {
+        console.error(`Container de gráfico #${containerId} não encontrado.`);
         return;
     }
-    
-    // Prepare container for the chart
-    const container = canvas.parentElement;
-    container.innerHTML = '<canvas id="faturamentoChart"></canvas>';
-    const newCanvas = document.getElementById('faturamentoChart');
-    
-    // Process chart data
-    const labels = [];
-    const cifData = [];
-    const fobData = [];
-    const totalData = [];
-    
-    chartData.forEach(item => {
-        labels.push(item.data || '');
-        cifData.push(parseFloat(item.cif || 0));
-        fobData.push(parseFloat(item.fob || 0));
-        totalData.push(parseFloat(item.total || 0));
-    });
-    
-    // Create chart
-    const ctx = newCanvas.getContext('2d');
-    faturamentoChart = new Chart(ctx, {
+    container.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+
+    if (cifFobChart) { cifFobChart.destroy(); }
+
+    if (!chartData || !Array.isArray(chartData) || chartData.length === 0) {
+        container.innerHTML = `<div class="alert alert-light text-center p-3">Nenhum dado de faturamento para exibir.</div>`;
+        return;
+    }
+
+    const labels = chartData.map(item => item.data || '');
+    const cifValues = chartData.map(item => item.cif || 0);
+    const fobValues = chartData.map(item => item.fob || 0);
+    const totalValues = chartData.map(item => item.total || 0);
+
+    cifFobChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [
                 {
-                    label: 'CIF',
-                    data: cifData,
-                    backgroundColor: '#4CAF50',
+                    label: 'CIF (R$)',
+                    data: cifValues,
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    stack: 'Stack 0',
                     order: 2
                 },
                 {
-                    label: 'FOB',
-                    data: fobData,
-                    backgroundColor: '#1b4d3e',
+                    label: 'FOB (R$)',
+                    data: fobValues,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    stack: 'Stack 0',
                     order: 3
                 },
                 {
-                    label: 'Total',
-                    data: totalData,
+                    label: 'Total (R$)',
+                    data: totalValues,
                     type: 'line',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    tension: 0.1,
                     fill: false,
-                    borderColor: '#FF5722',
-                    pointBackgroundColor: '#FF5722',
-                    tension: 0.4,
+                    yAxisID: 'y',
                     order: 1
                 }
             ]
@@ -386,592 +418,231 @@ function renderFaturamentoChart(chartData) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                title: {
-                    display: true,
-                    text: 'Faturamento por Período',
-                    font: {
-                        size: 16
-                    }
-                },
+                title: { display: true, text: 'Evolução Faturamento CIF/FOB (R$)', font: { size: 14 } },
                 tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.dataset.label}: ${formatCurrency(context.raw)}`;
-                        }
-                    }
-                }
+                    mode: 'index', intersect: false,
+                    callbacks: { label: context => `${context.dataset.label || ''}: ${formatCurrency(context.parsed.y)}` }
+                },
+                legend: { position: 'bottom' }
             },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return formatCurrency(value);
-                        }
-                    }
-                }
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Valor (R$)' }, ticks: { callback: value => formatCurrency(value) } }
             }
         }
     });
 }
 
 /**
- * Renders the clientes chart
- * @param {Array} chartData - Chart data
+ * Renders the Metas chart
+ * @param {Array} chartData - Data for the chart (data.grafico_metas)
  */
-function renderClientesChart(chartData) {
-    const canvas = document.getElementById('clientesChart');
-    if (!canvas) return;
-    
-    // Clear chart container if there's no data
-    if (!chartData || chartData.length === 0) {
-        const container = canvas.parentElement;
-        container.innerHTML = `
-        <div class="alert alert-info m-3">
-            <i class="fas fa-info-circle me-2"></i>
-            Nenhum dado disponível para o período selecionado.
-        </div>`;
+function renderMetasChart(chartData) {
+    const containerId = 'chart-metas-container';
+    const canvasId = 'chartMetas';
+    const container = document.getElementById(containerId);
+    if (!container) {
+        console.error(`Container de gráfico #${containerId} não encontrado.`);
         return;
     }
-    
-    // Prepare container for the chart
-    const container = canvas.parentElement;
-    container.innerHTML = '<canvas id="clientesChart"></canvas>';
-    const newCanvas = document.getElementById('clientesChart');
-    
-    // Process chart data - limit to top 6 for better visualization
-    const displayData = chartData.slice(0, 6);
-    
-    const labels = displayData.map(item => truncateText(item.label, 20));
-    const values = displayData.map(item => parseFloat(item.valor || 0));
-    
-    // Create chart
-    const ctx = newCanvas.getContext('2d');
-    clientesChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Valor em R$',
-                data: values,
-                backgroundColor: '#4CAF50',
-                borderColor: '#1b4d3e',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: 'y', // Horizontal bar chart
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Top Clientes por Faturamento',
-                    font: {
-                        size: 16
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `${formatCurrency(context.raw)}`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return formatCurrency(value);
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
+    container.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+    const metaInfoEl = document.getElementById('meta-info');
 
-/**
- * Renders the rotas chart
- * @param {Array} chartData - Chart data
- */
-function renderRotasChart(chartData) {
-    const canvas = document.getElementById('rotasChart');
-    if (!canvas) return;
-    
-    // Clear chart container if there's no data
-    if (!chartData || chartData.length === 0) {
-        const container = canvas.parentElement;
-        container.innerHTML = `
-        <div class="alert alert-info m-3">
-            <i class="fas fa-info-circle me-2"></i>
-            Nenhum dado disponível para o período selecionado.
-        </div>`;
+    if (metasChart) { metasChart.destroy(); }
+    if (metaInfoEl) metaInfoEl.innerHTML = ''; // Limpa info anterior
+
+    if (!chartData || !Array.isArray(chartData) || chartData.length === 0) {
+        container.innerHTML = `<div class="alert alert-light text-center p-3">Nenhum dado de metas para exibir.</div>`;
         return;
     }
-    
-    // Prepare container for the chart
-    const container = canvas.parentElement;
-    container.innerHTML = '<canvas id="rotasChart"></canvas>';
-    const newCanvas = document.getElementById('rotasChart');
-    
-    // Process chart data
-    const labels = [];
-    const valorData = [];
-    const metaData = [];
-    
-    chartData.forEach(item => {
-        labels.push(item.label || '');
-        valorData.push(parseFloat(item.valor || 0));
-        metaData.push(parseFloat(item.meta || 0));
-    });
-    
-    // Create chart
-    const ctx = newCanvas.getContext('2d');
-    rotasChart = new Chart(ctx, {
+
+    const item = chartData[0]; // Pega o primeiro (e único) item esperado
+    const labels = [item.label || 'Período Atual'];
+    const valorData = [parseFloat(item.valor || 0)];
+    const metaData = [parseFloat(item.meta || 0)];
+
+    if (metaInfoEl && item.crescimento !== undefined) {
+        const crescimento = parseFloat(item.crescimento);
+        const crescimentoClass = crescimento >= 0 ? 'text-success' : 'text-danger';
+        const iconClass = crescimento >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+        metaInfoEl.innerHTML = `Crescimento período anterior: <strong class="${crescimentoClass}"><i class="fas ${iconClass} me-1"></i>${crescimento.toFixed(1)}%</strong>`;
+    }
+
+    metasChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [
                 {
-                    label: 'Valor Realizado',
+                    label: 'Realizado (R$)',
                     data: valorData,
-                    backgroundColor: '#4CAF50'
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
                 },
                 {
-                    label: 'Meta',
+                    label: 'Meta (R$)',
                     data: metaData,
-                    backgroundColor: 'rgba(255, 87, 34, 0.7)',
-                    borderColor: '#FF5722',
-                    borderWidth: 1,
-                    borderDash: [5, 5]
+                    backgroundColor: 'rgba(255, 159, 64, 0.6)',
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    borderWidth: 1
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            indexAxis: 'y', // Barra horizontal
             plugins: {
-                title: {
-                    display: true,
-                    text: 'Realizado x Meta',
-                    font: {
-                        size: 16
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.dataset.label}: ${formatCurrency(context.raw)}`;
-                        }
-                    }
-                }
+                title: { display: true, text: 'Desempenho vs Meta (R$)', font: { size: 14 } },
+                tooltip: { callbacks: { label: context => `${context.dataset.label || ''}: ${formatCurrency(context.parsed.x)}` } }, // Usar x para horizontal
+                legend: { position: 'bottom' }
             },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return formatCurrency(value);
-                        }
-                    }
-                }
+                x: { beginAtZero: true, title: { display: true, text: 'Valor (R$)' }, ticks: { callback: value => formatCurrency(value) } },
+                y: { title: { display: false } }
             }
         }
     });
 }
+
 
 /**
  * Updates the recent entries table
- * @param {Object} lancamentos - Recent entries data
+ * @param {Object} lancamentos - Object containing 'ctes' and 'mdfes' arrays from API response
  */
 function updateRecentEntries(lancamentos) {
-    const tbody = document.getElementById('ultimosLancamentosBody');
-    if (!tbody) return;
-    
-    if (!lancamentos || (!lancamentos.ctes && !lancamentos.mdfes)) {
-        tbody.innerHTML = `
-        <tr>
-            <td colspan="5" class="text-center">
-                Nenhum lançamento recente encontrado.
-            </td>
-        </tr>`;
+    const tbody = document.getElementById('tbody-ultimos-lancamentos');
+    if (!tbody) {
+        console.error("Elemento tbody #tbody-ultimos-lancamentos não encontrado.");
         return;
     }
-    
+
+    let combinedEntries = [];
+    if (lancamentos && typeof lancamentos === 'object') {
+        if (lancamentos.ctes && Array.isArray(lancamentos.ctes)) {
+            combinedEntries.push(...lancamentos.ctes.map(cte => ({
+                ...cte, // Preserva todos os campos vindos da API
+                tipoDoc: 'CT-e',
+                data_ordenacao: cte.data_upload // Chave para ordenação
+            })));
+        }
+        if (lancamentos.mdfes && Array.isArray(lancamentos.mdfes)) {
+            combinedEntries.push(...lancamentos.mdfes.map(mdfe => ({
+                ...mdfe, // Preserva todos os campos vindos da API
+                tipoDoc: 'MDF-e',
+                data_ordenacao: mdfe.data_upload // Chave para ordenação
+            })));
+        }
+    }
+
+    if (combinedEntries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center p-4"><i class="fas fa-info-circle me-2 text-muted"></i>Nenhum lançamento recente encontrado.</td></tr>`;
+        return;
+    }
+
+    // Ordenar por data_upload (mais recente primeiro)
+    combinedEntries.sort((a, b) => new Date(b.data_ordenacao) - new Date(a.data_ordenacao));
+
+    // Limitar (opcional, a API já deve ter limitado)
+    const recentEntries = combinedEntries.slice(0, 10);
+
     let html = '';
-    
-    // Add CT-es to the list
-    if (lancamentos.ctes && lancamentos.ctes.length > 0) {
-        lancamentos.ctes.forEach(cte => {
-            const data = formatDateTime(cte.data_emissao);
-            
-            html += `
+    recentEntries.forEach(item => {
+        // Usa a data_emissao pré-formatada da API
+        const dataFormatada = item.data_emissao || formatDateTime(item.data_ordenacao) || '--'; // Fallback para data_ordenacao
+        const numDoc = item.tipoDoc === 'CT-e' ? item.numero_cte : item.numero_mdfe;
+        const chaveOuNum = `${item.tipoDoc} ${numDoc || ''}`.trim() || item.chave;
+        const origem = item.tipoDoc === 'CT-e' ? (item.remetente_nome || '-') : (item.uf_inicio || '-');
+        const destino = item.tipoDoc === 'CT-e' ? (item.destinatario_nome || '-') : (item.uf_fim || '-');
+        // Trata valor_total como string
+        const valor = item.tipoDoc === 'CT-e' ? formatCurrency(item.valor_total) : '--';
+        const tipoApi = item.tipoDoc === 'CT-e' ? 'cte' : 'mdfe';
+
+        html += `
             <tr>
-                <td>${data}</td>
-                <td>CT-e ${cte.numero || '--'}</td>
-                <td>${formatCurrency(cte.valor)}</td>
-                <td>${truncateText(cte.remetente, 20) || '--'}</td>
-                <td>${truncateText(cte.destinatario, 20) || '--'}</td>
+                <td>${dataFormatada}</td>
+                <td><span class="badge bg-${item.tipoDoc === 'CT-e' ? 'success' : 'primary'}">${item.tipoDoc}</span></td>
+                <td title="${item.chave || ''}">${truncateText(chaveOuNum, 25)}</td>
+                <td>${truncateText(origem, 20)}</td>
+                <td>${truncateText(destino, 20)}</td>
+                <td class="text-end">${valor}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary btn-detail" data-id="${cte.id}" data-tipo="cte" title="Ver Detalhes">
-                        <i class="fas fa-eye"></i>
-                    </button>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Ações ${item.tipoDoc}">
+                        <button class="btn btn-outline-primary btn-detail"
+                                data-id="${item.id}"
+                                data-tipo="${tipoApi}"
+                                title="Ver Detalhes">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <a href="/api/${tipoApi}s/${item.id}/xml/" class="btn btn-outline-secondary" title="Baixar XML" target="_blank" rel="noopener noreferrer">
+                            <i class="fas fa-file-code"></i>
+                        </a>
+                        ${item.tipoDoc === 'CT-e' ? `<a href="/api/ctes/${item.id}/dacte/" class="btn btn-outline-info" title="Ver DACTE" target="_blank" rel="noopener noreferrer"><i class="fas fa-print"></i></a>` : ''}
+                        ${item.tipoDoc === 'MDF-e' ? `<a href="/api/mdfes/${item.id}/damdfe/" class="btn btn-outline-info" title="Ver DAMDFE" target="_blank" rel="noopener noreferrer"><i class="fas fa-print"></i></a>` : ''}
+                    </div>
                 </td>
-            </tr>`;
-        });
-    }
-    
-    // Add MDF-es to the list
-    if (lancamentos.mdfes && lancamentos.mdfes.length > 0) {
-        lancamentos.mdfes.forEach(mdfe => {
-            const data = formatDateTime(mdfe.data_emissao);
-            
-            html += `
-            <tr>
-                <td>${data}</td>
-                <td>MDF-e ${mdfe.numero || '--'}</td>
-                <td>--</td>
-                <td>${mdfe.uf_origem || '--'}</td>
-                <td>${mdfe.uf_destino || '--'}</td>
-                <td>
-                    <button class="btn btn-sm btn-outline-primary btn-detail" data-id="${mdfe.id}" data-tipo="mdfe" title="Ver Detalhes">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </td>
-            </tr>`;
-        });
-    }
-    
-    if (html === '') {
-        html = `
-        <tr>
-            <td colspan="5" class="text-center">
-                Nenhum lançamento recente encontrado.
-            </td>
-        </tr>`;
-    }
-    
+            </tr>
+        `;
+    });
+
     tbody.innerHTML = html;
 }
 
-/**
- * Shows document details in modal
- * @param {string} id - Document ID
- * @param {string} tipo - Document type (cte, mdfe)
- */
-function showDocumentDetails(id, tipo) {
-    const modalId = tipo === 'cte' ? 'cteDetailModal' : 'mdfeDetailModal';
-    const modal = document.getElementById(modalId);
-    
-    if (!modal) {
-        console.error(`Modal #${modalId} not found`);
-        showNotification(`Erro ao exibir detalhes. Modal #${modalId} não encontrado.`, 'error');
-        return;
-    }
-    
-    // Show loading in modal
-    const modalBody = modal.querySelector('.modal-body');
-    modalBody.innerHTML = `
-    <div class="d-flex justify-content-center">
-        <div class="spinner-border text-success" role="status">
-            <span class="visually-hidden">Carregando...</span>
-        </div>
-    </div>
-    `;
-    
-    // Show modal
-    const modalInstance = new bootstrap.Modal(modal);
-    modalInstance.show();
-    
-    // Endpoint based on document type
-    const endpoint = tipo === 'cte' ? '/api/ctes/' : '/api/mdfes/';
-    
-    // Fetch document details
-    Auth.fetchWithAuth(`${endpoint}${id}/`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Erro ${response.status}: ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Update modal title
-            const modalTitle = modal.querySelector('.modal-title');
-            if (modalTitle) {
-                modalTitle.textContent = tipo === 'cte' 
-                    ? `CT-e ${data.identificacao?.numero || ''} - Detalhes`
-                    : `MDF-e ${data.identificacao?.n_mdf || ''} - Detalhes`;
-            }
-            
-            // Render appropriate content based on document type
-            if (tipo === 'cte') {
-                renderCTeDetails(modalBody, data);
-            } else {
-                renderMDFeDetails(modalBody, data);
-            }
-            
-            // Set current document ID for action buttons
-            const actionButtons = modal.querySelectorAll('.action-btn');
-            actionButtons.forEach(btn => {
-                btn.setAttribute('data-id', id);
-            });
-        })
-        .catch(error => {
-            console.error(`Error loading ${tipo.toUpperCase()} details:`, error);
-            modalBody.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-circle me-2"></i>
-                Erro ao carregar detalhes: ${error.message}
-            </div>
-            `;
-        });
-}
 
-/**
- * Renders CT-e details in modal
- * @param {Element} container - Modal body element
- * @param {Object} cte - CT-e data
- */
-function renderCTeDetails(container, cte) {
-    // Basic info
-    let html = `
-    <div class="card mb-3">
-        <div class="card-header bg-light">
-            <h5 class="mb-0">Informações Básicas</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <p><strong>Número:</strong> ${cte.identificacao?.numero || '--'}</p>
-                    <p><strong>Série:</strong> ${cte.identificacao?.serie || '--'}</p>
-                    <p><strong>Data Emissão:</strong> ${formatDateTime(cte.identificacao?.data_emissao)}</p>
-                    <p><strong>Chave:</strong> ${cte.chave || '--'}</p>
-                    <p><strong>Modalidade:</strong> ${cte.modalidade || '--'}</p>
-                </div>
-                <div class="col-md-6">
-                    <p><strong>Remetente:</strong> ${cte.remetente?.razao_social || '--'}</p>
-                    <p><strong>Destinatário:</strong> ${cte.destinatario?.razao_social || '--'}</p>
-                    <p><strong>Origem/Destino:</strong> ${cte.identificacao?.uf_ini || '--'} → ${cte.identificacao?.uf_fim || '--'}</p>
-                    <p><strong>Valor Total:</strong> ${formatCurrency(cte.prestacao?.valor_total_prestado)}</p>
-                    <p><strong>Status:</strong> ${getStatusHTML(cte)}</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    `;
-    
-    container.innerHTML = html;
-}
+// --- Funções Utilitárias ---
 
-/**
- * Renders MDF-e details in modal
- * @param {Element} container - Modal body element
- * @param {Object} mdfe - MDF-e data
- */
-function renderMDFeDetails(container, mdfe) {
-    // Basic info
-    let html = `
-    <div class="card mb-3">
-        <div class="card-header bg-light">
-            <h5 class="mb-0">Informações Básicas</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <p><strong>Número:</strong> ${mdfe.identificacao?.n_mdf || '--'}</p>
-                    <p><strong>Série:</strong> ${mdfe.identificacao?.serie || '--'}</p>
-                    <p><strong>Data Emissão:</strong> ${formatDateTime(mdfe.identificacao?.dh_emi)}</p>
-                    <p><strong>Chave:</strong> ${mdfe.chave || '--'}</p>
-                </div>
-                <div class="col-md-6">
-                    <p><strong>UF Origem:</strong> ${mdfe.identificacao?.uf_ini || '--'}</p>
-                    <p><strong>UF Destino:</strong> ${mdfe.identificacao?.uf_fim || '--'}</p>
-                    <p><strong>Placa Principal:</strong> ${mdfe.modal_rodoviario?.veiculo_tracao?.placa || '--'}</p>
-                    <p><strong>Status:</strong> ${getMDFeStatusHTML(mdfe)}</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    `;
-    
-    container.innerHTML = html;
-}
-
-/**
- * Gets status HTML for CT-e
- * @param {Object} cte - CT-e data
- * @returns {string} - HTML status badge
- */
-function getStatusHTML(cte) {
-    if (cte.status === 'Cancelado' || (cte.cancelamento && cte.cancelamento.c_stat === 135)) {
-        return '<span class="badge bg-danger">Cancelado</span>';
-    }
-    
-    if (cte.status === 'Autorizado' || (cte.protocolo?.codigo_status === 100)) {
-        return '<span class="badge bg-success">Autorizado</span>';
-    }
-    
-    if (cte.status && cte.status.toLowerCase().includes('rejeitado')) {
-        return '<span class="badge bg-warning text-dark">Rejeitado</span>';
-    }
-    
-    if (cte.processado) {
-        return '<span class="badge bg-info">Processado</span>';
-    }
-    
-    return '<span class="badge bg-secondary">Pendente</span>';
-}
-
-/**
- * Gets status HTML for MDF-e
- * @param {Object} mdfe - MDF-e data
- * @returns {string} - HTML status badge
- */
-function getMDFeStatusHTML(mdfe) {
-    if (mdfe.status === 'Cancelado' || (mdfe.cancelamento && mdfe.cancelamento.c_stat === 135)) {
-        return '<span class="badge bg-danger">Cancelado</span>';
-    }
-    
-    if (mdfe.encerrado) {
-        return '<span class="badge bg-primary">Encerrado</span>';
-    }
-    
-    if (mdfe.status === 'Autorizado' || (mdfe.protocolo?.codigo_status === 100)) {
-        return '<span class="badge bg-success">Autorizado</span>';
-    }
-    
-    if (mdfe.status && mdfe.status.toLowerCase().includes('rejeitado')) {
-        return '<span class="badge bg-warning text-dark">Rejeitado</span>';
-    }
-    
-    if (mdfe.processado) {
-        return '<span class="badge bg-info">Processado</span>';
-    }
-    
-    return '<span class="badge bg-secondary">Pendente</span>';
-}
-
-/**
- * Formats currency value
- * @param {number} value - Value to format
- * @returns {string} - Formatted currency string
- */
+// (Incluir aqui ou garantir que estejam em scripts.js as funções:
+// formatCurrency, formatNumber, formatDateTime, truncateText, showNotification)
+// Exemplo da formatCurrency ajustada:
 function formatCurrency(value) {
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-    }).format(value || 0);
+    if (value === null || value === undefined) return 'R$ 0,00';
+    const numericValue = typeof value === 'string' ? parseFloat(value.replace('.', '').replace(',', '.')) : Number(value);
+    if (isNaN(numericValue)) return 'R$ 0,00';
+    return numericValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-/**
- * Formats number with thousands separator
- * @param {number} value - Value to format
- * @returns {string} - Formatted number
- */
 function formatNumber(value) {
-    return new Intl.NumberFormat('pt-BR').format(value || 0);
+     if (value === null || value === undefined) return '0';
+     const numericValue = Number(value);
+      if (isNaN(numericValue)) return '0';
+    return numericValue.toLocaleString('pt-BR');
 }
 
-/**
- * Formats date
- * @param {string|Date} date - Date to format
- * @returns {string} - Formatted date
- */
-function formatDate(date) {
-    if (!date) return '--';
-    
+function formatDateTime(dateString) {
+    if (!dateString) return '--';
     try {
-        return new Date(date).toLocaleDateString('pt-BR');
+        // Tenta converter para data, mesmo que já venha formatada
+        const dateObj = new Date(dateString);
+        // Se a conversão falhar, usa a string original
+        if (isNaN(dateObj.getTime())) return dateString;
+
+        // Formata no padrão desejado
+        return dateObj.toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit' // Omite segundos
+        });
     } catch (e) {
-        return '--';
+        return dateString; // Retorna original se falhar
     }
 }
 
-/**
- * Format date and time
- * @param {string|Date} date - Date to format
- * @returns {string} - Formatted date and time
- */
-function formatDateTime(date) {
-    if (!date) return '--';
-    
-    try {
-        return new Date(date).toLocaleString('pt-BR');
-    } catch (e) {
-        return '--';
-    }
-}
-
-/**
- * Truncates text with ellipsis
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length
- * @returns {string} - Truncated text
- */
 function truncateText(text, maxLength) {
     if (!text) return '--';
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+    const str = String(text); // Garante que é string
+    return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
 }
 
-/**
- * Show notification toast
- * @param {string} message - Message to display
- * @param {string} type - Notification type (success, error, warning, info)
- * @param {number} duration - Duration in milliseconds
- */
+// (showNotification precisa estar definida, vinda de scripts.js ou aqui)
 function showNotification(message, type = 'success', duration = 5000) {
-    // Define type colors
-    const typeClasses = {
-        success: 'bg-success text-white',
-        error: 'bg-danger text-white',
-        warning: 'bg-warning text-dark',
-        info: 'bg-info text-dark'
-    };
-    
-    // Get or create toast container
-    let toastContainer = document.querySelector('.toast-container');
-    
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-        toastContainer.style.zIndex = '1080';
-        document.body.appendChild(toastContainer);
-    }
-    
-    // Create toast element
-    const toastID = 'toast-' + Date.now();
-    const toastHTML = `
-    <div id="${toastID}" class="toast ${typeClasses[type] || typeClasses.info}" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-            <div class="toast-body">
-                ${message}
-            </div>
-            <button type="button" class="btn-close ${type === 'success' || type === 'error' ? 'btn-close-white' : ''} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-    </div>
-    `;
-    
-    // Add toast to container
-    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
-    
-    // Initialize and show toast
-    const toastElement = document.getElementById(toastID);
-    const toast = new bootstrap.Toast(toastElement, {
-        delay: duration
-    });
-    
-    toast.show();
-    
-    // Remove toast element when hidden
-    toastElement.addEventListener('hidden.bs.toast', function() {
-        this.remove();
-        
-        // Remove container if empty
-        if (toastContainer.children.length === 0) {
-            toastContainer.remove();
-        }
-    });
+    // Implementação básica (ou chame a função global se existir)
+    console.log(`[${type.toUpperCase()}] ${message}`);
+     // Aqui deveria chamar a implementação real do Toast do Bootstrap de scripts.js
+     if (typeof window.showNotification === 'function' && window.showNotification !== showNotification) {
+         window.showNotification(message, type, duration);
+     } else {
+         alert(`[${type.toUpperCase()}] ${message}`); // Fallback
+     }
 }

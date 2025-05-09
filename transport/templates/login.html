@@ -6,18 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Sistema de Gestão de Transporte</title>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
-          integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous"> {# Atualizado para exemplo com SRI #}
-
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" /> {# Atualizado para exemplo com SRI #}
-
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="{% static 'css/styles.css' %}" rel="stylesheet">
 
     <style>
-        html, body {
-            height: 100%;
-        }
+        html, body { height: 100%; }
         body {
             background-color: var(--cinza-claro);
             display: flex;
@@ -26,63 +20,54 @@
             padding-top: 40px;
             padding-bottom: 40px;
         }
-
         .login-card {
             width: 100%;
-            max-width: 420px; /* Mantido o tamanho máximo */
+            max-width: 420px;
             box-shadow: var(--sombra-padrao);
             border-radius: var(--borda-raio);
             overflow: hidden;
             background-color: var(--branco);
         }
-
         .login-header {
             background-color: var(--verde-primario);
-            padding: 25px; /* Aumentado padding */
+            padding: 25px;
             text-align: center;
             color: var(--branco);
         }
-
-        .login-logo {
-            max-width: 160px; /* Ajustado tamanho */
-            margin-bottom: 15px;
-        }
-
-        .login-header h4 {
-            font-weight: 300; /* Título mais leve */
-            margin: 0;
-            font-size: 1.3rem;
-        }
-
-        .login-body {
-            padding: 30px 40px; /* Ajustado padding lateral */
-        }
-
+        .login-logo { max-width: 160px; margin-bottom: 15px; }
+        .login-header h4 { font-weight: 300; margin: 0; font-size: 1.3rem; }
+        .login-body { padding: 30px 40px; }
         .login-footer {
             text-align: center;
             padding: 15px;
             background-color: var(--verde-claro);
             color: var(--verde-primario);
-            font-size: 0.85rem; /* Levemente menor */
+            font-size: 0.85rem;
         }
-
-        .form-floating>label {
-            padding-left: 45px; /* Ajuste para acomodar o ícone */
-        }
-
         .input-group-text {
             background-color: transparent;
-            border: none;
-            position: absolute;
-            left: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 5; /* Para ficar acima do input flutuante */
-            color: #6c757d; /* Cor do ícone */
+            border-right: none; /* Remove a borda direita do ícone */
+            border-left: 1px solid #ced4da; /* Adiciona borda esquerda consistente */
+            border-top: 1px solid #ced4da;
+            border-bottom: 1px solid #ced4da;
+            color: #6c757d;
         }
-
-        .form-floating>.form-control {
-            padding-left: 45px; /* Espaço para o ícone */
+        .form-control-login { /* Classe customizada para o input */
+            border-left: none; /* Remove a borda esquerda do input para "juntar" com o ícone */
+        }
+        .form-control-login:focus {
+            box-shadow: none; /* Remove o box-shadow padrão do bootstrap no foco */
+            border-color: #ced4da; /* Mantém a cor da borda do input group */
+        }
+        /* Ajuste para quando o input-group tem foco (simula foco no grupo todo) */
+        .input-group:focus-within {
+            border-color: var(--verde-secundario);
+            box-shadow: 0 0 0 0.2rem rgba(76, 175, 80, 0.25);
+            border-radius: .375rem; /* Bootstrap's default border-radius */
+        }
+         .input-group:focus-within .input-group-text,
+         .input-group:focus-within .form-control-login {
+            border-color: var(--verde-secundario) !important; /* Força a cor da borda no foco */
         }
 
     </style>
@@ -97,35 +82,33 @@
         <div class="login-body">
             <h5 class="text-center mb-4 fw-normal">Acesso ao Sistema</h5>
 
-            <div class="alert alert-danger d-none mb-4" id="loginAlert" role="alert"> {# Adicionado mb-4 #}
+            <div class="alert alert-danger d-none mb-4" id="loginAlert" role="alert">
                 <i class="fas fa-exclamation-circle me-2"></i>
                 <span id="loginAlertMessage"></span>
             </div>
 
-            <form id="loginForm" novalidate> {# Removido needs-validation se não for usar validação HTML5 nativa #}
-                {% csrf_token %} {# Adicionado CSRF Token por segurança #}
-
-                <div class="input-group mb-3"> {# Usando input-group sem form-floating #}
+            <form id="loginForm" novalidate>
+                {% csrf_token %}
+                <div class="input-group mb-3">
                      <span class="input-group-text"><i class="fas fa-user fa-fw"></i></span>
-                     <input type="text" class="form-control" id="username" name="username" placeholder="Usuário" required autofocus autocomplete="username">
+                     <input type="text" class="form-control form-control-login" id="username" name="username" placeholder="Usuário" required autofocus autocomplete="username">
                 </div>
 
                 <div class="input-group mb-4">
                     <span class="input-group-text"><i class="fas fa-lock fa-fw"></i></span>
-                    <input type="password" class="form-control" id="password" name="password" placeholder="Senha" required autocomplete="current-password">
+                    <input type="password" class="form-control form-control-login" id="password" name="password" placeholder="Senha" required autocomplete="current-password">
                  </div>
 
-                <div class="d-grid mb-3"> {# Adicionado mb-3 #}
-                    <button type="submit" class="btn btn-success btn-lg"> {# Botão maior #}
+                <div class="d-grid mb-3">
+                    <button type="submit" class="btn btn-success btn-lg" id="btnLogin">
                         <span class="button-text"><i class="fas fa-sign-in-alt me-2"></i>Entrar</span>
-                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        <span class="spinner-border spinner-border-sm d-none ms-2" role="status" aria-hidden="true"></span>
                     </button>
                 </div>
             </form>
 
             <div class="text-center">
-                 {# Atualizar o href se/quando implementar a recuperação de senha #}
-                <a href="#" class="text-muted small">Esqueceu sua senha?</a>
+                <a href="#" class="text-muted small" id="forgotPasswordLink">Esqueceu sua senha?</a>
             </div>
         </div>
 
@@ -134,40 +117,60 @@
         </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
-            integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/auth.js' %}"></script>
 
     <script>
-        // Set up form submission
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            e.preventDefault();
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('loginForm');
+            const loginButton = document.getElementById('btnLogin');
+            const buttonText = loginButton.querySelector('.button-text');
+            const spinner = loginButton.querySelector('.spinner-border');
 
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const btn = e.target.querySelector('button[type="submit"]');
-            const btnText = btn.querySelector('.button-text');
-            const spinner = btn.querySelector('.spinner-border');
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
 
-            // Botão de feedback (compatível com auth.js)
-            btn.disabled = true;
-            if (btnText) btnText.textContent = 'Entrando...'; // Atualiza o texto
-            if (spinner) spinner.classList.remove('d-none'); // Mostra spinner
-            if (window.hideLoginError) hideLoginError(); // Esconde erro anterior (se a função existir)
+                    const username = document.getElementById('username').value;
+                    const password = document.getElementById('password').value;
 
-            // Use auth.js para lidar com o login
-            Auth.login(username, password)
-              .catch(err => {
-                  // Erro já é tratado dentro de Auth.login (showLoginError)
-                  console.error("Falha no login capturada no HTML:", err);
-              })
-              .finally(() => {
-                  // Restaura o botão independentemente do resultado (auth.js já lida com isso internamente, mas é seguro garantir)
-                   btn.disabled = false;
-                   if (btnText) btnText.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Entrar'; // Restaura texto e ícone
-                   if (spinner) spinner.classList.add('d-none'); // Esconde spinner
-              });
+                    // Feedback visual: Desabilitar botão e mostrar spinner
+                    loginButton.disabled = true;
+                    buttonText.textContent = 'Entrando...';
+                    spinner.classList.remove('d-none');
+                    Auth.hideLoginError(); // Esconde erros anteriores (do auth.js)
+
+                    Auth.login(username, password)
+                        .then(success => {
+                            if (!success) {
+                                // Se Auth.login retornar false, o erro já foi mostrado por showLoginError
+                                // e o botão será reativado no finally.
+                            }
+                            // O redirecionamento é feito dentro de Auth.login em caso de sucesso.
+                        })
+                        .catch(err => {
+                            // Erros de rede ou exceções inesperadas em Auth.login
+                            // Auth.login já deve chamar showLoginError
+                            console.error("Falha crítica no login:", err);
+                            Auth.showLoginError("Erro de conexão ou inesperado. Tente novamente.");
+                        })
+                        .finally(() => {
+                            // Restaurar botão independentemente do resultado
+                            loginButton.disabled = false;
+                            buttonText.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Entrar';
+                            spinner.classList.add('d-none');
+                        });
+                });
+            }
+
+            const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+            if(forgotPasswordLink) {
+                forgotPasswordLink.addEventListener('click', function(e){
+                    e.preventDefault();
+                    // Implementar lógica de "Esqueci minha senha" ou exibir mensagem
+                    alert("Funcionalidade 'Esqueci minha senha' ainda não implementada.");
+                });
+            }
         });
     </script>
 </body>
