@@ -18,11 +18,8 @@
                     <h5 class="card-title mb-0"><i class="fas fa-file-upload me-2"></i>Upload Individual ou Evento</h5>
                 </div>
                 <div class="card-body d-flex flex-column">
-                    {# Removido o <form> aqui, pois o JS controlará o envio dos dados #}
-                    {# Se precisar do CSRF token para o fetch, ele deve ser pego de outra forma ou o form mantido sem action/method #}
-                    {# Para simplificar e focar na sua sugestão, vou manter o form mas o botão não será submit nativo #}
                     <form id="uploadFormSingle" name="uploadFormSingle" class="needs-validation flex-grow-1 d-flex flex-column" novalidate>
-                        {% csrf_token %} {# Importante para o POST via JS se a view Django verificar #}
+                        {% csrf_token %}
                         <div class="mb-3">
                             <label for="arquivo_xml_principal" class="form-label">Arquivo XML Principal (CT-e, MDF-e, Evento)</label>
                             <div class="file-drop-zone" id="dropZonePrincipal">
@@ -64,17 +61,16 @@
                         <div class="alert alert-success d-none mt-2" id="uploadSuccessSingle" role="alert">
                             <i class="fas fa-check-circle me-2"></i><span id="successMessageSingle"></span>
                         </div>
-                        <div class="progress mt-2 d-none" style="height: 25px;" id="uploadProgressSingleContainer">
+                        <div class="progress mt-2 d-none" style="height: 25px;" id="uploadProgressSingleContainer"> {# ID Container Progresso #}
                             <div class="progress-bar" id="uploadProgressSingleBar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
                         </div>
 
-                        <div id="singleUploadLogs" class="mt-3 small log-container">
+                        <div id="singleUploadLogs" class="mt-3 small log-container"> {# Aplicada classe log-container #}
                             <small class="text-muted">Logs do upload aparecerão aqui...</small>
                         </div>
 
                         <div class="mt-auto pt-3">
-                            {# Botão alterado para type="button" #}
-                            <button class="btn btn-success w-100" type="button" id="btnSubmitSingle">
+                            <button class="btn btn-success w-100" type="submit" id="btnSubmitSingle">
                                 <i class="fas fa-paper-plane me-2"></i>Enviar Arquivo Único
                             </button>
                         </div>
@@ -90,7 +86,7 @@
                 </div>
                  <div class="card-body d-flex flex-column">
                      <form id="uploadFormBatch" name="uploadFormBatch" class="needs-validation flex-grow-1 d-flex flex-column" novalidate>
-                         {% csrf_token %} {# Importante para o POST via JS #}
+                         {% csrf_token %}
                          <div class="mb-3">
                             <label for="arquivos_xml_lote" class="form-label">Arquivos XML (Múltiplos)</label>
                             <div class="file-drop-zone" id="dropZoneBatch">
@@ -119,17 +115,14 @@
                          <div class="alert alert-success d-none mt-2" id="uploadSuccessBatch" role="alert">
                             <i class="fas fa-check-circle me-2"></i><span id="successMessageBatch"></span>
                          </div>
-                         <div class="progress mt-2 d-none" style="height: 25px;" id="uploadProgressBatchContainer">
+                         <div class="progress mt-2 d-none" style="height: 25px;" id="uploadProgressBatchContainer"> {# ID Container Progresso #}
                              <div class="progress-bar" id="uploadProgressBatchBar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
                          </div>
                          <div id="batchResultSummary" class="mt-2 small text-muted"></div>
-                         <div id="batchResultDetails" class="mt-2 small log-container">
-                            <small class="text-muted placeholder-log">Detalhes do processamento em lote aparecerão aqui...</small>
-                         </div>
+                         <div id="batchResultDetails" class="mt-2 small log-container"></div> {# Aplicada classe log-container #}
 
                          <div class="mt-auto pt-3">
-                             {# Botão alterado para type="button" #}
-                            <button class="btn btn-primary w-100" type="button" id="btnSubmitBatch">
+                            <button class="btn btn-primary w-100" type="submit" id="btnSubmitBatch">
                                 <i class="fas fa-boxes me-2"></i>Enviar Arquivos em Lote
                             </button>
                         </div>
@@ -180,6 +173,7 @@
     </div>
 </div>
 
+{# CSS da drop zone e log-container é melhor estar em styles.css, mas pode ser deixado aqui para auto-contenção do template #}
 <style>
     .file-drop-zone { border: 2px dashed #ced4da; border-radius: .375rem; padding: 1.5rem 1rem; text-align: center; cursor: pointer; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; position: relative; background-color: #f8f9fa; }
     .file-drop-zone:hover { background-color: #e9ecef; border-color: #adb5bd; }
@@ -192,8 +186,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{% static 'js/auth.js' %}"></script>
-<script src="{% static 'js/scripts.js' %}"></script>
+{# Garanta que auth.js e scripts.js (com funções globais) sejam carregados antes em base.html #}
 <script src="{% static 'js/upload.js' %}"></script>
 <script src="{% static 'js/upload_batch.js' %}"></script>
 {% endblock %}

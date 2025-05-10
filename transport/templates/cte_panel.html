@@ -4,138 +4,182 @@
 {% block page_title %}Painel CT-e{% endblock %}
 
 {% block breadcrumbs %}
-<li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
 <li class="breadcrumb-item active" aria-current="page">Painel CT-e</li>
-{% endblock %}
-
-{% block page_actions %}
-    <button class="btn btn-sm btn-outline-primary" id="btnAtualizarListaCTe">
-        <i class="fas fa-sync-alt me-1"></i>Atualizar Lista
-    </button>
 {% endblock %}
 
 {% block content %}
 <div class="card shadow mb-4" style="border-left: 4px solid var(--verde-primario);">
     <div class="card-header text-white" style="background-color: var(--verde-primario);">
-        <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros de Pesquisa</h5>
+        <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros do Painel</h5>
     </div>
     <div class="card-body">
-        <form id="filterForm" class="row g-3 align-items-end">
-            <div class="col-md-3 col-lg-2">
-                <label for="data_inicio" class="form-label">Data Inicial</label>
-                <input type="date" class="form-control form-control-sm" id="data_inicio" name="data_inicio">
+        <form id="filterFormPanelCte" class="row g-3 align-items-end"> {# ID do formulário ajustado #}
+            <div class="col-md-4 col-lg-3">
+                <label for="data_inicio_panel" class="form-label">Data Inicial</label>
+                <input type="date" class="form-control form-control-sm" id="data_inicio_panel" name="data_inicio_panel">
             </div>
-            <div class="col-md-3 col-lg-2">
-                <label for="data_fim" class="form-label">Data Final</label>
-                <input type="date" class="form-control form-control-sm" id="data_fim" name="data_fim">
+            <div class="col-md-4 col-lg-3">
+                <label for="data_fim_panel" class="form-label">Data Final</label>
+                <input type="date" class="form-control form-control-sm" id="data_fim_panel" name="data_fim_panel">
             </div>
-            <div class="col-md-3 col-lg-2">
-                <label for="modalidade" class="form-label">Modalidade</label>
-                <select class="form-select form-select-sm" id="modalidade" name="modalidade">
-                    <option value="">Todas</option>
-                    <option value="CIF">CIF</option>
-                    <option value="FOB">FOB</option>
-                </select>
+            {# Removido filtro de modalidade do painel para simplificar, pois a API /painel/cte já traz CIF/FOB #}
+            <div class="col-md-4 col-lg-3">
+                <button type="button" class="btn btn-success btn-sm w-100" id="btnFiltrarPainelCte">
+                    <i class="fas fa-sync-alt me-1"></i>Atualizar Painel
+                </button>
             </div>
-            <div class="col-md-3 col-lg-2">
-                <label for="status_filtro" class="form-label">Status</label>
-                <select class="form-select form-select-sm" id="status_filtro" name="status_filtro">
-                    <option value="">Todos</option>
-                    <option value="autorizado">Autorizado</option>
-                    <option value="cancelado">Cancelado</option>
-                    <option value="pendente">Pendente</option>
-                    <option value="rejeitado">Rejeitado</option>
-                </select>
-            </div>
-            <div class="col-md-6 col-lg-2">
-                <label for="search_text_cte" class="form-label">Chave/Nº/Partes</label>
-                <input type="text" class="form-control form-control-sm" id="search_text_cte" name="search_text_cte" placeholder="Pesquisar...">
-            </div>
-            <div class="col-md-6 col-lg-2">
-                <button type="submit" class="btn btn-success btn-sm w-100">
-                    <i class="fas fa-filter me-2"></i>Filtrar
+             <div class="col-md-12 col-lg-3">
+                 <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="btnResetarFiltrosPainel">
+                    <i class="fas fa-undo me-1"></i>Limpar Filtros do Painel
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-<div class="row mb-4 g-3">
-    <div class="col-lg col-md-6">
-        <div class="card shadow-sm h-100">
+<div class="row mb-4 g-4">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card shadow-sm h-100 border-start border-success border-4">
             <div class="card-body">
-                <div class="text-xs fw-bold text-primary text-uppercase mb-1">Total CT-es (Período)</div>
-                <div class="h4 mb-0 fw-bold text-gray-800" id="total-cte">
-                    <span class="spinner-border spinner-border-sm text-secondary" style="display: none;" role="status"></span>0
+                <div class="text-xs fw-bold text-success text-uppercase mb-1">Total CT-es</div>
+                <div class="h5 mb-0 fw-bold text-gray-800" id="panel-total-ctes"><span class="spinner-border spinner-border-sm text-secondary" role="status"></span></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-4 col-sm-6">
+        <div class="card shadow-sm h-100 border-start border-primary border-4">
+            <div class="card-body">
+                <div class="text-xs fw-bold text-primary text-uppercase mb-1">Valor Total (R$)</div>
+                <div class="h5 mb-0 fw-bold text-gray-800" id="panel-valor-total"><span class="spinner-border spinner-border-sm text-secondary" role="status"></span></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card shadow-sm h-100 border-start border-info border-4">
+            <div class="card-body">
+                <div class="text-xs fw-bold text-info text-uppercase mb-1">Autorizados</div>
+                <div class="h5 mb-0 fw-bold text-gray-800" id="panel-total-autorizados"><span class="spinner-border spinner-border-sm text-secondary" role="status"></span></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-6 col-sm-6">
+        <div class="card shadow-sm h-100 border-start border-danger border-4">
+            <div class="card-body">
+                <div class="text-xs fw-bold text-danger text-uppercase mb-1">Cancelados</div>
+                <div class="h5 mb-0 fw-bold text-gray-800" id="panel-total-cancelados"><span class="spinner-border spinner-border-sm text-secondary" role="status"></span></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6 col-sm-12">
+        <div class="card shadow-sm h-100 border-start border-warning border-4">
+            <div class="card-body">
+                <div class="text-xs fw-bold text-warning text-uppercase mb-1">Rejeitados/Outros</div>
+                <div class="h5 mb-0 fw-bold text-gray-800" id="panel-total-rejeitados"><span class="spinner-border spinner-border-sm text-secondary" role="status"></span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4 g-4">
+    <div class="col-lg-7">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light py-3">
+                <h6 class="m-0 fw-bold text-primary">Top 10 Clientes (Destinatários) por Valor</h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-container" style="height: 320px;" id="chart-cliente-container">
+                    {# O JS irá criar o canvas aqui se não existir, ou reutilizar se existir #}
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-lg col-md-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-body">
-                <div class="text-xs fw-bold text-success text-uppercase mb-1">Valor Total (R$)</div>
-                <div class="h4 mb-0 fw-bold text-gray-800" id="valor-total">
-                    <span class="spinner-border spinner-border-sm text-secondary" style="display: none;" role="status"></span>R$ 0,00
-                </div>
+    <div class="col-lg-5">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light py-3">
+                <h6 class="m-0 fw-bold text-primary">Distribuição por Modalidade (CIF/FOB)</h6>
             </div>
-        </div>
-    </div>
-    <div class="col-lg col-md-6">
-        <div class="card shadow-sm h-100">
             <div class="card-body">
-                <div class="text-xs fw-bold text-info text-uppercase mb-1">Total CIF (Qtd)</div>
-                <div class="h4 mb-0 fw-bold text-gray-800" id="total-cif-qtd">
-                    <span class="spinner-border spinner-border-sm text-secondary" style="display: none;" role="status"></span>0
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg col-md-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-body">
-                <div class="text-xs fw-bold text-warning text-uppercase mb-1">Total FOB (Qtd)</div>
-                <div class="h4 mb-0 fw-bold text-gray-800" id="total-fob-qtd">
-                    <span class="spinner-border spinner-border-sm text-secondary" style="display: none;" role="status"></span>0
+                <div class="chart-container" style="height: 320px;" id="chart-distribuidor-container">
+                    {# O JS irá criar o canvas aqui se não existir, ou reutilizar se existir #}
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row mb-4 g-3">
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-light">
-                <h6 class="m-0 fw-bold text-primary">Distribuição CT-e por Modalidade (Quantidade)</h6>
-            </div>
-            <div class="card-body">
-                <div id="cteModalidadeQtdChartContainer" class="chart-container" style="position: relative; height:300px; width:100%">
-                    <canvas id="cteModalidadeQtdChart"></canvas>
-                </div>
-            </div>
+<div class="card shadow mb-4">
+    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+        <h5 class="mb-0"><i class="fas fa-users me-2"></i>Principais Clientes (Destinatários) no Período</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped table-sm mb-0"> {# table-sm para mais compacta #}
+                <thead style="background-color: var(--verde-claro);">
+                    <tr>
+                        <th>Nome</th>
+                        <th>CNPJ</th>
+                        <th class="text-end">Qtd. CT-es</th>
+                        <th class="text-end">Valor Total (R$)</th>
+                        <th class="text-end">Ticket Médio (R$)</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-cliente-painel">
+                    <tr><td colspan="5" class="text-center p-3">Carregando dados...</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-light">
-                <h6 class="m-0 fw-bold text-primary">Top 5 Remetentes (Valor)</h6>
+</div>
+
+
+<div class="card shadow mt-5 mb-4" style="border-left: 4px solid var(--verde-primario);">
+    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+        <h5 class="mb-0"><i class="fas fa-list-alt me-2"></i>Listagem de CT-es Cadastrados</h5>
+    </div>
+    <div class="card-body">
+        <form id="filterFormCteList" class="row g-3 align-items-end"> {# ID do formulário ajustado #}
+            <div class="col-md-3">
+                <label for="data_inicio_list" class="form-label">Data Inicial (Lista)</label>
+                <input type="date" class="form-control form-control-sm" id="data_inicio_list" name="data_inicio_list">
             </div>
-            <div class="card-body">
-                 <div id="cteTopRemetentesChartContainer" class="chart-container" style="position: relative; height:300px; width:100%">
-                    <canvas id="cteTopRemetentesChart"></canvas>
-                </div>
+            <div class="col-md-3">
+                <label for="data_fim_list" class="form-label">Data Final (Lista)</label>
+                <input type="date" class="form-control form-control-sm" id="data_fim_list" name="data_fim_list">
             </div>
-        </div>
+            <div class="col-md-2">
+                <label for="modalidade_list" class="form-label">Modalidade (Lista)</label>
+                <select class="form-select form-select-sm" id="modalidade_list" name="modalidade_list">
+                    <option value="">Todas</option>
+                    <option value="CIF">CIF</option>
+                    <option value="FOB">FOB</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="status_list" class="form-label">Status (Lista)</label>
+                 <select class="form-select form-select-sm" id="status_list" name="status_list">
+                    <option value="">Todos</option>
+                    <option value="autorizado">Autorizado</option>
+                    <option value="cancelado">Cancelado</option>
+                    <option value="rejeitado">Rejeitado</option>
+                    <option value="processado">Processado (s/ Prot.)</option>
+                    <option value="pendente">Pendente</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="button" class="btn btn-info btn-sm w-100" id="btnFiltrarCteList">
+                    <i class="fas fa-search me-1"></i>Buscar CT-es
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
 <div class="card shadow">
-    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+    <div class="card-header bg-light py-3">
         <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="fas fa-file-invoice me-2"></i>Lista de CT-e</h5>
-            <button type="button" class="btn btn-sm btn-light" id="btnExportarCsvCte">
-                <i class="fas fa-download me-1"></i>Exportar CSV
+            <h6 class="m-0 fw-bold text-primary">Resultados da Busca de CT-es</h6>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnExportarCsvCteList">
+                <i class="fas fa-file-csv me-1"></i>Exportar CSV da Lista
             </button>
         </div>
     </div>
@@ -145,54 +189,57 @@
                 <thead style="background-color: var(--verde-claro);">
                     <tr>
                         <th>Nº CT-e</th>
-                        <th>Chave (Início...Fim)</th>
+                        <th>Chave</th>
                         <th>Data Emissão</th>
                         <th>Remetente</th>
                         <th>Destinatário</th>
-                        <th class="text-end">Valor (R$)</th>
+                        <th class="text-end">Valor</th>
                         <th>Modal.</th>
-                        <th class="text-center">Status</th>
-                        <th class="text-center">Ações</th>
+                        <th>Status</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody id="cte-list">
                     <tr>
-                        <td colspan="9" class="text-center p-4">
-                            <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                            <span class="ms-2">Carregando dados...</span>
-                        </td>
+                        <td colspan="9" class="text-center p-4">Carregando dados...</td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
     <div class="card-footer bg-light">
-        <nav aria-label="Paginação de CT-e">
-            <ul class="pagination justify-content-center mb-0" id="pagination">
-            </ul>
-        </nav>
+        <div class="d-flex justify-content-between align-items-center">
+            <span id="total-items-info" class="text-muted small"></span>
+            <nav aria-label="Paginação de CT-e">
+                <ul class="pagination justify-content-end mb-0" id="pagination">
+                    </ul>
+            </nav>
+        </div>
     </div>
 </div>
 
 <div class="modal fade" id="cteDetailModal" tabindex="-1" aria-labelledby="cteDetailModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title" id="cteDetailModalLabel">Detalhes do CT-e</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body" id="cteDetailContent">
-                <div class="d-flex justify-content-center p-5">
+                <div class="d-flex justify-content-center">
                     <div class="spinner-border text-success" role="status">
                         <span class="visually-hidden">Carregando...</span>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
+                 <button type="button" class="btn btn-warning" id="btnReprocessCTe">
+                    <i class="fas fa-sync-alt me-2"></i>Reprocessar
+                </button>
                 <button type="button" class="btn btn-primary" id="btnPrintCTe">
                     <i class="fas fa-print me-2"></i>Imprimir DACTE
                 </button>
-                <button type="button" class="btn btn-info text-white" id="btnDownloadXML">
+                <button type="button" class="btn btn-info" id="btnDownloadXML"> {# Mudado para info para diferenciar #}
                     <i class="fas fa-file-code me-2"></i>Download XML
                 </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -203,6 +250,6 @@
 {% endblock %}
 
 {% block scripts %}
-{# Chart.js já deve estar em base.html ou scripts.js global #}
+{# Chart.js e auth.js devem estar em base.html ou scripts.js global #}
 <script src="{% static 'js/cte_panel.js' %}"></script>
 {% endblock %}
