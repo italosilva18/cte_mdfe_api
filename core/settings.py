@@ -196,6 +196,10 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.FormParser", # For HTML form data
         "rest_framework.parsers.MultiPartParser", # For file uploads
     ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 5,
+    
+
     # (Optional) Throttling for API rate limiting
     # 'DEFAULT_THROTTLE_CLASSES': [
     #     'rest_framework.throttling.AnonRateThrottle',

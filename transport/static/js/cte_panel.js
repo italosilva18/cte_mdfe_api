@@ -1,7 +1,7 @@
 /**
  * cte_panel.js
  * Functions for the CT-e panel page
- * Versão: 1.2.0 (Correções e melhorias com base no feedback)
+ * Versão: 1.3.0 (Correções de carregamento da lista e outras melhorias)
  */
 
 // Global variables
@@ -20,10 +20,10 @@ let currentCTeId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     setDefaultDateRangePanel(); // Define datas padrão para o painel
-    setDefaultDateRangeList();  // Define datas padrão para a lista
+    setDefaultDateRangeList();  // Define datas padrão para a lista (AJUSTADO)
 
-    loadCtePainelData();
-    loadCTeList();
+    loadCtePainelData(); // Carrega dados do painel
+    loadCTeList();       // Carrega a lista principal de CT-es com o range padrão
 
     setupEventListeners();
 });
@@ -42,10 +42,11 @@ function setupEventListeners() {
         });
     }
 
+    // BOTÃO "BUSCAR CT-ES" DA LISTA
     const filterListBtn = document.getElementById('btnFiltrarCteList');
     if (filterListBtn) {
         filterListBtn.addEventListener('click', () => {
-            currentPage = 1;
+            currentPage = 1; // Reseta para a primeira página ao aplicar novos filtros
             loadCTeList();
         });
     }
@@ -57,15 +58,19 @@ function setupEventListeners() {
 
     setupModalEventListeners();
 
-    document.getElementById('cte-list')?.addEventListener('click', function(e) {
-        const detailButton = e.target.closest('.btn-cte-detail');
-        if (detailButton) {
-            const cteId = detailButton.getAttribute('data-id');
-            if (cteId) {
-                showCTeDetails(cteId);
+    // Delegação de evento para botões de detalhe na tabela principal
+    const cteListTableBody = document.getElementById('cte-list');
+    if (cteListTableBody) {
+        cteListTableBody.addEventListener('click', function(e) {
+            const detailButton = e.target.closest('.btn-cte-detail');
+            if (detailButton) {
+                const cteId = detailButton.getAttribute('data-id');
+                if (cteId) {
+                    showCTeDetails(cteId);
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 function setupModalEventListeners() {
@@ -106,20 +111,33 @@ function setupModalEventListeners() {
 function setDefaultDateRangePanel() {
     const today = new Date();
     const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    document.getElementById('data_inicio_panel').value = formatDateForInput(firstDayOfMonth);
-    document.getElementById('data_fim_panel').value = formatDateForInput(today);
+    // Ajuste para pegar o último dia do mês atual corretamente
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    const startDateInput = document.getElementById('data_inicio_panel');
+    const endDateInput = document.getElementById('data_fim_panel');
+
+    if(startDateInput) startDateInput.value = formatDateForInput(firstDayOfMonth);
+    if(endDateInput) endDateInput.value = formatDateForInput(lastDayOfMonth); // Usar o último dia do mês atual
 }
 
 function setDefaultDateRangeList() {
     const today = new Date();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(today.getDate() - 30);
-    document.getElementById('data_inicio_list').value = formatDateForInput(thirtyDaysAgo);
-    document.getElementById('data_fim_list').value = formatDateForInput(today);
+    // CORREÇÃO: Define o range padrão para o ano atual, como sugerido.
+    const firstDayOfYear = new Date(today.getFullYear(), 0, 1);
+    const startDateInput = document.getElementById('data_inicio_list');
+    const endDateInput = document.getElementById('data_fim_list');
+
+    if(startDateInput) startDateInput.value = formatDateForInput(firstDayOfYear);
+    if(endDateInput) endDateInput.value = formatDateForInput(today);
 }
 
 function formatDateForInput(date) {
-    return date.toISOString().split('T')[0];
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 function loadCtePainelData() {
@@ -133,7 +151,7 @@ function loadCtePainelData() {
     apiUrl = apiUrl.slice(0, -1);
 
     Auth.fetchWithAuth(apiUrl)
-        .then(handleFetchResponse) // Usar helper para tratar resposta
+        .then(handleFetchResponse)
         .then(data => {
             painelCteData = data;
             updatePainelCards(data.cards);
@@ -144,9 +162,21 @@ function loadCtePainelData() {
         .catch(error => {
             console.error('Error loading CT-e Panel data:', error);
             showNotification(`Erro ao carregar dados do Painel CT-e: ${error.message || 'Erro desconhecido'}`, 'error');
+             // Limpa os placeholders com mensagem de erro em caso de falha
+            const cardIds = ['panel-total-ctes', 'panel-valor-total', 'panel-total-autorizados', 'panel-total-cancelados', 'panel-total-rejeitados'];
+            cardIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = 'Erro!';
+            });
+            ['chart-cliente-container', 'chart-distribuidor-container'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '<div class="alert alert-danger m-2 small p-2">Erro ao carregar gráfico.</div>';
+            });
+            const tableBody = document.getElementById('tabela-cliente-painel');
+            if (tableBody) tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger p-3">Erro ao carregar dados.</td></tr>';
         })
         .finally(() => {
-            hideLoadingPainel();
+            // hideLoadingPainel() não é mais necessário aqui, pois o conteúdo é substituído.
         });
 }
 
@@ -162,10 +192,6 @@ function showLoadingPainel() {
     });
     const tableBody = document.getElementById('tabela-cliente-painel');
     if (tableBody) tableBody.innerHTML = '<tr><td colspan="5" class="text-center p-4"><div class="spinner-border spinner-border-sm text-secondary" role="status"></div> Carregando...</td></tr>';
-}
-
-function hideLoadingPainel() {
-    // Os dados serão preenchidos ou mensagens de erro exibidas pelas funções de renderização
 }
 
 function updatePainelCards(cards) {
@@ -188,16 +214,18 @@ function renderGraficoCliente(data) {
     const container = document.getElementById('chart-cliente-container');
     if (!container) return;
 
+    // CORREÇÃO: Reutilizar ou criar canvas
     let canvas = container.querySelector('canvas');
     if (!canvas) {
         canvas = document.createElement('canvas');
+        // canvas.id = 'graficoCliente'; // ID já está no HTML, mas podemos garantir
         container.innerHTML = ''; // Limpa o spinner
         container.appendChild(canvas);
     }
     const ctx = canvas.getContext('2d');
 
     if (!data || data.length === 0) {
-        container.innerHTML = '<p class="text-center text-muted p-3">Nenhum dado de cliente para exibir.</p>';
+        container.innerHTML = '<p class="text-center text-muted p-3 small">Nenhum dado de cliente para exibir no período selecionado.</p>';
         if (graficoClienteChart) {
             graficoClienteChart.destroy();
             graficoClienteChart = null;
@@ -225,7 +253,7 @@ function renderGraficoCliente(data) {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `R$ ${formatNumber(ctx.raw, 2)}` } } },
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctxTooltip => `R$ ${formatNumber(ctxTooltip.raw, 2)}` } } },
             scales: { x: { beginAtZero: true, ticks: { callback: val => `R$ ${formatNumber(val/1000)}k` } } }
         }
     });
@@ -234,17 +262,19 @@ function renderGraficoCliente(data) {
 function renderGraficoDistribuidor(data) {
     const container = document.getElementById('chart-distribuidor-container');
     if (!container) return;
-
+    
+    // CORREÇÃO: Reutilizar ou criar canvas
     let canvas = container.querySelector('canvas');
     if (!canvas) {
         canvas = document.createElement('canvas');
+        // canvas.id = 'graficoDistribuidor';
         container.innerHTML = ''; // Limpa o spinner
         container.appendChild(canvas);
     }
     const ctx = canvas.getContext('2d');
 
     if (!data || data.length === 0) {
-        container.innerHTML = '<p class="text-center text-muted p-3">Nenhum dado de modalidade para exibir.</p>';
+        container.innerHTML = '<p class="text-center text-muted p-3 small">Nenhum dado de modalidade para exibir no período selecionado.</p>';
         if (graficoDistribuidorChart) {
             graficoDistribuidorChart.destroy();
             graficoDistribuidorChart = null;
@@ -277,7 +307,8 @@ function renderGraficoDistribuidor(data) {
                         label: function(context) {
                             const label = context.label || '';
                             const value = context.raw || 0;
-                            const total = context.chart.getDatasetMeta(0).data.reduce((acc, datapoint) => acc + datapoint.$context.raw, 0);
+                            // Correção para calcular total corretamente no doughnut
+                            const total = context.chart.data.datasets[0].data.reduce((sum, val) => sum + val, 0);
                             const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                             return `${label}: R$ ${formatNumber(value, 2)} (${percentage}%)`;
                         }
@@ -313,48 +344,59 @@ function loadCTeList() {
     const dataInicio = document.getElementById('data_inicio_list').value;
     const dataFim = document.getElementById('data_fim_list').value;
     const modalidade = document.getElementById('modalidade_list').value;
-    const status = document.getElementById('status_list').value;
+    const statusFiltro = document.getElementById('status_list').value;
 
     let apiUrl = `/api/ctes/?page=${currentPage}&page_size=${pageSize}`;
     if (dataInicio) apiUrl += `&data_inicio=${dataInicio}`;
     if (dataFim) apiUrl += `&data_fim=${dataFim}`;
     if (modalidade) apiUrl += `&modalidade=${modalidade}`;
-    if (status) { // Ajustar para os filtros de status da API de CT-e
-        if (status === "autorizado") apiUrl += `&autorizado=true`;
-        else if (status === "cancelado") apiUrl += `&cancelado=true`;
-        else if (status === "pendente") apiUrl += `&processado=false&autorizado=false&cancelado=false`; // Exemplo
-        else if (status === "processado") apiUrl += `&processado=true&autorizado=false`; // Exemplo
-        // Adicionar lógica para "rejeitado" se o backend suportar
+    
+    // Mapeamento do filtro de status para os parâmetros da API
+    if (statusFiltro) {
+        switch(statusFiltro) {
+            case "autorizado": apiUrl += `&autorizado=true&cancelado=false`; break; // Garante que não está cancelado
+            case "cancelado": apiUrl += `&cancelado=true`; break;
+            case "pendente": apiUrl += `&processado=false&autorizado=false&cancelado=false`; break;
+            case "processado": apiUrl += `&processado=true&autorizado=false&cancelado=false`; break; // Processado mas não autorizado nem cancelado
+            case "rejeitado": apiUrl += `&autorizado=false&processado=true&cancelado=false`; break; // Supondo que rejeitado implica processado mas não autorizado
+            // Adicione mais casos conforme a lógica exata da sua API
+        }
     }
-
 
     Auth.fetchWithAuth(apiUrl)
         .then(handleFetchResponse)
         .then(data => {
+            if (Array.isArray(data)) {
             cteList = data.results || [];
             totalItems = data.count || 0;
             renderCTeTableList();
             updatePagination();
-        })
+                } else {
+            cteList    = data.results || [];
+            totalItems = data.count   || 0;
+        }
+        renderCTeTableList();
+        updatePagination(); // Esta função precisará ser robusta para lidar com totalItems
+    }
+        )
         .catch(error => {
             console.error('Error loading CT-e List:', error);
             showNotification(`Erro ao carregar a lista de CT-es: ${error.message || 'Erro desconhecido'}`, 'error');
             const tbody = document.getElementById('cte-list');
             if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger p-4">Erro ao carregar a lista.</td></tr>`;
+            const totalInfo = document.getElementById('total-items-info');
+            if(totalInfo) totalInfo.textContent = "Erro ao carregar.";
         })
         .finally(() => {
-            hideLoadingList();
+            // hideLoadingList(); // Não é mais necessário, a tabela é atualizada diretamente.
         });
 }
 
 function showLoadingList() {
     const tbody = document.getElementById('cte-list');
     if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center p-4"><div class="spinner-border spinner-border-sm text-secondary" role="status"></div> Carregando lista...</td></tr>`;
-    document.getElementById('total-items-info').textContent = '';
-}
-
-function hideLoadingList() {
-    // A tabela será preenchida ou terá mensagem de erro
+    const totalInfo = document.getElementById('total-items-info');
+    if(totalInfo) totalInfo.textContent = 'Buscando...';
 }
 
 function renderCTeTableList() {
@@ -369,7 +411,6 @@ function renderCTeTableList() {
         return;
     }
     if(totalInfo) totalInfo.textContent = `${totalItems} CT-e(s) encontrado(s). Exibindo página ${currentPage} de ${Math.ceil(totalItems / pageSize)}.`;
-
 
     tbody.innerHTML = cteList.map(cte => {
         const dataEmissaoFmt = cte.data_emissao ? formatDateTime(cte.data_emissao) : '--';
@@ -400,7 +441,6 @@ function renderCTeTableList() {
     }).join('');
 }
 
-
 function reprocessCTe(cteId) {
     const btn = document.getElementById('btnReprocessCTe');
     if (btn) {
@@ -412,7 +452,10 @@ function reprocessCTe(cteId) {
         .then(handleFetchResponse)
         .then(data => {
             showNotification(data.message || 'CT-e enviado para reprocessamento!', 'success');
-            bootstrap.Modal.getInstance(document.getElementById('cteDetailModal'))?.hide();
+            const modalInstance = bootstrap.Modal.getInstance(document.getElementById('cteDetailModal'));
+            if (modalInstance) {
+                modalInstance.hide();
+            }
             loadCtePainelData();
             loadCTeList();
         })
@@ -443,20 +486,29 @@ function updatePagination() {
     let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
     let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
 
-    if (endPage - startPage + 1 < maxPagesToShow) {
+    if (endPage - startPage + 1 < maxPagesToShow && totalPages > maxPagesToShow) {
+        if (currentPage < (totalPages / 2)) {
+            endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+        } else {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+    }
+     if (endPage - startPage + 1 < maxPagesToShow) { // Recalcula se ainda for menor que o desejado e totalPages permitir
         startPage = Math.max(1, endPage - maxPagesToShow + 1);
     }
-    if(startPage > 1) {
+
+
+    if (startPage > 1) {
         html += `<li class="page-item"><a class="page-link page-link-sm" href="#" data-page="1">1</a></li>`;
-        if(startPage > 2) html += `<li class="page-item disabled"><span class="page-link page-link-sm">...</span></li>`;
+        if (startPage > 2) html += `<li class="page-item disabled"><span class="page-link page-link-sm">...</span></li>`;
     }
 
     for (let i = startPage; i <= endPage; i++) {
         html += `<li class="page-item${i === currentPage ? ' active' : ''}"><a class="page-link page-link-sm" href="#" data-page="${i}">${i}</a></li>`;
     }
 
-    if(endPage < totalPages) {
-        if(endPage < totalPages - 1) html += `<li class="page-item disabled"><span class="page-link page-link-sm">...</span></li>`;
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) html += `<li class="page-item disabled"><span class="page-link page-link-sm">...</span></li>`;
         html += `<li class="page-item"><a class="page-link page-link-sm" href="#" data-page="${totalPages}">${totalPages}</a></li>`;
     }
 
@@ -484,7 +536,7 @@ function showCTeDetails(cteId) {
 
     if (!modal || !modalTitle || !modalBody) return;
 
-    modalBody.innerHTML = '<div class="d-flex justify-content-center p-5"><div class="spinner-border text-success" role="status"></div></div>';
+    modalBody.innerHTML = '<div class="d-flex justify-content-center p-5"><div class="spinner-border text-success" role="status"></div><span class="ms-2">Carregando detalhes...</span></div>';
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
 
@@ -494,7 +546,7 @@ function showCTeDetails(cteId) {
             modalTitle.textContent = `CT-e ${cteData.identificacao?.numero || truncateText(cteData.chave,10) || 'Detalhes'}`;
             modalBody.innerHTML = renderCTeDetailsHTML(cteData);
             if (btnReprocessCTe) {
-                const isCancelado = cteData.status_geral === "Cancelado";
+                const isCancelado = (cteData.cancelamento && cteData.cancelamento.c_stat === 135) || cteData.status_geral === "Cancelado";
                 btnReprocessCTe.disabled = isCancelado;
                 btnReprocessCTe.title = isCancelado ? "CT-e cancelado não pode ser reprocessado" : "Reprocessar CT-e";
             }
@@ -506,53 +558,54 @@ function showCTeDetails(cteId) {
 }
 
 function renderCTeDetailsHTML(cte) {
-    let html = `<dl class="row gy-2 gx-4">`; // gy-2 para espaçamento vertical, gx-4 para horizontal
-    const addDetail = (label, value) => {
+    let html = `<dl class="row gy-2 gx-4">`;
+    const addDetail = (label, value, isHtml = false) => {
         if (value !== undefined && value !== null && value !== '') {
-            html += `<dt class="col-sm-4 col-lg-3 text-muted">${label}:</dt><dd class="col-sm-8 col-lg-9">${value}</dd>`;
+            html += `<dt class="col-sm-4 col-lg-3 text-muted small">${label}:</dt><dd class="col-sm-8 col-lg-9 fw-normal">${isHtml ? value : escapeHtml(value)}</dd>`;
         }
     };
+    const formatDateSafe = (dateStr) => dateStr ? formatDateTime(dateStr) : '--';
 
     addDetail('Chave', cte.chave);
     addDetail('Número', cte.identificacao?.numero);
     addDetail('Série', cte.identificacao?.serie);
-    addDetail('Emissão', formatDateTime(cte.identificacao?.data_emissao_formatada || cte.identificacao?.data_emissao));
+    addDetail('Emissão', formatDateSafe(cte.identificacao?.data_emissao_formatada || cte.identificacao?.data_emissao));
     addDetail('Modalidade', cte.modalidade);
-    addDetail('Valor', formatCurrency(cte.prestacao?.valor_total_prestado));
-    addDetail('Status', getStatusBadgeHTML(cte.status_geral));
+    addDetail('Valor Total', formatCurrency(cte.prestacao?.valor_total_prestado));
+    addDetail('Status', getStatusBadgeHTML(cte.status_geral), true);
 
-    html += `<div class="col-12 my-2"><hr></div>`; // Separador
+    html += `<div class="col-12 my-2"><hr class="my-1"></div>`;
 
     addDetail('Emitente', cte.emitente?.razao_social);
-    addDetail('CNPJ Emitente', formatCNPJ(cte.emitente?.cnpj));
+    addDetail('CNPJ Emitente', formatDocument(cte.emitente?.cnpj));
     addDetail('Remetente', cte.remetente?.razao_social);
-    addDetail('CNPJ/CPF Remetente', formatDocument(cte.remetente?.cnpj || cte.remetente?.cpf));
+    addDetail('CNPJ/CPF Rem.', formatDocument(cte.remetente?.cnpj || cte.remetente?.cpf));
     addDetail('Destinatário', cte.destinatario?.razao_social);
     addDetail('CNPJ/CPF Dest.', formatDocument(cte.destinatario?.cnpj || cte.destinatario?.cpf));
 
-    html += `<div class="col-12 my-2"><hr></div>`;
+    html += `<div class="col-12 my-2"><hr class="my-1"></div>`;
 
     addDetail('Origem', `${cte.identificacao?.nome_mun_ini || ''} - ${cte.identificacao?.uf_ini || ''}`);
     addDetail('Destino', `${cte.identificacao?.nome_mun_fim || ''} - ${cte.identificacao?.uf_fim || ''}`);
-    addDetail('Distância (KM)', cte.identificacao?.dist_km ? `${formatNumber(cte.identificacao.dist_km)} km` : '--');
+    addDetail('Distância', cte.identificacao?.dist_km ? `${formatNumber(cte.identificacao.dist_km)} km` : '--');
 
-    if(cte.protocolo) {
-        html += `<div class="col-12 my-2"><hr></div>`;
+    if (cte.protocolo) {
+        html += `<div class="col-12 my-2"><hr class="my-1"></div>`;
         addDetail('Protocolo', cte.protocolo.numero_protocolo);
-        addDetail('Status Protocolo', `${cte.protocolo.codigo_status} - ${cte.protocolo.motivo_status || 'N/A'}`);
-        addDetail('Data Protocolo', formatDateTime(cte.protocolo.data_recebimento_formatada || cte.protocolo.data_recebimento));
+        addDetail('Status Sefaz', `${cte.protocolo.codigo_status} - ${truncateText(cte.protocolo.motivo_status, 50) || 'N/A'}`);
+        addDetail('Data Protocolo', formatDateSafe(cte.protocolo.data_recebimento_formatada || cte.protocolo.data_recebimento));
     }
-    if(cte.cancelamento) {
-        html += `<div class="col-12 my-2"><hr></div>`;
-        addDetail('Cancelamento', '<strong class="text-danger">SIM</strong>');
+    if (cte.cancelamento && cte.cancelamento.c_stat === 135) { // Mostra apenas se cancelado efetivamente
+        html += `<div class="col-12 my-2"><hr class="my-1"></div>`;
+        addDetail('Cancelamento', '<strong class="text-danger">CONFIRMADO</strong>', true);
         addDetail('Prot. Cancelamento', cte.cancelamento.n_prot_retorno);
-        addDetail('Data Cancelamento', formatDateTime(cte.cancelamento.dh_reg_evento_formatada || cte.cancelamento.dh_reg_evento));
+        addDetail('Data Cancelamento', formatDateSafe(cte.cancelamento.dh_reg_evento_formatada || cte.cancelamento.dh_reg_evento));
         addDetail('Justificativa', truncateText(cte.cancelamento.x_just, 100));
     }
-    if(cte.carga?.produto_predominante){
-         html += `<div class="col-12 my-2"><hr></div>`;
-         addDetail('Produto Predominante', cte.carga.produto_predominante);
-         addDetail('Valor Carga', formatCurrency(cte.carga.valor_carga));
+    if (cte.carga?.produto_predominante) {
+         html += `<div class="col-12 my-2"><hr class="my-1"></div>`;
+         addDetail('Produto Pred.', cte.carga.produto_predominante);
+         addDetail('Valor da Carga', formatCurrency(cte.carga.valor_carga));
     }
 
     html += `</dl>`;
@@ -563,23 +616,33 @@ function exportCTeListToCSV() {
     const dataInicio = document.getElementById('data_inicio_list').value;
     const dataFim = document.getElementById('data_fim_list').value;
     const modalidade = document.getElementById('modalidade_list').value;
-    const status = document.getElementById('status_list').value;
+    const statusFiltro = document.getElementById('status_list').value;
 
-    let apiUrl = `/api/ctes/export/?format=csv`; // Adiciona ?format=csv
+    // CORREÇÃO: Adicionar ?format=csv e montar os query params corretamente
+    let apiUrl = `/api/ctes/export/?format=csv`;
     if (dataInicio) apiUrl += `&data_inicio=${dataInicio}`;
     if (dataFim) apiUrl += `&data_fim=${dataFim}`;
     if (modalidade) apiUrl += `&modalidade=${modalidade}`;
-    // Adapte o filtro de status conforme a API /api/ctes/ espera
-    if (status) {
-        if (status === "autorizado") apiUrl += `&autorizado=true`;
-        else if (status === "cancelado") apiUrl += `&cancelado=true`;
-        // Adicione outros mapeamentos de status para os query params da API
+    if (statusFiltro) {
+        // Adapte este mapeamento para os filtros exatos que sua API /api/ctes/export/ espera
+        if (statusFiltro === "autorizado") apiUrl += `&autorizado=true`;
+        else if (statusFiltro === "cancelado") apiUrl += `&cancelado=true`;
+        // ... outros status ...
     }
-
-    window.location.href = apiUrl;
+    window.open(apiUrl, '_blank'); // Abre em nova aba para não interromper
 }
 
 // --- Funções Utilitárias (podem estar em scripts.js global) ---
+function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return unsafe;
+    return unsafe
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+}
+
 function formatCurrency(value) {
     if (value === null || value === undefined) return 'R$ 0,00';
     const val = parseFloat(value);
@@ -595,7 +658,9 @@ function formatNumber(value, decimals = 0) {
 function formatDateTime(dateString) {
     if (!dateString) return '--';
     try {
-        return new Date(dateString).toLocaleString('pt-BR', {
+        const date = new Date(dateString);
+         if (isNaN(date.getTime())) return dateString; // Retorna original se inválida
+        return date.toLocaleString('pt-BR', {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit'
         });
@@ -605,7 +670,7 @@ function formatDateTime(dateString) {
 }
 function formatCNPJ(cnpj) {
     if (!cnpj) return '--';
-    cnpj = cnpj.replace(/\D/g, '');
+    cnpj = String(cnpj).replace(/\D/g, ''); // Garante que é string e remove não dígitos
     if (cnpj.length === 14) {
         return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
     }
@@ -621,29 +686,29 @@ function formatDocument(doc) {
 }
 function formatCPF(cpf) {
     if (!cpf) return '--';
-    cpf = cpf.replace(/\D/g, '');
+    cpf = String(cpf).replace(/\D/g, '');
     if (cpf.length === 11) {
         return cpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
     }
     return cpf;
 }
 
-
 function truncateText(text, maxLength = 50) {
     if (!text) return '--';
+    text = String(text); // Garante que é string
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
 function getStatusBadgeHTML(statusText) {
-    if (!statusText) return '<span class="badge bg-secondary">Desconhecido</span>';
-    const lowerStatus = statusText.toLowerCase();
-    let badgeClass = 'bg-secondary'; // Padrão
+    if (!statusText) return '<span class="badge bg-secondary rounded-pill">Desconhecido</span>';
+    const lowerStatus = String(statusText).toLowerCase();
+    let badgeClass = 'bg-secondary';
     if (lowerStatus.includes('autorizado')) badgeClass = 'bg-success';
     else if (lowerStatus.includes('cancelado')) badgeClass = 'bg-danger';
     else if (lowerStatus.includes('rejeitado')) badgeClass = 'bg-warning text-dark';
     else if (lowerStatus.includes('processado')) badgeClass = 'bg-info text-dark';
-    else if (lowerStatus.includes('pendente')) badgeClass = 'bg-secondary';
-    return `<span class="badge ${badgeClass}">${statusText}</span>`;
+    else if (lowerStatus.includes('pendente')) badgeClass = 'bg-secondary'; // Pode ser mais específico
+    return `<span class="badge rounded-pill ${badgeClass}">${escapeHtml(statusText)}</span>`;
 }
 
 function getChartColors(count) {
@@ -655,29 +720,54 @@ function getChartBorderColors(count) {
     return Array.from({ length: count }, (_, i) => baseColors[i % baseColors.length]);
 }
 
-// Função auxiliar para tratar respostas de fetch
 async function handleFetchResponse(response) {
     if (!response.ok) {
         let errorData;
         try {
             errorData = await response.json();
         } catch (e) {
-            // Se não conseguir parsear JSON, usa o statusText
             throw new Error(response.statusText || `Erro HTTP ${response.status}`);
         }
-        // Tenta pegar a mensagem de erro mais específica
-        const errorMessage = errorData.detail || errorData.error || JSON.stringify(errorData);
+        const errorMessage = errorData.detail || errorData.error || (typeof errorData === 'object' ? JSON.stringify(errorData) : String(errorData));
         throw new Error(errorMessage);
     }
     return response.json();
 }
 
-// Assegura que showNotification está disponível globalmente (de scripts.js ou auth.js)
-// Se não estiver, uma versão básica:
 if (typeof showNotification !== 'function') {
-    window.showNotification = function(message, type = 'info') {
+    window.showNotification = function(message, type = 'info', duration = 3000) { // Default duration
         console.log(`[${type.toUpperCase()}] ${message}`);
-        // Poderia adicionar um alert simples como fallback, mas pode ser irritante.
-        // alert(`[${type.toUpperCase()}] ${message}`);
+        // Criar um toast simples do Bootstrap se o global não existir
+        let toastContainer = document.querySelector('.toast-container.position-fixed.bottom-0.end-0.p-3');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            toastContainer.style.zIndex = "1100"; // Garante que fique acima de outros elementos
+            document.body.appendChild(toastContainer);
+        }
+
+        const toastId = `toast-${Date.now()}`;
+        const toastTypeClass = {
+            success: 'bg-success text-white',
+            error: 'bg-danger text-white',
+            warning: 'bg-warning text-dark',
+            info: 'bg-info text-dark'
+        }[type] || 'bg-secondary text-white';
+
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center ${toastTypeClass}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="${duration}">
+              <div class="d-flex">
+                <div class="toast-body">
+                  ${message}
+                </div>
+                <button type="button" class="btn-close me-2 m-auto ${type === 'success' || type === 'error' ? 'btn-close-white' : ''}" data-bs-dismiss="toast" aria-label="Close"></button>
+              </div>
+            </div>
+        `;
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+        const toastElement = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastElement);
+        toast.show();
+        toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
     };
 }
