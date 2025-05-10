@@ -333,6 +333,8 @@ else:
     DEFAULT_FROM_EMAIL = os.environ.get('DJANGO_DEFAULT_FROM_EMAIL', 'webmaster@localhost')
     SERVER_EMAIL = os.environ.get('DJANGO_SERVER_EMAIL', DEFAULT_FROM_EMAIL) # For error reports
 
+DATA_UPLOAD_MAX_NUMBER_FILES = 1000
+
 
 # --- Security Settings for Production (Uncomment and configure as needed) ---
 # if not DEBUG:

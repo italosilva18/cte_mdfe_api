@@ -5,4 +5,24 @@
 /.env/
 /virtualenv/
 /.virtualenv/
+/mediafiles/
+/media/
+db.sqlite3
+# Ignore Python cache files -----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.eggs/
+*.egg
+*.whl
+*.mypy_cache/
+*.pytest_cache/
+*.coverage
+*.cover
+*.hypothesis/
+*.hypothesis/
+*.tox/  
 # ---------------------------------------------------------

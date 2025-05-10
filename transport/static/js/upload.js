@@ -1,522 +1,373 @@
 /**
  * upload.js
- * Funcionalidades para upload de arquivos XML (CT-e, MDF-e e eventos)
- * Versão: 1.2.0 (Ajustada para IDs corretos e histórico)
+ * Funcionalidades para upload individual de XML (CT-e, MDF-e, Eventos) e histórico.
+ * v1.2.1 - Corrigido IDs de formulário e histórico conforme checklist.
  */
 
-// Assumindo que 'Auth' está definido globalmente (em auth.js)
-// Assumindo que funções como showNotification, formatDateTime estão em scripts.js
-// Caso não estejam, defina versões básicas aqui.
+// Assume que 'Auth' (auth.js) e funções globais (scripts.js) estão disponíveis.
+// Funções esperadas de scripts.js: showNotification, formatDateTime, formatChave, formatBytes, getDocumentStatusObject (ou getCteStatusObject/getMdfeStatusObjectPanel)
 
-/**
- * Inicializa a página de upload quando o DOM é carregado
- */
 document.addEventListener('DOMContentLoaded', function() {
-    // Configurar manipulador de submissão do formulário
-    const uploadForm = document.getElementById('uploadForm');
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', function(e) {
-            // Previne o envio padrão do HTML, garantindo que o fetch seja usado
-            e.preventDefault();
-            console.log("Form submit intercepted."); // Log para depuração
-            uploadXML();
+    // --- Elementos do Formulário de Upload Individual ---
+    const uploadFormSingle = document.getElementById('uploadFormSingle'); // ID CORRIGIDO
+    const inputFilePrincipal = document.getElementById('arquivo_xml_principal');
+    const inputFileRetorno = document.getElementById('arquivo_xml_retorno');
+    const fileInfoPrincipal = document.getElementById('fileInfoPrincipal');
+    const fileInfoRetorno = document.getElementById('fileInfoRetorno');
+    const btnClearSingle = document.getElementById('btnClearSingleUpload');
+    const btnSubmitSingle = document.getElementById('btnSubmitSingle');
+    
+    const progressSingleContainer = document.getElementById('uploadProgressSingleContainer');
+    const progressSingleBar = document.getElementById('uploadProgressSingleBar');
+
+    const errorAlertSingle = document.getElementById('uploadErrorSingle');
+    const errorMessageSingle = document.getElementById('errorMessageSingle');
+    const warningAlertSingle = document.getElementById('uploadWarningSingle');
+    const warningMessageSingle = document.getElementById('warningMessageSingle');
+    const successAlertSingle = document.getElementById('uploadSuccessSingle');
+    const successMessageSingle = document.getElementById('successMessageSingle');
+    const singleUploadLogsContainer = document.getElementById('singleUploadLogs');
+
+    const dropZonePrincipal = document.getElementById('dropZonePrincipal');
+    const dropZoneRetorno = document.getElementById('dropZoneRetorno');
+
+    // --- Histórico de Uploads ---
+    const historyTableBody = document.getElementById('uploadHistoryTableBody'); // ID CORRIGIDO
+    const btnRefreshHistory = document.getElementById('btnRefreshUploadHistory');
+    const historyLogContainer = document.getElementById('historyLog');
+
+    // --- Verificações Iniciais ---
+    if (!uploadFormSingle) console.error("CRÍTICO: Formulário de upload 'uploadFormSingle' não encontrado no HTML.");
+    if (!historyTableBody) console.error("CRÍTICO: Tabela de histórico 'uploadHistoryTableBody' não encontrada no HTML.");
+
+
+    // --- Função de Log para Upload Individual ---
+    function logSingle(message, level = 'info') {
+        if (!singleUploadLogsContainer) return;
+        const entry = document.createElement('div');
+        const timestamp = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+        entry.innerHTML = `[${timestamp}] ${escapeHtml(message)}`;
+        
+        entry.classList.add('mb-1', 'small');
+        if (level === 'error') entry.classList.add('text-danger');
+        else if (level === 'warning') entry.classList.add('text-warning');
+        else entry.classList.add('text-body-secondary');
+
+        const placeholder = singleUploadLogsContainer.querySelector('small.text-muted');
+        if(placeholder) placeholder.remove();
+
+        singleUploadLogsContainer.appendChild(entry);
+        singleUploadLogsContainer.scrollTop = singleUploadLogsContainer.scrollHeight;
+    }
+
+    // --- Event Listeners para Upload Individual ---
+    if (uploadFormSingle) { // Verificação adicionada
+        uploadFormSingle.addEventListener('submit', handleSubmitSingleUpload);
+    }
+
+    if (inputFilePrincipal) {
+        inputFilePrincipal.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            displayFileInfo(e.target.files, fileInfoPrincipal, "Principal");
+            if (file) logSingle(`Arquivo principal selecionado: ${file.name}`);
         });
-    } else {
-        console.error("Formulário de upload (uploadForm) não encontrado.");
+    }
+    if (inputFileRetorno) {
+        inputFileRetorno.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            displayFileInfo(e.target.files, fileInfoRetorno, "Retorno");
+            if (file) logSingle(`Arquivo de retorno selecionado: ${file.name}`);
+        });
     }
 
-    // Carregar histórico de uploads recentes
-    loadUploadHistory();
-
-    // Botão para atualizar histórico (opcional)
-    const refreshHistoryBtn = document.querySelector('button[onclick="UploadXML.refreshHistory()"]');
-    if (refreshHistoryBtn) {
-        refreshHistoryBtn.removeAttribute('onclick'); // Remove handler inline
-        refreshHistoryBtn.addEventListener('click', loadUploadHistory);
-    } else {
-         // Tenta encontrar pelo ID se o onclick foi removido no HTML
-         const refreshBtnById = document.getElementById('refreshHistoryBtn'); // Exemplo de ID
-         if(refreshBtnById) refreshBtnById.addEventListener('click', loadUploadHistory);
-    }
-});
-
-/**
- * Realiza o upload do arquivo XML via API Fetch
- */
-function uploadXML() {
-    console.log("uploadXML function called."); // Log para depuração
-
-    // Obter elementos do formulário e de feedback
-    const uploadForm = document.getElementById('uploadForm');
-    const progressBar = document.querySelector('#uploadProgress .progress-bar');
-    const progressContainer = document.getElementById('uploadProgress');
-    const submitButton = document.getElementById('btnSubmit'); // Usar ID é mais seguro
-    const fileInput = document.getElementById('arquivo_xml');
-    const retornoInput = document.getElementById('arquivo_xml_retorno');
-
-    // Verificar se o arquivo principal foi selecionado
-    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        showUploadError('Por favor, selecione um arquivo XML principal.');
-        return;
+    if (btnClearSingle) {
+        btnClearSingle.addEventListener('click', () => {
+            clearSingleUploadForm();
+            logSingle("Formulário de upload individual limpo.");
+        });
     }
 
-    // --- Feedback de Carregamento ---
-    if (submitButton) {
-        submitButton.disabled = true;
-        // Atualiza o conteúdo do botão para mostrar carregamento
-        submitButton.innerHTML = `
-            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-            Enviando...
-        `;
-    }
-    hideMessages(); // Esconder mensagens de erro/sucesso anteriores
-    if (progressContainer && progressBar) {
-        progressContainer.classList.remove('d-none');
-        progressBar.style.width = '0%';
-        progressBar.textContent = '0%'; // Mostra porcentagem na barra
-        progressBar.setAttribute('aria-valuenow', 0);
-        progressBar.classList.remove('bg-success', 'bg-danger'); // Reseta cor
-        progressBar.classList.add('progress-bar-animated');
-    }
-    // ---------------------------------
+    setupDropZone(dropZonePrincipal, inputFilePrincipal);
+    setupDropZone(dropZoneRetorno, inputFileRetorno);
 
-    // Preparar FormData
-    const formData = new FormData();
-    formData.append('arquivo_xml', fileInput.files[0]);
-    if (retornoInput && retornoInput.files.length > 0) {
-        formData.append('arquivo_xml_retorno', retornoInput.files[0]);
+    // --- Event Listeners para Histórico ---
+    if (btnRefreshHistory) {
+        btnRefreshHistory.addEventListener('click', loadUploadHistory);
     }
 
-    // Simulação de Progresso (apenas visual, não reflete o upload real do fetch)
-    let progress = 0;
-    const increment = 5;
-    const intervalTime = 150; // ms
-    let progressInterval = null; // Declara fora para poder limpar no catch/finally
+    // --- Funções ---
+    function displayFileInfo(files, infoElement, typeLabel) {
+        if (!infoElement) return;
+        if (files && files.length > 0) {
+            const file = files[0];
+            infoElement.innerHTML = `<strong>${typeLabel}:</strong> ${escapeHtml(file.name)} <small class="text-muted">(${globalFormatBytes(file.size)})</small>`;
+        } else {
+            infoElement.innerHTML = '';
+        }
+    }
 
-    if (progressBar) {
-        progressInterval = setInterval(() => {
-            progress += increment;
-            const displayProgress = Math.min(progress, 95); // Não ir até 100% imediatamente
-            progressBar.style.width = `${displayProgress}%`;
-            progressBar.textContent = `${displayProgress}%`;
-            progressBar.setAttribute('aria-valuenow', displayProgress);
-            if (progress >= 100) {
-                clearInterval(progressInterval); // Para a simulação se atingir 100
+    function clearSingleUploadForm() {
+        if (uploadFormSingle) uploadFormSingle.reset();
+        if (fileInfoPrincipal) fileInfoPrincipal.innerHTML = '';
+        if (fileInfoRetorno) fileInfoRetorno.innerHTML = '';
+        if (inputFilePrincipal) inputFilePrincipal.value = '';
+        if (inputFileRetorno) inputFileRetorno.value = '';
+        hideSingleMessages();
+        if (progressSingleContainer) progressSingleContainer.classList.add('d-none');
+        if (progressSingleBar) {
+            progressSingleBar.style.width = '0%';
+            progressSingleBar.textContent = '0%';
+            progressSingleBar.className = 'progress-bar';
+        }
+        if(singleUploadLogsContainer) {
+            singleUploadLogsContainer.innerHTML = '<small class="text-muted">Logs do upload aparecerão aqui...</small>';
+        }
+    }
+
+    function handleSubmitSingleUpload(event) {
+        event.preventDefault();
+        logSingle('Processando envio individual...');
+        if (!inputFilePrincipal || !inputFilePrincipal.files || inputFilePrincipal.files.length === 0) {
+            logSingle("Arquivo XML principal não selecionado.", 'error');
+            showSingleUploadError("Por favor, selecione o arquivo XML principal.");
+            return;
+        }
+        logSingle(`Arquivo principal: ${inputFilePrincipal.files[0].name}`);
+        if (inputFileRetorno && inputFileRetorno.files.length > 0) {
+            logSingle(`Arquivo de retorno: ${inputFileRetorno.files[0].name}`);
+        }
+
+        const formData = new FormData();
+        formData.append('arquivo_xml', inputFilePrincipal.files[0]);
+        if (inputFileRetorno && inputFileRetorno.files.length > 0) {
+            formData.append('arquivo_xml_retorno', inputFileRetorno.files[0]);
+        }
+
+        if (btnSubmitSingle) {
+            btnSubmitSingle.disabled = true;
+            btnSubmitSingle.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Enviando...`;
+        }
+        hideSingleMessages();
+        if (progressSingleContainer && progressSingleBar) {
+            progressSingleContainer.classList.remove('d-none');
+            progressSingleBar.style.width = '0%';
+            progressSingleBar.textContent = '0%';
+            progressSingleBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
+        }
+
+        logSingle('Enviando para /api/upload/...', 'info');
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += 10;
+            if (progress <= 100 && progressSingleBar) {
+                const currentProgress = Math.min(progress, 95);
+                progressSingleBar.style.width = `${currentProgress}%`;
+                progressSingleBar.textContent = `${currentProgress}%`;
+            } else { clearInterval(interval); }
+        }, 150);
+
+        Auth.fetchWithAuth('/api/upload/', { method: 'POST', body: formData })
+        .then(response => {
+            clearInterval(interval);
+            if (progressSingleBar) {
+                progressSingleBar.classList.remove('progress-bar-animated');
+                progressSingleBar.style.width = '100%';
             }
-        }, intervalTime);
+            logSingle(`API respondeu: HTTP ${response.status}.`);
+            return response.json().then(data => ({ ok: response.ok, status: response.status, data }));
+        })
+        .then(({ ok, status, data }) => {
+            if (progressSingleBar) progressSingleBar.textContent = 'Concluído!';
+            
+            let message = data.message || "Operação finalizada.";
+            if (data.chave) message += ` Chave: ${globalFormatChave(data.chave)}`;
+
+            if (ok && status !== 400 && status !== 500) {
+                if (status === 202) {
+                    logSingle(`Aviso (202): ${message}. ${data.warning || ''}`, 'warning');
+                    if (progressSingleBar) progressSingleBar.className = 'progress-bar bg-warning';
+                    showSingleUploadWarning(message + (data.warning ? ` Aviso: ${data.warning}` : ''));
+                } else {
+                    logSingle(`Sucesso (${status}): ${message}`, 'info');
+                    if (progressSingleBar) progressSingleBar.className = 'progress-bar bg-success';
+                    showSingleUploadSuccess(message);
+                }
+                clearSingleUploadForm();
+                if (singleUploadLogsContainer) {
+                     singleUploadLogsContainer.innerHTML += '<div class="border-top my-2"></div><small class="text-muted">Aguardando novo upload...</small>';
+                }
+                loadUploadHistory();
+            } else {
+                const errorMsg = data.error || data.detail || JSON.stringify(data) || "Erro desconhecido.";
+                logSingle(`Erro (${status}): ${errorMsg}`, 'error');
+                if (progressSingleBar) progressSingleBar.className = 'progress-bar bg-danger';
+                showSingleUploadError(errorMsg);
+            }
+        })
+        .catch(error => {
+            clearInterval(interval);
+            console.error('Erro de rede (upload individual):', error);
+            logSingle(`Falha de rede: ${error.message}`, 'error');
+            if (progressSingleBar) {
+                progressSingleBar.style.width = '100%';
+                progressSingleBar.textContent = 'Erro de Rede!';
+                progressSingleBar.classList.remove('progress-bar-animated');
+                progressSingleBar.className = 'progress-bar bg-danger';
+            }
+            showSingleUploadError(`Erro de comunicação: ${error.message}.`);
+        })
+        .finally(() => {
+            if (btnSubmitSingle) {
+                btnSubmitSingle.disabled = false;
+                btnSubmitSingle.innerHTML = `<i class="fas fa-paper-plane me-2"></i>Enviar Arquivo Único`;
+            }
+            setTimeout(() => {
+                if (progressSingleContainer) progressSingleContainer.classList.add('d-none');
+            }, 5000);
+        });
     }
 
-    // Realizar o upload com autenticação (Auth.fetchWithAuth de auth.js)
-    Auth.fetchWithAuth('/api/upload/', { // Endpoint da API unificada
-        method: 'POST',
-        body: formData
-        // Nota: Não defina 'Content-Type', o navegador define automaticamente
-        // com 'multipart/form-data' e o 'boundary' correto para FormData.
-    })
-    .then(response => {
-        clearInterval(progressInterval); // Para a simulação
-        // Lidar com a resposta
-        if (progressBar) {
-            progressBar.style.width = '100%';
-            progressBar.textContent = '100%';
-            progressBar.setAttribute('aria-valuenow', 100);
-            progressBar.classList.remove('progress-bar-animated');
-        }
-        if (!response.ok) {
-            // Tenta ler o JSON de erro do backend
-            return response.json().then(errData => {
-                // Anexa o status code ao erro para mais contexto
-                errData.statusCode = response.status;
-                throw errData; // Lança o objeto de erro para o catch
-            }).catch((jsonParseError) => {
-                 // Se não conseguir ler JSON, lança erro genérico com status
-                 console.error("Erro ao parsear JSON de erro:", jsonParseError);
-                 throw new Error(`Erro ${response.status}: ${response.statusText || 'Falha na comunicação com o servidor.'}`);
-            });
-        }
-        return response.json(); // Processa a resposta JSON de sucesso
-    })
-    .then(data => {
-        // --- Sucesso ---
-        if (progressBar) progressBar.classList.add('bg-success');
-
-        let mensagem = data.message || 'Arquivo processado com sucesso!';
-        if (data.chave) { // Adiciona a chave se retornada
-            mensagem += ` Chave: ${formatChave(data.chave)}`;
-        } else if (data.documento && data.documento !== 'N/A') { // Adiciona a chave de evento
-             mensagem += ` Documento: ${formatChave(data.documento)}`;
-        }
-        showUploadSuccess(mensagem);
-
-        // Limpar campos de arquivo após sucesso
-        fileInput.value = '';
-        if(retornoInput) retornoInput.value = '';
-
-        loadUploadHistory(); // Atualizar histórico
-
-        // Esconder barra de progresso após um tempo
-        setTimeout(() => {
-            progressContainer?.classList.add('d-none');
-            progressBar?.classList.remove('bg-success');
-        }, 3000);
-        // ----------------
-    })
-    .catch(error => {
-        // --- Erro ---
-        if(progressInterval) clearInterval(progressInterval); // Garante que parou a simulação
-        console.error('Erro detalhado no upload:', error);
-        if (progressBar) {
-            progressBar.style.width = '100%'; // Marca 100% mas com erro
-            progressBar.textContent = 'Erro!';
-            progressBar.classList.remove('progress-bar-animated');
-            progressBar.classList.add('bg-danger'); // Cor de erro
-        }
-
-        // Formatar a mensagem de erro detalhada
-        let detailedMessage = 'Erro ao processar o arquivo. Verifique o console (F12) e tente novamente.';
-        if (error && error.error) { // Erro estruturado vindo do backend DRF
-             detailedMessage = error.error;
-             if(error.details) { // Adiciona detalhes se houver
-                 detailedMessage += ` Detalhes: ${error.details}`;
-             }
-        } else if (error && typeof error === 'object' && error.message) { // Erro JS padrão
-            detailedMessage = error.message;
-        } else if (typeof error === 'string') { // Erro como string
-             detailedMessage = error;
-        }
-        // Se for um objeto de erros de validação do DRF
-         else if (error && typeof error === 'object' && !error.message && error.statusCode !== 500) {
-             detailedMessage = Object.entries(error)
-                 .filter(([key]) => key !== 'statusCode') // Não exibir statusCode na mensagem
-                 .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-                 .join('; ');
-             detailedMessage = `Erro de validação: ${detailedMessage}`;
-         }
-
-        showUploadError(detailedMessage);
-
-        // Esconder barra de progresso após um tempo maior em caso de erro
-        setTimeout(() => {
-            progressContainer?.classList.add('d-none');
-            progressBar?.classList.remove('bg-danger');
-        }, 5000);
-        // ---------------
-    })
-    .finally(() => {
-        // --- Sempre Executa ---
-        if (submitButton) {
-            submitButton.disabled = false;
-            // Restaura o texto e ícone original do botão
-            submitButton.innerHTML = `
-                <i class="fas fa-upload me-2"></i>Enviar Arquivo
-            `;
-        }
-        // Resetar o formulário aqui pode limpar o arquivo selecionado antes do usuário ver o erro
-        // uploadForm.reset();
-        // ---------------------
-    });
-}
-
-/**
- * Mostra mensagem de sucesso na área designada.
- * @param {string} message - Mensagem de sucesso.
- */
-function showUploadSuccess(message) {
-    const successAlert = document.getElementById('uploadSuccess');
-    const successMessage = document.getElementById('successMessage');
-
-    if (successAlert && successMessage) {
-        successMessage.textContent = message;
-        successAlert.classList.remove('d-none');
-        hideMessages('uploadError'); // Esconde erro se sucesso
-        successAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-        // Fallback: Usar notificação global se disponível
-        if (typeof showNotification === 'function') {
-             showNotification(message, 'success');
-        } else {
-             alert(message); // Fallback simples
-        }
+    function showSingleUploadError(message) {
+        if (errorMessageSingle && errorAlertSingle) {
+            errorMessageSingle.textContent = message; errorAlertSingle.classList.remove('d-none');
+            if(successAlertSingle) successAlertSingle.classList.add('d-none');
+            if(warningAlertSingle) warningAlertSingle.classList.add('d-none');
+        } else { globalShowNotification(message, 'error'); }
     }
-}
-
-/**
- * Mostra mensagem de erro na área designada.
- * @param {string} message - Mensagem de erro.
- */
-function showUploadError(message) {
-    const errorAlert = document.getElementById('uploadError');
-    const errorMessage = document.getElementById('errorMessage');
-
-    if (errorAlert && errorMessage) {
-        errorMessage.textContent = message;
-        errorAlert.classList.remove('d-none');
-        hideMessages('uploadSuccess'); // Esconde sucesso se erro
-        errorAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-         // Fallback: Usar notificação global se disponível
-        if (typeof showNotification === 'function') {
-            showNotification(message, 'error');
-        } else {
-            alert(`Erro: ${message}`); // Fallback simples
-        }
+    function showSingleUploadWarning(message) {
+        if (warningMessageSingle && warningAlertSingle) {
+            warningMessageSingle.textContent = message; warningAlertSingle.classList.remove('d-none');
+            if(successAlertSingle) successAlertSingle.classList.add('d-none');
+            if(errorAlertSingle) errorAlertSingle.classList.add('d-none');
+        } else { globalShowNotification(message, 'warning'); }
     }
-}
-
-/**
- * Esconde uma ou ambas as mensagens de alerta.
- * @param {('uploadSuccess'|'uploadError'|'both')} [which='both'] - Qual alerta esconder.
- */
-function hideMessages(which = 'both') {
-    if (which === 'both' || which === 'uploadSuccess') {
-        document.getElementById('uploadSuccess')?.classList.add('d-none');
+    function showSingleUploadSuccess(message) {
+        if (successMessageSingle && successAlertSingle) {
+            successMessageSingle.textContent = message; successAlertSingle.classList.remove('d-none');
+            if(errorAlertSingle) errorAlertSingle.classList.add('d-none');
+            if(warningAlertSingle) warningAlertSingle.classList.add('d-none');
+        } else { globalShowNotification(message, 'success'); }
     }
-    if (which === 'both' || which === 'uploadError') {
-        document.getElementById('uploadError')?.classList.add('d-none');
-    }
-}
-
-/**
- * Carrega o histórico de uploads recentes buscando CTes e MDFes.
- */
-function loadUploadHistory() {
-    const tbody = document.getElementById('upload-history');
-    if (!tbody) {
-        console.warn("Elemento tbody 'upload-history' não encontrado para exibir histórico.");
-        return;
+    function hideSingleMessages() {
+        if (errorAlertSingle) errorAlertSingle.classList.add('d-none');
+        if (warningAlertSingle) warningAlertSingle.classList.add('d-none');
+        if (successAlertSingle) successAlertSingle.classList.add('d-none');
     }
 
-    // Mostrar mensagem de carregamento
-    tbody.innerHTML = `
-        <tr>
-            <td colspan="5" class="text-center p-4">
-                <div class="spinner-border spinner-border-sm text-secondary me-2" role="status">
-                    <span class="visually-hidden">Carregando...</span>
-                </div>
-                Carregando histórico...
-            </td>
-        </tr>`;
+    async function loadUploadHistory() {
+        if (!historyTableBody) { // Verificação crucial
+            console.error("Elemento tbody 'uploadHistoryTableBody' não encontrado para exibir histórico.");
+            logToHistoryContainer("Erro interno: Tabela de histórico não encontrada no DOM.", "error");
+            return;
+        }
+        logToHistoryContainer("Atualizando histórico de processamento...");
+        historyTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-4"><div class="spinner-border spinner-border-sm"></div> Carregando...</td></tr>`;
 
-    // Buscar CTes e MDFes mais recentes em paralelo (últimos 10 por tipo)
-    // A API precisa suportar ordenação por `data_upload` e limitação
-    // Usamos 'ordering=-data_upload' para pegar os mais recentes primeiro
-    Promise.all([
-        Auth.fetchWithAuth('/api/ctes/?ordering=-data_upload&limit=10'),
-        Auth.fetchWithAuth('/api/mdfes/?ordering=-data_upload&limit=10')
-    ])
-    .then(async ([ctesResponse, mdfesResponse]) => {
-        let combined = [];
         try {
-            // Processar CTes
+            const [ctesResponse, mdfesResponse] = await Promise.all([
+                Auth.fetchWithAuth('/api/ctes/?ordering=-data_upload&page_size=5'),
+                Auth.fetchWithAuth('/api/mdfes/?ordering=-data_upload&page_size=5')
+            ]);
+
+            let combinedHistory = [];
             if (ctesResponse.ok) {
                 const ctesData = await ctesResponse.json();
-                const cteMapped = (ctesData.results || []).map(item => mapToHistoryItem(item, 'CTE'));
-                combined.push(...cteMapped);
-            } else {
-                console.error(`Erro ao buscar CTes: ${ctesResponse.status}`);
-            }
-        } catch (e) {
-             console.error("Erro ao processar resposta de CTes:", e);
-        }
+                (ctesData.results || ctesData || []).forEach(item => combinedHistory.push({ ...item, docTipo: 'CT-e' }));
+            } else { logToHistoryContainer("Falha ao buscar histórico de CT-es (HTTP " + ctesResponse.status + ")", "warn");}
 
-        try {
-            // Processar MDFes
             if (mdfesResponse.ok) {
                 const mdfesData = await mdfesResponse.json();
-                const mdfeMapped = (mdfesData.results || []).map(item => mapToHistoryItem(item, 'MDFE'));
-                combined.push(...mdfeMapped);
-            } else {
-                 console.error(`Erro ao buscar MDFes: ${mdfesResponse.status}`);
+                (mdfesData.results || mdfesData || []).forEach(item => combinedHistory.push({ ...item, docTipo: 'MDF-e' }));
+            } else { logToHistoryContainer("Falha ao buscar histórico de MDF-es (HTTP " + mdfesResponse.status + ")", "warn");}
+
+            combinedHistory.sort((a, b) => new Date(b.data_upload) - new Date(a.data_upload));
+            renderUploadHistory(combinedHistory.slice(0, 10));
+            logToHistoryContainer("Histórico atualizado com sucesso.");
+
+        } catch (error) {
+            console.error('Erro ao carregar histórico de uploads:', error);
+            logToHistoryContainer(`Erro ao carregar histórico: ${error.message}`, "error");
+            historyTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger p-4">Erro ao carregar histórico.</td></tr>`;
+        }
+    }
+
+    function renderUploadHistory(items) {
+        if (!historyTableBody) return; // Já verificado em loadUploadHistory, mas bom ter aqui também
+        if (!items || items.length === 0) {
+            historyTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-3 text-muted">Nenhum processamento recente.</td></tr>`;
+            return;
+        }
+        historyTableBody.innerHTML = items.map(item => {
+            const dataProc = item.data_upload ? globalFormatDateTime(item.data_upload) : '--';
+            const chave = item.chave || 'N/A';
+            const numero = item.numero_cte || item.numero_mdfe || (item.identificacao ? (item.identificacao.n_mdf || item.identificacao.numero_documento) : 'N/A');
+            const statusInfo = globalGetDocumentStatusObject(item, item.docTipo);
+            const statusBadge = `<span class="badge ${statusInfo.badgeClass} text-dark-emphasis">${statusInfo.text}</span>`;
+            // Ajuste para que o link do histórico leve ao painel e filtre/destaque o documento
+            const viewUrl = item.docTipo === 'CT-e' ? `/painel-cte/?chave=${chave}` : `/painel-mdfe/?chave=${chave}`;
+
+
+            return `
+                <tr>
+                    <td>${dataProc}</td>
+                    <td><span class="badge bg-light text-dark border">${item.docTipo}</span></td>
+                    <td title="${chave}">${globalFormatChave(chave)}</td>
+                    <td>${numero}</td>
+                    <td>${statusBadge}</td>
+                    <td><a href="${viewUrl}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver no Painel">
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function logToHistoryContainer(message, level = 'info') {
+        if (!historyLogContainer) return;
+        const timestamp = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+        historyLogContainer.innerHTML = `[${timestamp}] ${escapeHtml(message)}`;
+        historyLogContainer.className = 'p-2 small text-monospace border-bottom';
+        if (level === 'error') historyLogContainer.classList.add('text-danger');
+        else if (level === 'warn') historyLogContainer.classList.add('text-warning');
+        else historyLogContainer.classList.add('text-muted');
+    }
+    
+    function setupDropZone(dropZoneElement, inputFileElement) {
+        if (!dropZoneElement || !inputFileElement) return;
+        dropZoneElement.addEventListener('click', (e) => { if (e.target !== inputFileElement) inputFileElement.click(); });
+        dropZoneElement.addEventListener('dragover', (e) => { e.preventDefault(); dropZoneElement.classList.add('dragover'); });
+        dropZoneElement.addEventListener('dragleave', () => dropZoneElement.classList.remove('dragover'));
+        dropZoneElement.addEventListener('drop', (e) => {
+            e.preventDefault(); dropZoneElement.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                inputFileElement.files = e.dataTransfer.files;
+                inputFileElement.dispatchEvent(new Event('change', { bubbles: true }));
             }
-        } catch (e) {
-            console.error("Erro ao processar resposta de MDFes:", e);
-        }
-
-        // Ordenar combinados pela data de upload (mais recente primeiro) e pegar os top 10 gerais
-        combined.sort((a, b) => new Date(b.data_ordenacao) - new Date(a.data_ordenacao));
-        return combined.slice(0, 10);
-    })
-    .then(data => {
-        renderUploadHistory(data, tbody);
-    })
-    .catch(error => {
-        console.error('Erro ao carregar histórico de uploads:', error);
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center text-danger p-4">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    Erro ao carregar histórico. Tente atualizar a página.
-                </td>
-            </tr>`;
-        showUploadError('Não foi possível carregar o histórico de uploads.');
-    });
-}
-
-/**
- * Mapeia dados da API para um formato de item de histórico unificado.
- * @param {Object} item - Item da API (CTe ou MDFe).
- * @param {string} tipo - Tipo do documento ('CTE' ou 'MDFE').
- * @returns {Object} - Objeto formatado para o histórico.
- */
-function mapToHistoryItem(item, tipo) {
-    return {
-        id: item.id,
-        chave: item.chave,
-        // Usa data_upload como preferência, senão data_emissao, senão data inválida
-        data_ordenacao: item.data_upload || (tipo === 'CTE' ? item.data_emissao : item.data_emissao) || '1970-01-01T00:00:00Z',
-        tipo: tipo,
-        // Passa o objeto inteiro para a função de status poder verificar mais campos
-        status_obj: item
-    };
-}
-
-/**
- * Renderiza o histórico de uploads na tabela.
- * @param {Array} data - Lista de uploads (formato combinado).
- * @param {HTMLElement} tbody - Elemento tbody para renderizar.
- */
-function renderUploadHistory(data, tbody) {
-    if (!data || data.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center p-4">
-                    <i class="fas fa-info-circle me-2 text-muted"></i>
-                    Nenhum upload encontrado no histórico recente.
-                </td>
-            </tr>`;
-        return;
+        });
+    }
+    
+    // Funções globais (prefixadas com 'global' para indicar que deveriam vir de scripts.js)
+    function escapeHtml(unsafe) { return typeof window.escapeHtml === 'function' ? window.escapeHtml(unsafe) : String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+    function globalFormatBytes(bytes, d=2) { return typeof window.formatBytes === 'function' ? window.formatBytes(bytes, d) : `${bytes} Bytes`; }
+    function globalFormatChave(ch) { return typeof window.formatChave === 'function' ? window.formatChave(ch) : (ch && ch.length === 44 ? `${ch.substring(0,6)}...${ch.substring(ch.length-6)}` : ch || '--'); }
+    function globalFormatDateTime(dt) { return typeof window.formatDateTime === 'function' ? window.formatDateTime(dt) : (dt ? new Date(dt).toLocaleString('pt-BR') : '--'); }
+    function globalShowNotification(msg, type) { if(typeof window.showNotification === 'function') window.showNotification(msg, type); else console.log(`${type.toUpperCase()}: ${msg}`);}
+    function globalGetDocumentStatusObject(doc, tipo) { 
+        if(typeof window.getDocumentStatusObject === 'function') return window.getDocumentStatusObject(doc, tipo);
+        // Fallback simples se a função global não existir
+        if (doc && doc.status) return { text: doc.status, badgeClass: 'bg-light text-dark border' };
+        return {text:'N/A', badgeClass:'bg-light text-dark border'}; 
     }
 
-    // Renderizar linhas da tabela
-    let html = '';
-
-    data.forEach(item => {
-        const dataFormatada = formatDateTime(item.data_ordenacao); // Usar função helper
-        const tipoDoc = getTipoDocumento(item);
-        const statusHTML = getStatusHTML(item.status_obj); // Usar função helper
-        const chaveFormatada = formatChave(item.chave || ''); // Usar função helper
-        const apiPath = getApiPath(item.tipo); // Usar função helper
-
-        // Link para detalhes (API) - abre em nova aba
-        const detailLink = `/api/${apiPath}/${item.id}/`;
-        // Link para XML (API) - abre em nova aba
-        const xmlLink = `/api/${apiPath}/${item.id}/xml/`;
-        // Link para a página de visualização (se existir - adaptar URL conforme necessário)
-        const viewPageLink = `/${apiPath.replace('es','e')}/#${item.id}`; // Ex: /cte/#uuid
-
-        html += `
-            <tr>
-                <td>${dataFormatada}</td>
-                <td>${tipoDoc}</td>
-                <td title="${item.chave || ''}">${chaveFormatada}</td>
-                <td>${statusHTML}</td>
-                <td>
-                    <div class="btn-group btn-group-sm" role="group">
-                        {# Adapte este link para a URL correta de visualização no seu frontend #}
-                        <a href="${viewPageLink}" class="btn btn-outline-primary" title="Ver na Lista">
-                           <i class="fas fa-list-alt"></i>
-                        </a>
-                        <a href="${xmlLink}" class="btn btn-outline-success" title="Download XML" target="_blank">
-                            <i class="fas fa-file-code"></i>
-                        </a>
-                    </div>
-                </td>
-            </tr>`;
-    });
-
-    tbody.innerHTML = html;
-}
-
-
-// --- Funções Auxiliares (Definir aqui se não estiverem em scripts.js) ---
-
-/**
- * Formata data/hora (Exemplo básico)
- * @param {string|Date} dateString - Data/Hora
- * @returns {string} Data/Hora formatada
- */
-function formatDateTime(dateString) {
-    if (!dateString || dateString === '1970-01-01T00:00:00Z') return '--';
-    try {
-        const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
-        return new Date(dateString).toLocaleString('pt-BR', options);
-    } catch (e) {
-        return dateString; // Retorna original se falhar
-    }
-}
-
-/**
- * Formata a chave do documento (ex: primeiros 4 e últimos 4 dígitos).
- * @param {string} chave - Chave do documento (44 dígitos).
- * @returns {string} - Chave formatada ou original se não tiver 44 dígitos.
- */
-function formatChave(chave) {
-    if (!chave) return '--';
-    if (chave.length === 44) {
-        return `${chave.substring(0, 4)}...${chave.substring(40)}`;
-    }
-    return chave.length > 15 ? chave.substring(0, 12) + '...' : chave;
-}
-
-/**
- * Obtém o tipo de documento formatado.
- * @param {Object} item - Dados do documento.
- * @returns {string} - Tipo de documento formatado.
- */
-function getTipoDocumento(item) {
-    const tipo = item.tipo?.toUpperCase() || '';
-    if (tipo === 'CTE') return 'CT-e';
-    if (tipo === 'MDFE') return 'MDF-e';
-    // Adicionar lógica para eventos se necessário
-    return item.tipo || 'Doc.';
-}
-
-/**
- * Obtém o caminho da API para o tipo de documento.
- * @param {string} tipo - Tipo de documento ('CTE', 'MDFE').
- * @returns {string} - Caminho da API (ex: 'ctes', 'mdfes').
- */
-function getApiPath(tipo) {
-    const tipoUpper = (tipo || '').toUpperCase();
-    if (tipoUpper === 'CTE') return 'ctes';
-    if (tipoUpper === 'MDFE') return 'mdfes';
-    return 'documentos'; // Fallback
-}
-
-/**
- * Obtém o HTML do badge de status.
- * @param {Object} item - Objeto completo do documento (CTe ou MDFe) vindo da API.
- * @returns {string} - HTML para o badge de status.
- */
-function getStatusHTML(item) {
-    if (!item) return '<span class="badge bg-secondary">Desconhecido</span>';
-
-    // Lógica de Status (Prioriza Cancelado > Encerrado > Autorizado > Rejeitado > Processado > Pendente)
-    if (item.cancelamento && item.cancelamento.c_stat === 135) { // CT-e ou MDF-e
-        return '<span class="badge bg-danger">Cancelado</span>';
-    }
-    if (item.encerrado) { // Apenas MDF-e
-        return '<span class="badge bg-dark">Encerrado</span>'; // Usando bg-dark para diferenciar
-    }
-    if (item.protocolo) { // CT-e ou MDF-e
-        if (item.protocolo.codigo_status === 100) {
-            return '<span class="badge bg-success">Autorizado</span>';
-        } else {
-            return `<span class="badge bg-warning text-dark" title="${item.protocolo.motivo_status || ''}">Rejeitado (${item.protocolo.codigo_status})</span>`;
-        }
-    }
-    if (item.processado) { // CT-e ou MDF-e
-        return '<span class="badge bg-info text-dark">Processado</span>';
+    if (btnRefreshHistory) {
+        btnRefreshHistory.addEventListener('click', loadUploadHistory);
     }
 
-    return '<span class="badge bg-secondary">Pendente</span>'; // Default
-}
-
-
-/**
- * Exporta funções para uso global (ex: botão de refresh manual no HTML).
- */
-window.UploadXML = {
-    uploadFile: uploadXML,
-    refreshHistory: loadUploadHistory
-};
+    // CARREGAMENTO AUTOMÁTICO DO HISTÓRICO
+    if (historyTableBody) { // Somente chama se a tabela existir
+        loadUploadHistory();
+    } else {
+        console.error("Não foi possível carregar o histórico automaticamente: 'uploadHistoryTableBody' não encontrado.");
+    }
+});
