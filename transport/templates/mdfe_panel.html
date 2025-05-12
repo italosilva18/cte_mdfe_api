@@ -1,18 +1,19 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Painel MDF-e{% endblock %}
+{% block page_title %}Painel MDF-e{% endblock %}
 
 {% block breadcrumbs %}
 <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
 <li class="breadcrumb-item active" aria-current="page">Painel MDF-e</li>
 {% endblock %}
 
+{% block header_page_title %}
+    Painel de Controle MDF-e
+{% endblock %}
+
 {% block page_actions %}
-<button class="btn btn-sm btn-success" id="btnExportarCSV_Mdfe">
-    <i class="fas fa-file-csv me-1"></i>Exportar CSV
-</button>
-<button class="btn btn-sm btn-outline-primary" id="btnAtualizarPainelMdfe">
+<button class="btn btn-sm btn-outline-success" id="btnAtualizarPainelMdfe">
     <i class="fas fa-sync-alt me-1"></i>Atualizar Dados
 </button>
 {% endblock %}
@@ -20,54 +21,51 @@
 {% block content %}
 <div class="card shadow-sm mb-4" style="border-left: 4px solid var(--verde-primario);">
     <div class="card-header text-white" style="background-color: var(--verde-primario);">
-        <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros de Pesquisa MDF-e</h5>
+        <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros do Painel e Lista</h5>
     </div>
     <div class="card-body">
-        <form id="filterFormMdfe" class="row g-3">
-            <div class="col-md-3">
+        <form id="mdfeFilterForm" class="row g-3 align-items-end">
+            <div class="col-md-4 col-lg-2">
                 <label for="data_inicio_mdfe" class="form-label">Data Inicial</label>
-                <input type="date" class="form-control form-control-sm" id="data_inicio_mdfe" name="data_inicio_mdfe">
+                <input type="date" class="form-control form-control-sm" id="data_inicio_mdfe" name="data_inicio">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4 col-lg-2">
                 <label for="data_fim_mdfe" class="form-label">Data Final</label>
-                <input type="date" class="form-control form-control-sm" id="data_fim_mdfe" name="data_fim_mdfe">
+                <input type="date" class="form-control form-control-sm" id="data_fim_mdfe" name="data_fim">
             </div>
-            <div class="col-md-3">
-                <label for="placa_mdfe_filter" class="form-label">Placa Veículo (Tração)</label>
-                <input type="text" class="form-control form-control-sm" id="placa_mdfe_filter" name="placa_mdfe_filter" placeholder="ABC1D23">
+            <div class="col-md-4 col-lg-2">
+                <label for="placa_filtro_mdfe" class="form-label">Placa Veículo</label>
+                <input type="text" class="form-control form-control-sm" id="placa_filtro_mdfe" name="placa" placeholder="ABC1D23">
             </div>
-            <div class="col-md-3">
-                <label for="status_mdfe_filter" class="form-label">Status MDF-e</label>
-                <select class="form-select form-select-sm" id="status_mdfe_filter" name="status_mdfe_filter">
+            <div class="col-md-4 col-lg-2">
+                <label for="status_filtro_mdfe" class="form-label">Status</label>
+                <select class="form-select form-select-sm" id="status_filtro_mdfe" name="status">
                     <option value="">Todos</option>
-                    <option value="autorizado_ativo">Autorizado (Ativo)</option>
+                    <option value="autorizado">Autorizado</option>
                     <option value="encerrado">Encerrado</option>
                     <option value="cancelado">Cancelado</option>
-                    <option value="pendente_autorizacao">Pendente de Autorização</option>
-                    <option value="processado_sem_protocolo">Processado (Sem Protocolo)</option>
+                    <option value="pendente_processamento">Pendente Processamento</option>
+                    <option value="pendente_autorizacao">Pendente Autorização</option>
+                    <option value="rejeitado">Rejeitado</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label for="uf_ini_mdfe_filter" class="form-label">UF Início</label>
-                <input type="text" class="form-control form-control-sm" id="uf_ini_mdfe_filter" name="uf_ini_mdfe_filter" maxlength="2" placeholder="Ex: BA">
+            <div class="col-md-4 col-lg-2">
+                <label for="uf_inicio_filtro_mdfe" class="form-label">UF Início</label>
+                <input type="text" class="form-control form-control-sm" id="uf_inicio_filtro_mdfe" name="uf_ini" maxlength="2" placeholder="BA">
             </div>
-            <div class="col-md-2">
-                <label for="uf_fim_mdfe_filter" class="form-label">UF Fim</label>
-                <input type="text" class="form-control form-control-sm" id="uf_fim_mdfe_filter" name="uf_fim_mdfe_filter" maxlength="2" placeholder="Ex: SP">
+            <div class="col-md-4 col-lg-2">
+                <label for="uf_fim_filtro_mdfe" class="form-label">UF Fim</label>
+                <input type="text" class="form-control form-control-sm" id="uf_fim_filtro_mdfe" name="uf_fim" maxlength="2" placeholder="SP">
             </div>
-            <div class="col-md-3">
-                <label for="emitente_cnpj_mdfe_filter" class="form-label">CNPJ Emitente</label>
-                <input type="text" class="form-control form-control-sm" id="emitente_cnpj_mdfe_filter" name="emitente_cnpj_mdfe_filter" placeholder="Somente números">
+            <div class="col-md-8 col-lg-3">
+                <label for="q_filtro_mdfe" class="form-label">Busca (Chave, Nº MDF-e)</label>
+                <input type="text" class="form-control form-control-sm" id="q_filtro_mdfe" name="q" placeholder="Chave ou número...">
             </div>
-            <div class="col-md-3">
-                <label for="search_text_mdfe_filter" class="form-label">Busca Rápida</label>
-                <input type="text" class="form-control form-control-sm" id="search_text_mdfe_filter" name="q_mdfe_filter" placeholder="Chave, Número MDF-e...">
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button type="button" class="btn btn-success btn-sm w-100" id="btnFiltrarMdfePanel">
-                    <i class="fas fa-search me-1"></i>Filtrar
+            <div class="col-md-4 col-lg-3 d-flex align-items-end gap-2">
+                <button type="button" class="btn btn-success btn-sm flex-grow-1" id="btnAplicarFiltrosMdfe">
+                    <i class="fas fa-filter me-1"></i>Filtrar
                 </button>
-                 <button type="button" class="btn btn-outline-secondary btn-sm ms-2" id="btnResetarFiltrosMdfePanel" title="Limpar Filtros">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnLimparFiltrosMdfe" title="Limpar Filtros">
                     <i class="fas fa-undo"></i>
                 </button>
             </div>
@@ -76,68 +74,46 @@
 </div>
 
 <div class="row mb-4 g-3">
-    <div class="col-lg col-md-6">
+    <div class="col-xl col-md-4 col-sm-6">
         <div class="card shadow-sm h-100 border-start border-primary border-4">
-            <div class="card-body d-flex flex-column justify-content-between">
-                <div>
-                    <div class="text-xs fw-bold text-primary text-uppercase mb-1">Total MDF-es (Período)</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-mdfes">
-                        <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
-                </div>
-                <div class="mt-2 text-end"><i class="fas fa-truck-loading fa-2x text-gray-300"></i></div>
+            <div class="card-body">
+                <div class="text-xs fw-bold text-primary text-uppercase mb-1">Total MDF-es</div>
+                <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-mdfes"><span class="spinner-border spinner-border-sm"></span></div>
             </div>
         </div>
     </div>
-    <div class="col-lg col-md-6">
+    <div class="col-xl col-md-4 col-sm-6">
         <div class="card shadow-sm h-100 border-start border-success border-4">
-            <div class="card-body d-flex flex-column justify-content-between">
-                <div>
-                    <div class="text-xs fw-bold text-success text-uppercase mb-1">Autorizados (Ativos)</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-mdfes-autorizados-ativos">
-                         <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
-                </div>
-                <div class="mt-2 text-end"><i class="fas fa-check-circle fa-2x text-gray-300"></i></div>
+            <div class="card-body">
+                <div class="text-xs fw-bold text-success text-uppercase mb-1">Autorizados Ativos</div>
+                <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-autorizados-ativos"><span class="spinner-border spinner-border-sm"></span></div>
             </div>
         </div>
     </div>
-    <div class="col-lg col-md-6">
-        <div class="card shadow-sm h-100 border-start border-info border-4">
-            <div class="card-body d-flex flex-column justify-content-between">
-                <div>
-                    <div class="text-xs fw-bold text-info text-uppercase mb-1">Encerrados</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-mdfes-encerrados">
-                         <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
-                </div>
-                <div class="mt-2 text-end"><i class="fas fa-flag-checkered fa-2x text-gray-300"></i></div>
+    <div class="col-xl col-md-4 col-sm-6">
+        <div class="card shadow-sm h-100 border-start border-dark border-4">
+            <div class="card-body">
+                <div class="text-xs fw-bold text-dark text-uppercase mb-1">Encerrados</div>
+                <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-encerrados"><span class="spinner-border spinner-border-sm"></span></div>
             </div>
         </div>
     </div>
-    <div class="col-lg col-md-6">
+    <div class="col-xl col-md-6 col-sm-6">
         <div class="card shadow-sm h-100 border-start border-danger border-4">
-            <div class="card-body d-flex flex-column justify-content-between">
-                <div>
-                    <div class="text-xs fw-bold text-danger text-uppercase mb-1">Cancelados</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-mdfes-cancelados">
-                         <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
-                </div>
-                 <div class="mt-2 text-end"><i class="fas fa-times-circle fa-2x text-gray-300"></i></div>
+            <div class="card-body">
+                <div class="text-xs fw-bold text-danger text-uppercase mb-1">Cancelados</div>
+                <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-cancelados"><span class="spinner-border spinner-border-sm"></span></div>
             </div>
         </div>
     </div>
-    <div class="col-lg col-md-12">
-        <div class="card shadow-sm h-100 border-start border-warning border-4">
-            <div class="card-body d-flex flex-column justify-content-between">
-                <div>
-                    <div class="text-xs fw-bold text-warning text-uppercase mb-1">Docs. Transportados</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-mdfes-docs-transportados">
-                         <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
+    <div class="col-xl col-md-6 col-sm-12">
+        <div class="card shadow-sm h-100 border-start border-info border-4">
+            <div class="card-body">
+                <div class="text-xs fw-bold text-info text-uppercase mb-1">Docs. em MDF-e</div>
+                <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-ctes-em-mdfes"> {# Mantendo o ID que a API retorna para simplificar #}
+                    <span class="spinner-border spinner-border-sm"></span>
                 </div>
-                 <div class="mt-2 text-end"><i class="fas fa-boxes fa-2x text-gray-300"></i></div>
+                 <small class="text-muted" id="card-mdfe-eficiencia">Eficiência CT-e: <span class="spinner-border spinner-border-sm spinner-border-xs"></span></small>
             </div>
         </div>
     </div>
@@ -147,11 +123,15 @@
     <div class="col-lg-7">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-light py-3">
-                <h6 class="m-0 fw-bold text-primary">Distribuição de MDF-es por Nº de CT-es Vinculados</h6>
+                <h6 class="m-0 fw-bold text-primary">Distribuição de Documentos por MDF-e</h6>
             </div>
             <div class="card-body">
-                <div class="chart-container" style="position: relative; height:320px; width:100%" id="chart-mdfe-relacao-cte-container">
-                    <canvas id="chartMdfeRelacaoCte"></canvas> {# Anteriormente 'chartMdfeEmissoes' #}
+                <div class="chart-container" style="position: relative; height:320px" id="graficoDistribuicaoDocsContainer">
+                    <canvas id="graficoDistribuicaoDocsCanvas"></canvas>
+                     <div id="graficoDistribuicaoDocsLoading" class="chart-loading-overlay">
+                        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando gráfico...</span></div>
+                    </div>
+                     <div id="graficoDistribuicaoDocsNoData" class="chart-empty-state">Nenhum dado para exibir no gráfico.</div>
                 </div>
             </div>
         </div>
@@ -159,21 +139,37 @@
     <div class="col-lg-5">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-light py-3">
-                <h6 class="m-0 fw-bold text-primary">Top Veículos por Nº de MDF-es</h6>
+                <h6 class="m-0 fw-bold text-primary">Top 5 Veículos (MDF-e)</h6>
             </div>
-            <div class="card-body">
-                <div class="chart-container" style="position: relative; height:320px; width:100%" id="chart-mdfe-top-veiculos-container">
-                    <canvas id="chartMdfeTopVeiculos"></canvas> {# Anteriormente 'chartMdfeStatus' #}
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 330px; overflow-y: auto;">
+                    <table class="table table-sm table-hover table-striped mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Placa</th>
+                                <th class="text-end">MDF-es</th>
+                                <th class="text-end">Docs.</th>
+                                <th class="text-end">Média Docs.</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaTopVeiculosMdfe">
+                            <tr><td colspan="4" class="text-center p-3 text-muted">Carregando...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-
 <div class="card shadow-sm">
     <div class="card-header text-white" style="background-color: var(--verde-primario);">
-        <h5 class="mb-0"><i class="fas fa-truck-loading me-2"></i>Lista de MDF-es</h5>
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-list-alt me-2"></i>Lista de MDF-es (<span id="total-items-mdfe-table">0</span>)</h5>
+            <button type="button" class="btn btn-sm btn-light" id="btnExportarCsvMdfe">
+                <i class="fas fa-file-csv me-1"></i>Exportar CSV
+            </button>
+        </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -181,96 +177,120 @@
                 <thead style="background-color: var(--verde-claro);">
                     <tr>
                         <th>Nº MDF-e</th>
-                        <th>Série</th>
-                        <th>Chave (Início/Fim)</th>
+                        <th>Chave</th>
                         <th>Emissão</th>
-                        <th>UF Ini./Fim</th>
-                        <th>Placa Tração</th>
+                        <th>UF Ini/Fim</th>
+                        <th>Placa</th>
                         <th class="text-center">Docs.</th>
                         <th>Status</th>
-                        <th class="text-center">Ações</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
-                <tbody id="mdfeListBody">
-                    <tr>
-                        <td colspan="9" class="text-center p-4">
-                            <div class="spinner-border spinner-border-sm text-secondary" role="status">
-                                <span class="visually-hidden">Carregando...</span>
-                            </div>
-                            <span class="ms-2 text-muted">Carregando MDF-es...</span>
-                        </td>
-                    </tr>
+                <tbody id="mdfe-list-table-body">
+                    <tr><td colspan="8" class="text-center p-5 text-muted">Utilize os filtros para carregar os MDF-es.</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
     <div class="card-footer bg-light">
-        <nav aria-label="Paginação de MDF-es">
-            <ul class="pagination justify-content-center mb-0" id="paginationMdfe">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+            <span class="text-muted small mb-2 mb-md-0" id="pagination-info-mdfe"></span>
+            <nav aria-label="Paginação de MDF-e">
+                <ul class="pagination justify-content-end pagination-sm mb-0" id="pagination-mdfe">
                 </ul>
-        </nav>
+            </nav>
+        </div>
     </div>
 </div>
 
 <div class="modal fade" id="mdfeDetailModal" tabindex="-1" aria-labelledby="mdfeDetailModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header bg-success text-white">
+            <div class="modal-header text-white" style="background-color: var(--verde-primario);">
                 <h5 class="modal-title" id="mdfeDetailModalLabel">Detalhes do MDF-e</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
-            <div class="modal-body" id="mdfeDetailModalBody">
-                <div class="text-center p-5">
-                    <div class="spinner-border text-success" style="width: 3rem; height: 3rem;" role="status">
-                        <span class="visually-hidden">Carregando...</span>
-                    </div>
-                    <p class="mt-3 text-muted">Carregando detalhes do MDF-e...</p>
+            <div class="modal-body" id="mdfeDetailContent">
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-sm btn-info" id="btnImprimirDamdfe" disabled>
-                    <i class="fas fa-print me-1"></i>DAMDFE (JSON)
-                </button>
-                <button type="button" class="btn btn-sm btn-primary" id="btnBaixarXmlMdfe" disabled>
-                    <i class="fas fa-file-code me-1"></i>Baixar XML
-                </button>
-                 <button type="button" class="btn btn-sm btn-warning" id="btnReprocessarMdfe" disabled>
-                    <i class="fas fa-sync-alt me-1"></i>Reprocessar
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
-                    Fechar
-                </button>
+            <div class="modal-footer justify-content-between flex-wrap">
+                <div class="btn-toolbar mb-2 mb-md-0" role="toolbar" aria-label="Ações Primárias MDF-e">
+                    <div class="btn-group btn-group-sm me-2" role="group">
+                        <button type="button" class="btn btn-warning" id="btnReprocessMDFe" title="Reprocessar este MDF-e">
+                            <i class="fas fa-sync-alt me-1"></i>Reprocessar
+                        </button>
+                         <button type="button" class="btn btn-info" id="btnVerDocumentosVinculadosMdfe" title="Ver Documentos Vinculados">
+                            <i class="fas fa-file-invoice me-1"></i>Ver Docs.
+                        </button>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-danger" id="btnCancelarMDFe" title="Cancelar MDF-e">
+                            <i class="fas fa-times-circle me-1"></i>Cancelar
+                        </button>
+                        <button type="button" class="btn btn-dark" id="btnEncerrarMDFe" title="Encerrar MDF-e">
+                            <i class="fas fa-check-circle me-1"></i>Encerrar
+                        </button>
+                    </div>
+                </div>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Ações Secundárias MDF-e">
+                    <button type="button" class="btn btn-primary" id="btnPrintMDFe" title="Imprimir DAMDFE">
+                        <i class="fas fa-print me-1"></i>DAMDFE
+                    </button>
+                    <button type="button" class="btn btn-success" id="btnDownloadXMLMDFe" title="Download XML do MDF-e">
+                        <i class="fas fa-file-code me-1"></i>XML
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="docsVinculadosModal" tabindex="-1" aria-labelledby="docsVinculadosModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+<div class="modal fade" id="docsVinculadosMdfeModal" tabindex="-1" aria-labelledby="docsVinculadosMdfeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="docsVinculadosModalLabel">Documentos Vinculados ao MDF-e</h5>
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="docsVinculadosMdfeModalLabel">Documentos Vinculados ao MDF-e</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
-            <div class="modal-body" id="docsVinculadosModalBody">
-                 <div class="text-center p-5">
-                    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
-                        <span class="visually-hidden">Carregando...</span>
-                    </div>
-                    <p class="mt-3 text-muted">Carregando documentos vinculados...</p>
+            <div class="modal-body" id="docsVinculadosMdfeModalBody">
                 </div>
-            </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
     </div>
 </div>
 
+<style>
+    .chart-loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+    .chart-empty-state {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #6c757d;
+        font-style: italic;
+        padding: 20px;
+        text-align: center;
+    }
+    .word-break-all { word-break: break-all; }
+    .table-sm th, .table-sm td { padding: 0.4rem; }
+    .text-xs { font-size: 0.75rem; }
+    .h4, .display-6 { line-height: 1.2; }
+</style>
 {% endblock %}
 
 {% block scripts %}
-{# Chart.js já está em base.html #}
-{# Funções globais como formatCurrency, showNotification de scripts.js #}
 <script src="{% static 'js/mdfe_panel.js' %}"></script>
 {% endblock %}
