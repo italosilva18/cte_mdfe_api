@@ -143,23 +143,21 @@ def _handle_cancelamento_cte(cte_doc, evento_info, ret_evento_info, xml_evento_o
     if not det_evento:
         raise ValueError("Detalhes do evento de cancelamento (<detEvento>) não encontrados.")
 
-    # Pega protocolo original e justificativa dos detalhes do evento
     n_prot_original = safe_get(det_evento, 'evCancCTe.nProt')
     x_just = safe_get(det_evento, 'evCancCTe.xJust')
 
     if not n_prot_original or not x_just:
         raise ValueError("Protocolo original (<nProt>) ou justificativa (<xJust>) não encontrados em <evCancCTe>.")
 
-    # Prepara dados do retorno (se houver e for sucesso)
     retorno_data = {}
     status_sucesso = False
+    
+    # Prioriza o XML de retorno se fornecido
     if ret_evento_info:
-        # Verifica consistência da chave
         if ret_evento_info.get('ch_documento') and ret_evento_info.get('ch_documento') != cte_doc.chave:
              raise ValueError(f"Chave do documento no retorno ({ret_evento_info.get('ch_documento')}) não confere com CT-e ({cte_doc.chave}).")
-
-        # 135 = Evento registrado e vinculado ao CT-e
-        if ret_evento_info.get('c_stat') == 135:
+        
+        if ret_evento_info.get('c_stat') == 135: # Evento registrado e vinculado
             status_sucesso = True
             retorno_data = {
                 'id_retorno': ret_evento_info.get('id_retorno'),
@@ -170,13 +168,57 @@ def _handle_cancelamento_cte(cte_doc, evento_info, ret_evento_info, xml_evento_o
                 'n_prot_retorno': ret_evento_info.get('n_prot_retorno'),
             }
         else:
-             print(f"WARN: Evento de cancelamento para CT-e {cte_doc.chave} recebido com status {ret_evento_info.get('c_stat')} - {ret_evento_info.get('x_motivo')}. Cancelamento NÃO registrado como bem-sucedido.")
-             # Não retorna erro, mas não salva o cancelamento. A view pode retornar 202.
-             return None
+             print(f"WARN: Evento de cancelamento para CT-e {cte_doc.chave} (com XML de retorno) recebido com status {ret_evento_info.get('c_stat')} - {ret_evento_info.get('x_motivo')}. Cancelamento NÃO registrado como bem-sucedido.")
+             return None # Não registra se o retorno explícito não for 135
+    else:
+        # Se NÃO HÁ XML de retorno, verifica se o XML do *próprio evento* contém status de sucesso.
+        # Isso é útil se o cliente envia apenas o XML do evento já processado pela SEFAZ (procEventoCTe).
+        # No seu caso, o `evento_info` já vem de `_get_evento_info` que pega dados de `<infEvento>`
+        # e `ret_evento_info` viria de `<retEventoCTe>`. Se não tem `<retEventoCTe>`,
+        # precisamos checar se o próprio `<eventoCTe>` (ou `<procEventoCTe>`) contém a resposta.
+        # O `xmltodict` pode aninhar o `retEvento` dentro do `procEvento`.
+        # Vamos assumir que `_get_retorno_evento_info` já tentou buscar de `procEventoCTe`.
+        # Se `ret_evento_info` é None, significa que não encontramos um `<retEventoCTe>` explícito.
 
-    # Se não houve retorno ou o retorno não foi sucesso, não grava
+        # Para o caso de "evento sem retorno" (o arquivo é o próprio procEventoCTe com o retEvento dentro):
+        # Tenta parsear o xml_evento_original para ver se ele contém o retEvento.
+        try:
+            doc_evento_completo = xmltodict.parse(xml_evento_original)
+            # Verifica se existe um 'retEventoCTe' dentro de 'procEventoCTe'
+            ret_evento_raiz_no_proc = None
+            if 'procEventoCTe' in doc_evento_completo and 'retEventoCTe' in doc_evento_completo['procEventoCTe']:
+                ret_evento_raiz_no_proc = doc_evento_completo['procEventoCTe']['retEventoCTe']
+            
+            if ret_evento_raiz_no_proc:
+                ret_info_do_proc = _get_retorno_evento_info(ret_evento_raiz_no_proc) # Usa a função auxiliar
+                if ret_info_do_proc and ret_info_do_proc.get('c_stat') == 135:
+                    status_sucesso = True
+                    retorno_data = {
+                        'id_retorno': ret_info_do_proc.get('id_retorno'),
+                        'ver_aplic': ret_info_do_proc.get('ver_aplic'),
+                        'c_stat': ret_info_do_proc.get('c_stat'),
+                        'x_motivo': ret_info_do_proc.get('x_motivo'),
+                        'dh_reg_evento': ret_info_do_proc.get('dh_reg_evento'),
+                        'n_prot_retorno': ret_info_do_proc.get('n_prot_retorno'),
+                    }
+                    print(f"INFO: Cancelamento para CT-e {cte_doc.chave} confirmado via procEventoCTe (status {ret_info_do_proc.get('c_stat')}).")
+                elif ret_info_do_proc:
+                    print(f"WARN: Evento de cancelamento para CT-e {cte_doc.chave} (contido no procEvento) com status {ret_info_do_proc.get('c_stat')} - {ret_info_do_proc.get('x_motivo')}. Não registrado.")
+                    return None
+            else:
+                # Se não encontrou retEventoCTe no procEvento, não há confirmação da SEFAZ.
+                print(f"INFO: XML de evento para CT-e {cte_doc.chave} não contém confirmação de retorno da SEFAZ (retEventoCTe). Cancelamento não será efetivado sem um XML de retorno explícito ou um procEvento com cStat 135.")
+                return None
+
+        except Exception as e:
+            print(f"ERRO ao tentar analisar XML do evento para encontrar retEvento embutido (CTe {cte_doc.chave}): {e}")
+            return None
+
+
     if not status_sucesso:
-        print(f"INFO: Cancelamento para CT-e {cte_doc.chave} não confirmado pela SEFAZ (sem retorno ou status != 135).")
+        # Se chegou aqui, ou não teve retorno, ou o retorno não foi 135,
+        # ou o próprio evento não continha um retEvento com cStat 135.
+        print(f"INFO: Cancelamento para CT-e {cte_doc.chave} não pôde ser confirmado pela SEFAZ. Nenhuma ação no banco.")
         return None
 
     # Dados do evento original + dados do retorno (se sucesso)
@@ -192,18 +234,16 @@ def _handle_cancelamento_cte(cte_doc, evento_info, ret_evento_info, xml_evento_o
         'versao_evento': evento_info.get('ver_evento'),
         'n_prot_original': n_prot_original,
         'x_just': x_just,
-        'arquivo_xml_evento': xml_evento_original, # Salva o XML do evento
-        **retorno_data # Adiciona os dados do retorno de sucesso
+        'arquivo_xml_evento': xml_evento_original,
+        **retorno_data
     }
     evento_data_cleaned = {k: v for k, v in evento_data.items() if v is not None}
 
-    # Cria ou atualiza o registro de cancelamento
     cancelamento, created = CTeCancelamento.objects.update_or_create(
         cte=cte_doc,
-        # Considerar usar n_prot_retorno ou id_evento como chave se precisar registrar múltiplas tentativas
         defaults=evento_data_cleaned
     )
-    print(f"INFO: Evento de Cancelamento registrado com sucesso para CT-e {cte_doc.chave} (Protocolo: {retorno_data.get('n_prot_retorno')}).")
+    print(f"INFO: Evento de Cancelamento registrado com sucesso para CT-e {cte_doc.chave} (Protocolo Evento: {retorno_data.get('n_prot_retorno')}).")
     return cancelamento
 
 @transaction.atomic
@@ -264,15 +304,15 @@ def _handle_cancelamento_mdfe(mdfe_doc, evento_info, ret_evento_info, xml_evento
     if not n_prot_original or not x_just:
         raise ValueError("Protocolo original (<nProt>) ou justificativa (<xJust>) não encontrados em <evCancMDFe>.")
 
-    # Prepara dados do retorno (se houver e for sucesso)
     retorno_data = {}
     status_sucesso = False
+
     if ret_evento_info:
         if ret_evento_info.get('ch_documento') and ret_evento_info.get('ch_documento') != mdfe_doc.chave:
-             raise ValueError(f"Chave do documento no retorno ({ret_evento_info.get('ch_documento')}) não confere com MDF-e ({mdfe_doc.chave}).")
-        if ret_evento_info.get('c_stat') == 135: # Evento registrado
+            raise ValueError(f"Chave do documento no retorno ({ret_evento_info.get('ch_documento')}) não confere com MDF-e ({mdfe_doc.chave}).")
+        if ret_evento_info.get('c_stat') == 135:
             status_sucesso = True
-            retorno_data = {
+            retorno_data = { # ... (mesmos campos do _handle_cancelamento_cte) ...
                 'id_retorno': ret_evento_info.get('id_retorno'),
                 'ver_aplic': ret_evento_info.get('ver_aplic'),
                 'c_stat': ret_evento_info.get('c_stat'),
@@ -281,15 +321,43 @@ def _handle_cancelamento_mdfe(mdfe_doc, evento_info, ret_evento_info, xml_evento
                 'n_prot_retorno': ret_evento_info.get('n_prot_retorno'),
             }
         else:
-            print(f"WARN: Evento de cancelamento para MDF-e {mdfe_doc.chave} recebido com status {ret_evento_info.get('c_stat')} - {ret_evento_info.get('x_motivo')}. Cancelamento NÃO registrado.")
+            print(f"WARN: Evento de cancelamento para MDF-e {mdfe_doc.chave} (com XML de retorno) recebido com status {ret_evento_info.get('c_stat')} - {ret_evento_info.get('x_motivo')}. Cancelamento NÃO registrado.")
+            return None
+    else: # Sem XML de retorno explícito, tenta encontrar no próprio XML do evento
+        try:
+            doc_evento_completo = xmltodict.parse(xml_evento_original)
+            ret_evento_raiz_no_proc = None
+            if 'procEventoMDFe' in doc_evento_completo and 'retEventoMDFe' in doc_evento_completo['procEventoMDFe']:
+                ret_evento_raiz_no_proc = doc_evento_completo['procEventoMDFe']['retEventoMDFe']
+            
+            if ret_evento_raiz_no_proc:
+                ret_info_do_proc = _get_retorno_evento_info(ret_evento_raiz_no_proc)
+                if ret_info_do_proc and ret_info_do_proc.get('c_stat') == 135:
+                    status_sucesso = True
+                    retorno_data = { # ... (mesmos campos) ...
+                        'id_retorno': ret_info_do_proc.get('id_retorno'),
+                        'ver_aplic': ret_info_do_proc.get('ver_aplic'),
+                        'c_stat': ret_info_do_proc.get('c_stat'),
+                        'x_motivo': ret_info_do_proc.get('x_motivo'),
+                        'dh_reg_evento': ret_info_do_proc.get('dh_reg_evento'),
+                        'n_prot_retorno': ret_info_do_proc.get('n_prot_retorno'),
+                    }
+                    print(f"INFO: Cancelamento para MDF-e {mdfe_doc.chave} confirmado via procEventoMDFe (status {ret_info_do_proc.get('c_stat')}).")
+                elif ret_info_do_proc:
+                    print(f"WARN: Evento de cancelamento para MDF-e {mdfe_doc.chave} (contido no procEvento) com status {ret_info_do_proc.get('c_stat')} - {ret_info_do_proc.get('x_motivo')}. Não registrado.")
+                    return None
+            else:
+                print(f"INFO: XML de evento para MDF-e {mdfe_doc.chave} não contém confirmação de retorno da SEFAZ (retEventoMDFe). Cancelamento não será efetivado.")
+                return None
+        except Exception as e:
+            print(f"ERRO ao tentar analisar XML do evento para encontrar retEvento embutido (MDF-e {mdfe_doc.chave}): {e}")
             return None
 
     if not status_sucesso:
-        print(f"INFO: Cancelamento para MDF-e {mdfe_doc.chave} não confirmado pela SEFAZ.")
+        print(f"INFO: Cancelamento para MDF-e {mdfe_doc.chave} não pôde ser confirmado pela SEFAZ.")
         return None
 
-    # Dados do evento original + dados do retorno (se sucesso)
-    evento_data = {
+    evento_data = { # ... (mesmos campos do _handle_cancelamento_cte) ...
         'id_evento': evento_info.get('id_evento'),
         'c_orgao': evento_info.get('c_orgao'),
         'tp_amb': evento_info.get('tp_amb'),
@@ -301,7 +369,7 @@ def _handle_cancelamento_mdfe(mdfe_doc, evento_info, ret_evento_info, xml_evento
         'versao_evento': evento_info.get('ver_evento'),
         'n_prot_original': n_prot_original,
         'x_just': x_just,
-        'arquivo_xml_evento': xml_evento_original, # Salva o XML do evento no campo correto
+        'arquivo_xml_evento': xml_evento_original,
         **retorno_data
     }
     evento_data_cleaned = {k: v for k, v in evento_data.items() if v is not None}
@@ -310,7 +378,7 @@ def _handle_cancelamento_mdfe(mdfe_doc, evento_info, ret_evento_info, xml_evento
         mdfe=mdfe_doc,
         defaults=evento_data_cleaned
     )
-    print(f"INFO: Evento de Cancelamento registrado com sucesso para MDF-e {mdfe_doc.chave} (Protocolo: {retorno_data.get('n_prot_retorno')}).")
+    print(f"INFO: Evento de Cancelamento registrado com sucesso para MDF-e {mdfe_doc.chave} (Protocolo Evento: {retorno_data.get('n_prot_retorno')}).")
     return cancelamento
 
 @transaction.atomic

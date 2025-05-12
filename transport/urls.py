@@ -47,8 +47,8 @@ schema_view = get_schema_view(
 # DRF routers
 # ------------------------------------------------------------------ #
 router = DefaultRouter()
-# Registros do router (sem o BatchUploadViewSet)
-router.register(r"upload", UnifiedUploadViewSet, basename="unified-upload") # View de upload unificado
+# Registros do router
+router.register(r"upload", UnifiedUploadViewSet, basename="unified-upload") # View de upload unificado (para /api/upload/)
 router.register(r"ctes", CTeDocumentoViewSet, basename="cte-documento")
 router.register(r"mdfes", MDFeDocumentoViewSet, basename="mdfe-documento")
 router.register(r"veiculos", VeiculoViewSet, basename="veiculo")
@@ -70,11 +70,12 @@ veiculos_router.register(r"manutencoes", ManutencaoVeiculoViewSet, basename="vei
 # ------------------------------------------------------------------ #
 urlpatterns = [
     # --- API Endpoints ---
-    path("api/", include(router.urls)), # Inclui as rotas do router principal
+    path("api/", include(router.urls)), # Inclui as rotas do router principal (ex: /api/upload/)
     path("api/", include(veiculos_router.urls)), # Inclui as rotas aninhadas
 
-    # Rota manual para a action batch_upload da UnifiedUploadViewSet
-    path("api/upload/batch/", UnifiedUploadViewSet.as_view({'post': 'batch_upload'}), name="upload-batch"),
+    # CORREÇÃO: Rota manual para a action batch_upload da UnifiedUploadViewSet
+    # A URL agora é /api/upload/batch_upload/ para corresponder ao JavaScript
+    path("api/upload/batch_upload/", UnifiedUploadViewSet.as_view({'post': 'batch_upload'}), name="upload-batch-action"),
 
     # APIViews avulsas (não gerenciadas pelo router)
     path("api/dashboard/", DashboardGeralAPIView.as_view(), name="dashboard-geral"),
@@ -103,7 +104,7 @@ urlpatterns = [
 
     # --- Autenticação e Páginas HTML ---
     path("login/", LoginView.as_view(template_name="login.html"), name="login"),
-    path("logout/", LogoutView.as_view(next_page="/admin/login/"), name="logout"), # Redireciona para login do admin
+    path("logout/", LogoutView.as_view(next_page="/login/"), name="logout"), # Ajustado para redirecionar para a tela de login da app
 
     # Páginas HTML (requerem login via @login_required)
     path("dashboard/", login_required(TemplateView.as_view(template_name="dashboard.html")), name="dashboard"),
@@ -116,8 +117,7 @@ urlpatterns = [
     path("configuracoes/", login_required(TemplateView.as_view(template_name="configuracoes.html")), name="configuracoes"),
     path("backup/", login_required(TemplateView.as_view(template_name="backup.html")), name="backup_page"),
     path("relatorios/", login_required(TemplateView.as_view(template_name="relatorios.html")), name="relatorios_page"),
-    
-    path("alertas/", login_required(TemplateView.as_view(template_name="alertas.html")), name="alertas_page"),
+    path("alertas/", login_required(TemplateView.as_view(template_name="alertas.html")), name="alertas_page"), # Adicionada rota para alertas.html
 
     # Rota raiz redireciona para o dashboard se logado
     path('', login_required(TemplateView.as_view(template_name="dashboard.html")), name="home"),

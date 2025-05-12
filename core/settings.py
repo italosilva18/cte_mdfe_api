@@ -198,7 +198,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 5,
-    
+
 
     # (Optional) Throttling for API rate limiting
     # 'DEFAULT_THROTTLE_CLASSES': [
@@ -337,7 +337,13 @@ else:
     DEFAULT_FROM_EMAIL = os.environ.get('DJANGO_DEFAULT_FROM_EMAIL', 'webmaster@localhost')
     SERVER_EMAIL = os.environ.get('DJANGO_SERVER_EMAIL', DEFAULT_FROM_EMAIL) # For error reports
 
-DATA_UPLOAD_MAX_NUMBER_FILES = 1000
+# Configurações de Upload (Django as usa para MultiPartParser)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB - padrão do Django
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB - padrão
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000   # padrão
+
+# NOVO/AJUSTADO: Limite para número de arquivos em um upload multipart
+DATA_UPLOAD_MAX_NUMBER_FILES = 9000 # Aumentar conforme necessidade
 
 
 # --- Security Settings for Production (Uncomment and configure as needed) ---
