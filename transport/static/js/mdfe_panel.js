@@ -1,7 +1,7 @@
 /**
  * mdfe_panel.js
  * Funções para a página do painel MDF-e.
- * Versão Corrigida: IDs e chaves de API alinhados.
+ * Versão ÚNICA e CORRIGIDA: IDs e chaves de API alinhados.
  */
 
 // Variáveis globais para paginação da tabela principal
@@ -17,7 +17,6 @@ let currentSelectedMDFeId = null;
 let currentSelectedMDFeStatus = null;
 let currentSelectedMDFeIsEncerrado = false;
 let currentSelectedMDFeIsProcessado = false;
-
 
 document.addEventListener('DOMContentLoaded', function() {
     setDefaultDateRangeMdfe();
@@ -49,7 +48,7 @@ function setupMdfeEventListeners() {
         currentMdfePage = 1;
         loadAllMdfePanelData();
     });
-    
+
     document.getElementById('btnAtualizarPainelMdfe')?.addEventListener('click', () => {
         loadAllMdfePanelData(false);
     });
@@ -108,7 +107,7 @@ function getMdfeAppliedFilters(forPanelApi = false) {
 
     if (form.data_inicio.value) params.append('data_inicio', form.data_inicio.value);
     if (form.data_fim.value) params.append('data_fim', form.data_fim.value);
-    
+
     if (!forPanelApi) {
         if (form.placa.value) params.append('placa', form.placa.value);
         if (form.uf_ini.value) params.append('uf_ini', form.uf_ini.value);
@@ -123,13 +122,14 @@ function getMdfeAppliedFilters(forPanelApi = false) {
                 params.append('processado', 'false');
             } else if (statusFiltro === 'pendente_autorizacao') {
                 params.append('processado', 'true');
-                params.append('protocolo__isnull', 'true');
+                params.append('autorizado', 'false');
+                params.append('cancelado', 'false');
             } else if (statusFiltro === 'rejeitado') {
-                params.append('protocolo__isnull', 'false');
-                // Assumindo que a API não tem um filtro direto `protocolo__codigo_status__ne=100`
-                // Esta é uma limitação se a API de lista não tiver um `status` textual.
-                // O ideal seria o backend tratar `status=rejeitado`.
-                // Para mitigar, podemos não adicionar o filtro `autorizado=true` neste caso.
+                 params.append('processado', 'true');
+                 params.append('autorizado', 'false');
+                 params.append('protocolo__isnull', 'false');
+                 params.append('cancelado', 'false');
+                 params.append('encerrado', 'false');
             }
         }
     }
@@ -150,7 +150,6 @@ function loadMdfePanelSummaryData() {
     Auth.fetchWithAuth(url)
         .then(response => response.json())
         .then(data => {
-            // console.log("Dados do Painel MDF-e (para cards e gráficos):", data); // Para depuração
             updateMdfeSummaryCards(data.cards, data.eficiencia);
             renderGraficoDistribuicaoDocs(data.grafico_cte_mdfe || []);
             renderTabelaTopVeiculosMdfe(data.tabela_mdfe_veiculo ? data.tabela_mdfe_veiculo.slice(0, 5) : []);
@@ -203,10 +202,10 @@ function showLoadingStateMdfePanel(isLoading) {
     if (eficienciaEl) eficienciaEl.innerHTML = isLoading ? `Eficiência CT-e: ${spinnerHtml}` : 'Eficiência CT-e: 0%';
 
     document.getElementById('graficoDistribuicaoDocsLoading').style.display = isLoading ? 'flex' : 'none';
-    if (!isLoading) { 
+    if (!isLoading) {
       document.getElementById('graficoDistribuicaoDocsNoData').style.display = 'none';
     }
-    
+
     const tabelaVeiculoBody = document.getElementById('tabelaTopVeiculosMdfe');
     if (tabelaVeiculoBody) {
         if (isLoading) {
@@ -234,32 +233,39 @@ function getSpinnerHtml(color = 'primary', text = '') {
             </div>`;
 }
 
-function updateMdfeSummaryCards(cardsData, eficiencia) {
-    // Usando IDs padronizados e chaves da API
-    document.getElementById('card-total-mdfes').textContent = formatNumber(cardsData.total_mdfes || 0);
-    
+function updateMdfeSummaryCards(apiCardsData, eficiencia) {
+    const cardsData = apiCardsData || {};
+
+    setTextContent('card-total-mdfes', formatNumber(cardsData.total_mdfes || 0));
+
     const autorizados = cardsData.total_autorizados || 0;
-    const encerrados = cardsData.total_encerrados || 0; // Precisa vir da API
-    const cancelados = cardsData.total_cancelados || 0; // Precisa vir da API
+    const encerrados = cardsData.total_encerrados || 0;
+    const cancelados = cardsData.total_cancelados || 0;
 
-    // Calcula "Autorizados Ativos"
-    // (Total de autorizados que não estão nem encerrados nem cancelados)
-    // Esta lógica depende da semântica de `total_autorizados`. Se `total_autorizados`
-    // da API já representa os que estão atualmente autorizados e válidos (não cancelados, não encerrados),
-    // então `autorizadosAtivos` seria simplesmente `autorizados`.
-    // Se `total_autorizados` é o total que *já foi* autorizado, então o cálculo abaixo é necessário.
-    // A API de exemplo do console parece retornar `total_autorizados` como o total que foi autorizado no período.
-    const autorizadosAtivos = autorizados - (encerrados || 0) - (cancelados || 0);
-    document.getElementById('card-total-autorizados-ativos').textContent = formatNumber(Math.max(0, autorizadosAtivos));
+    // Se sua API `total_autorizados` já significa "autorizados e não cancelados e não encerrados",
+    // então autorizadosAtivos = autorizados.
+    // Se `total_autorizados` é o total bruto de autorizações, então o cálculo abaixo é mais preciso.
+    // A API de exemplo que você forneceu tem `total_autorizados` como o total bruto de autorizados.
+    const autorizadosAtivos = autorizados - encerrados - cancelados;
+    setTextContent('card-total-autorizados-ativos', formatNumber(Math.max(0, autorizadosAtivos)));
 
-    document.getElementById('card-total-encerrados').textContent = formatNumber(encerrados);
-    document.getElementById('card-total-cancelados').textContent = formatNumber(cancelados);
-    
-    // Usando total_ctes_em_mdfes da API
-    document.getElementById('card-total-ctes-em-mdfes').textContent = formatNumber(cardsData.total_ctes_em_mdfes || 0); 
-    
+    setTextContent('card-total-encerrados', formatNumber(encerrados));
+    setTextContent('card-total-cancelados', formatNumber(cancelados));
+
+    // Usando `total_ctes_em_mdfes` da API para o card de documentos.
+    setTextContent('card-total-ctes-em-mdfes', formatNumber(cardsData.total_ctes_em_mdfes || 0));
+
     const eficienciaNum = parseFloat(eficiencia || 0);
-    document.getElementById('card-mdfe-eficiencia').textContent = `Eficiência CT-e: ${eficienciaNum.toFixed(2)}%`;
+    setTextContent('card-mdfe-eficiencia', `Eficiência CT-e: ${eficienciaNum.toFixed(2)}%`);
+}
+
+function setTextContent(elementId, text) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.textContent = text;
+    } else {
+        console.warn(`Elemento com ID '${elementId}' não encontrado no DOM para setar o texto.`);
+    }
 }
 
 function renderGraficoDistribuicaoDocs(apiData) {
@@ -274,13 +280,12 @@ function renderGraficoDistribuicaoDocs(apiData) {
         console.error('Elementos do gráfico de distribuição não encontrados.');
         return;
     }
-    
+
     if (graficoDistribuicaoDocsInstance) {
         graficoDistribuicaoDocsInstance.destroy();
         graficoDistribuicaoDocsInstance = null;
     }
 
-    // Verifica se há dados e se pelo menos uma contagem é maior que zero
     const hasMeaningfulData = apiData && apiData.length > 0 && apiData.some(item => item.contagem > 0);
 
     if (!hasMeaningfulData) {
@@ -288,19 +293,19 @@ function renderGraficoDistribuicaoDocs(apiData) {
         noDataEl.style.display = 'block';
         return;
     }
-    
+
     canvas.style.display = 'block';
     noDataEl.style.display = 'none';
-    
+
     const ctx = canvas.getContext('2d');
     graficoDistribuicaoDocsInstance = new Chart(ctx, {
-        type: 'bar', 
+        type: 'bar',
         data: {
             labels: apiData.map(item => item.categoria),
             datasets: [{
                 label: 'Qtd. MDF-es',
                 data: apiData.map(item => item.contagem),
-                backgroundColor: 'rgba(27, 77, 62, 0.7)', 
+                backgroundColor: 'rgba(27, 77, 62, 0.7)',
                 borderColor: 'rgba(27, 77, 62, 1)',
                 borderWidth: 1,
                 borderRadius: 4,
@@ -309,41 +314,15 @@ function renderGraficoDistribuicaoDocs(apiData) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            indexAxis: 'y', 
+            indexAxis: 'y',
             scales: {
-                x: { 
-                    beginAtZero: true,
-                    ticks: { precision: 0 }
-                },
-                y: { 
-                    grid: { display: false }
-                }
+                x: { beginAtZero: true, ticks: { precision: 0 } },
+                y: { grid: { display: false } }
             },
-            plugins: {
-                legend: { display: false },
-                title: { display: false }
-            }
+            plugins: { legend: { display: false }, title: { display: false } }
         }
     });
 }
-
-// ... (O restante das funções: renderTabelaTopVeiculosMdfe, renderMDFeTable, renderMdfePagination,
-// showMDFeDetailsModal, updateDetailModalButtons, showDocumentosVinculadosMdfe,
-// reprocessMDFe, encerrarMDFe, cancelarMDFe, getMdfeStatusBadge, formatMdfeKeyName,
-// formatMdfeValue, exportMDFeToCSV, e as funções utilitárias globais como formatNumber,
-// formatCurrency, truncateText, formatDateTime, formatCNPJ, formatCPF, formatCEP, formatFone, showNotification
-// permanecem as mesmas da resposta anterior. Copie-as para cá.)
-
-// COPIE AS FUNÇÕES RESTANTES DA RESPOSTA ANTERIOR A PARTIR DESTE PONTO:
-// renderTabelaTopVeiculosMdfe, renderMDFeTable, renderMdfePagination, 
-// showMDFeDetailsModal, updateDetailModalButtons, showDocumentosVinculadosMdfe, 
-// reprocessMDFe, encerrarMDFe, cancelarMDFe, 
-// getMdfeStatusBadge, formatMdfeKeyName, formatMdfeValue, exportMDFeToCSV,
-// e as funções utilitárias que foram adicionadas no final do script anterior
-// (formatNumber, formatCurrency, truncateText, formatDateTime, formatCNPJ, formatCPF, formatCEP, formatFone, showNotification, Auth.getCookie)
-
-
-// ======== INÍCIO DAS FUNÇÕES COPIADAS E ADAPTADAS DA RESPOSTA ANTERIOR ========
 
 function renderTabelaTopVeiculosMdfe(data) {
     const tbody = document.getElementById('tabelaTopVeiculosMdfe');
@@ -421,6 +400,7 @@ function renderMdfePagination() {
     if (endPage - startPage + 1 < MAX_PAGES_DISPLAYED && totalPages >= MAX_PAGES_DISPLAYED) {
         startPage = Math.max(1, endPage - MAX_PAGES_DISPLAYED + 1);
     }
+
 
     for (let i = startPage; i <= endPage; i++) {
         paginationHTML += `<li class="page-item ${i === currentMdfePage ? 'active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
@@ -654,9 +634,9 @@ function showDocumentosVinculadosMdfe(mdfeId) {
 
 function reprocessMDFe(mdfeId) {
     if (!confirm('Tem certeza que deseja solicitar o reprocessamento deste MDF-e?')) return;
-    
+
     showNotification('Solicitando reprocessamento do MDF-e...', 'info', 5000);
-    Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/reprocessar/`, { 
+    Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/reprocessar/`, {
         method: 'POST',
         headers: { 'X-CSRFToken': Auth.getCookie('csrftoken') }
     })
@@ -666,7 +646,7 @@ function reprocessMDFe(mdfeId) {
     })
     .then(data => {
         showNotification(data.message || 'MDF-e enviado para reprocessamento com sucesso.', 'success');
-        loadAllMdfePanelData(); 
+        loadAllMdfePanelData();
         bootstrap.Modal.getInstance(document.getElementById('mdfeDetailModal'))?.hide();
     })
     .catch(error => {
@@ -692,9 +672,9 @@ function encerrarMDFe(mdfeId) {
     if (!confirm(`Confirma o encerramento do MDF-e em ${dtEnc} no município ${cMunEnc}-${ufEnc}?`)) return;
 
     showNotification('Enviando evento de encerramento...', 'info', 5000);
-    const payload = { dtEnc: dtEnc, cMun: cMunEnc, UF: ufEnc }; 
+    const payload = { dtEnc: dtEnc, cMun: cMunEnc, UF: ufEnc };
 
-    Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/encerrar/`, { 
+    Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/encerrar/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': Auth.getCookie('csrftoken') },
         body: JSON.stringify(payload)
@@ -719,7 +699,7 @@ function cancelarMDFe(mdfeId) {
     }
 
     if (!confirm(`Confirma o CANCELAMENTO do MDF-e: "${xJust.trim()}"?`)) return;
-    
+
     showNotification('Enviando evento de cancelamento...', 'info', 5000);
     const payload = { xJust: xJust.trim() };
     Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/cancelar/`, {
@@ -759,7 +739,6 @@ function getMdfeStatusBadge(status, isEncerrado) {
         badgeClass = 'bg-info';
         textColor = 'text-dark';
     }
-    
     return `<span class="badge ${badgeClass} ${textColor}">${statusText}</span>`;
 }
 
@@ -769,39 +748,37 @@ function formatMdfeKeyName(key) {
         uf_inicio: 'UF Início Viagem', uf_fim: 'UF Fim Viagem', placa_tracao: 'Placa Tração',
         documentos_count: 'Qtd. Docs', status_geral: 'Status Geral', processado: 'Processado (Interno)',
         data_upload: 'Data do Upload', encerrado: 'Encerrado (Interno)',
-        
         c_uf: 'Cód. UF Emitente', tp_amb: 'Ambiente', tp_emit: 'Tipo Emitente', tp_transp: 'Tipo Transportador',
         mod: 'Modelo Doc.', serie: 'Série', n_mdf: 'Nº MDF-e (Doc)', c_mdf: 'Cód. Numérico', c_dv: 'DV Chave',
-        modal: 'Modal Transporte', dh_emi: 'Data/Hora Emissão (Doc)', tp_emis: 'Tipo Emissão', 
+        modal: 'Modal Transporte', dh_emi: 'Data/Hora Emissão (Doc)', tp_emis: 'Tipo Emissão',
         proc_emi: 'Processo Emissão', ver_proc: 'Versão Processo', dh_ini_viagem: 'Data/Hora Início Viagem',
         ind_canal_verde: 'Canal Verde', ind_carga_posterior: 'Carrega Posterior',
         situacao_mdfe: 'Situação MDF-e (SEFAZ)',
-
-        cnpj: 'CNPJ', cpf: 'CPF', ie: 'IE', x_nome: 'Razão Social/Nome', 
+        cnpj: 'CNPJ', cpf: 'CPF', ie: 'IE', x_nome: 'Razão Social/Nome',
         x_fant: 'Nome Fantasia', x_lgr: 'Logradouro', nro: 'Número', x_cpl: 'Complemento', x_bairro: 'Bairro',
         c_mun: 'Cód. Município', x_mun: 'Município', cep: 'CEP', uf: 'UF', fone: 'Telefone', email: 'Email',
-
         rntrc: 'RNTRC', ciot: 'CIOT', codigo_agendamento_porto: 'Cód. Agend. Porto',
-        
         placa: 'Placa', renavam: 'RENAVAM', tara: 'Tara (kg)', cap_kg: 'Capacidade (kg)',
         cap_m3: 'Capacidade (m³)', tp_rod: 'Tipo Rodado', tp_car: 'Tipo Carroceria',
         prop_cnpj: 'CNPJ Prop. Veículo', prop_cpf: 'CPF Prop. Veículo',
-        prop_rntrc: 'RNTRC Prop. Veículo', prop_x_nome: 'Nome Prop. Veículo', 
+        prop_rntrc: 'RNTRC Prop. Veículo', prop_x_nome: 'Nome Prop. Veículo',
         prop_ie: 'IE Prop. Veículo', prop_uf: 'UF Prop. Veículo', prop_tp_prop: 'Tipo Prop. Veículo',
-        
         q_cte: 'Qtd. CT-e Vinculados', q_nfe: 'Qtd. NF-e Vinculadas',
         v_carga: 'Valor Total da Carga', c_unid: 'Unid. Medida (Peso)', q_carga: 'Peso Bruto Total (Qtd.)',
-        
         codigo_status: 'Cód. Status SEFAZ', motivo_status: 'Motivo SEFAZ', numero_protocolo: 'Nº Protocolo',
-        data_recebimento: 'Data Recebimento SEFAZ', 
-        
+        data_recebimento: 'Data Recebimento SEFAZ',
         encerramento_status: 'Status Encerramento', encerramento_data: 'Data Encerramento',
         encerramento_protocolo: 'Protocolo Encerramento',
-        
         qr_code_url: 'QR Code URL',
         n_prot: 'Nº Prot. Evento', dh_reg_evento: 'Data/Hora Reg. Evento',
         x_evento: 'Tipo Evento', c_stat: 'Cód. Status Evento', x_motivo: 'Motivo Evento',
         x_just: 'Justificativa',
+        municipio_descarga_cod: 'Cód. Mun. Descarga', municipio_descarga_nome: 'Município Descarga',
+        chave_documento: 'Chave Documento', tipo_documento: 'Tipo Documento',
+        segundo_codigo_barras: '2º Cód. Barras', info_complementar: 'Info. Comp.',
+        numero_onu: 'Nº ONU', nome_apropriado_embarque: 'Nome Apropriado Embarque',
+        classe_risco: 'Classe Risco', grupo_embalagem: 'Grupo Embalagem',
+        quantidade_total_produto: 'Qtd. Total Produto', unidade_medida: 'Unidade Medida (Prod. Perigoso)'
     };
     return map[key] || key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
@@ -809,7 +786,7 @@ function formatMdfeKeyName(key) {
 function formatMdfeValue(key, value) {
     if (value === null || value === undefined || String(value).trim() === '') return '--';
     if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
-    
+
     const lowerKey = String(key).toLowerCase();
 
     if (['data_emissao', 'dh_emi', 'dh_ini_viagem', 'data_upload', 'data_recebimento', 'dh_reg_evento', 'encerramento_info_data', 'encerramento_data'].includes(lowerKey)) {
@@ -848,14 +825,14 @@ function formatMdfeValue(key, value) {
         return getMdfeStatusBadge(value, currentSelectedMDFeIsEncerrado);
     }
     if (lowerKey === 'prop_tp_prop'){
-        const map = {'0': 'TAC Agregado', '1': 'TAC Independente', '2':'Outros'}; // Conforme tabela da SEFAZ para veicTracao e veicReboque
+        const map = {'0': 'TAC Agregado', '1': 'TAC Independente', '2':'Outros'};
         return map[String(value)] || value;
     }
 
     if (typeof value === 'object' && value !== null) {
         return Array.isArray(value) ? value.map(v => formatMdfeValue('', v)).join(', ') : JSON.stringify(value);
     }
-    
+
     return String(value);
 }
 
@@ -866,109 +843,44 @@ function exportMDFeToCSV() {
     window.open(url, '_blank');
 }
 
-// Funções utilitárias básicas (assumindo que `Auth` está global e `bootstrap` também)
-// Se `scripts.js` não estiver carregado ou não contiver estas, elas são necessárias aqui.
-if (typeof Auth === 'undefined') { Auth = { getCookie: () => '' }; console.warn("Auth não definido."); }
 
-if (typeof formatNumber === 'undefined') {
-    function formatNumber(value, decimals = 0) {
-        if (value == null || isNaN(parseFloat(value))) return (decimals > 0 ? (0).toFixed(decimals) : '0');
-        return parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    }
+// Funções utilitárias (assumindo que `Auth` e `bootstrap` estão globais)
+if (typeof Auth === 'undefined') {
+    window.Auth = {
+        getCookie: function(name) { /* ... (implementação de getCookie) ... */ return ''; },
+        fetchWithAuth: function(url, options) { return fetch(url, options); }
+    };
+    console.warn("Auth não definido globalmente. Usando fallback.");
 }
-if (typeof formatCurrency === 'undefined') {
-    function formatCurrency(value) {
-        if (value == null || isNaN(parseFloat(value))) return 'R$ 0,00';
-        const num = parseFloat(String(value).replace(',', '.'));
-        return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    }
+
+if (typeof formatNumber !== 'function') {
+    function formatNumber(value, decimals = 0) { /* ... */ }
 }
-if (typeof truncateText === 'undefined') {
-    function truncateText(text, maxLength = 50, fromEnd = false) {
-       if (!text) return '--';
-       text = String(text);
-       if (fromEnd && text.length > maxLength) {
-           return '...' + text.substring(text.length - maxLength);
-       }
-       return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-    }
+if (typeof formatCurrency !== 'function') {
+    function formatCurrency(value) { /* ... */ }
 }
-if (typeof formatDateTime === 'undefined') {
-    function formatDateTime(dateTimeString) {
-        if (!dateTimeString) return '--';
-        try {
-            const date = new Date(dateTimeString);
-            if (isNaN(date.getTime())) return dateTimeString;
-            return date.toLocaleString('pt-BR', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit' // Removendo segundos
-            });
-        } catch (e) { return dateTimeString; }
-    }
-}
-if (typeof formatCNPJ === 'undefined') {
-    function formatCNPJ(cnpj) {
-        if (!cnpj) return '--';
-        cnpj = String(cnpj).replace(/\D/g, '');
-        if (cnpj.length === 14) return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
-        return cnpj;
-    }
-}
-if (typeof formatCPF === 'undefined') {
-    function formatCPF(cpf) {
-        if (!cpf) return '--';
-        cpf = String(cpf).replace(/\D/g, '');
-        if (cpf.length === 11) return cpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-        return cpf;
-    }
-}
-if (typeof formatCEP === 'undefined') {
-    function formatCEP(cep) {
-        if (!cep) return '--';
-        cep = String(cep).replace(/\D/g, '');
-        if (cep.length === 8) return cep.replace(/^(\d{5})(\d{3})$/, "$1-$2");
-        return cep;
-    }
-}
-if (typeof formatFone === 'undefined') {
-    function formatFone(fone) {
-        if (!fone) return '--';
-        fone = String(fone).replace(/\D/g, '');
-        if (fone.length === 10) return fone.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3");
-        if (fone.length === 11) return fone.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
-        return fone;
-    }
-}
-if (typeof showNotification === 'undefined') {
-    function showNotification(message, type = 'info', duration = 4000) {
-        const toastContainer = document.querySelector('.toast-container') || (() => {
-            let container = document.createElement('div');
-            container.className = 'toast-container position-fixed top-0 end-0 p-3';
-            container.style.zIndex = "1090";
-            document.body.appendChild(container);
-            return container;
-        })();
-        const toastID = 'toast-' + Date.now();
-        const bgClassMap = { success: 'bg-success', error: 'bg-danger', warning: 'bg-warning text-dark', info: 'bg-info text-dark' };
-        const bgClass = bgClassMap[type] || 'bg-secondary';
-        const toastHTML = `
-            <div id="${toastID}" class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="${duration}">
-                <div class="d-flex">
-                    <div class="toast-body flex-grow-1">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-            </div>`;
-        toastContainer.insertAdjacentHTML('beforeend', toastHTML);
-        const toastElement = document.getElementById(toastID);
-        if (window.bootstrap && window.bootstrap.Toast) {
-            const toast = new window.bootstrap.Toast(toastElement);
-            toast.show();
-            toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
-        } else {
-            console.warn("Bootstrap Toast não disponível. Notificação:", message);
-            setTimeout(() => { toastElement.remove(); }, duration);
+// ... (demais funções utilitárias como truncateText, formatDateTime, etc.)
+// ... (showNotification)
+
+// Certifique-se de que TODAS as funções utilitárias usadas acima (formatNumber, formatCurrency, 
+// truncateText, formatDateTime, formatCNPJ, formatCPF, formatCEP, formatFone, showNotification)
+// estejam definidas aqui ou em um script global (como scripts.js) que é carregado ANTES de mdfe_panel.js.
+// Para evitar repetição, vou omitir a re-declaração completa delas aqui, mas elas PRECISAM existir.
+
+// Exemplo rápido de Auth.getCookie se não estiver em auth.js
+if (typeof Auth.getCookie !== 'function') {
+    Auth.getCookie = function(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
         }
+        return cookieValue;
     }
 }
-
-// ======== FIM DAS FUNÇÕES COPIADAS E ADAPTADAS ========

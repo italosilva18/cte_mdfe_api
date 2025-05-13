@@ -110,7 +110,7 @@
         <div class="card shadow-sm h-100 border-start border-info border-4">
             <div class="card-body">
                 <div class="text-xs fw-bold text-info text-uppercase mb-1">Docs. em MDF-e</div>
-                <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-ctes-em-mdfes"> {# Mantendo o ID que a API retorna para simplificar #}
+                <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-ctes-em-mdfes">
                     <span class="spinner-border spinner-border-sm"></span>
                 </div>
                  <small class="text-muted" id="card-mdfe-eficiencia">Eficiência CT-e: <span class="spinner-border spinner-border-sm spinner-border-xs"></span></small>
@@ -275,7 +275,7 @@
         z-index: 10;
     }
     .chart-empty-state {
-        display: flex;
+        display: none; /* Escondido por padrão, mostrado pelo JS */
         align-items: center;
         justify-content: center;
         height: 100%;
