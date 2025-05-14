@@ -1,14 +1,13 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block page_title %}Financeiro{% endblock %}
+{% block page_title %}Painel Financeiro{% endblock %}
 
 {% block breadcrumbs %}
-<li class="breadcrumb-item active">Financeiro</li>
+<li class="breadcrumb-item active">Painel Financeiro</li>
 {% endblock %}
 
 {% block content %}
-<!-- Filter Form -->
 <div class="card shadow mb-4" style="border-left: 4px solid var(--verde-primario);">
     <div class="card-header text-white" style="background-color: var(--verde-primario);">
         <i class="fas fa-filter me-2"></i>Filtros
@@ -17,25 +16,25 @@
         <form id="filterForm" class="row g-3">
             <div class="col-md-3">
                 <label for="data_inicio" class="form-label">Data Inicial</label>
-                <input type="date" class="form-control" id="data_inicio" name="date_from">
+                <input type="date" class="form-control" id="data_inicio" name="data_inicio">
             </div>
             <div class="col-md-3">
                 <label for="data_fim" class="form-label">Data Final</label>
-                <input type="date" class="form-control" id="data_fim" name="date_to">
+                <input type="date" class="form-control" id="data_fim" name="data_fim">
             </div>
             <div class="col-md-3">
-                <label for="agrupamento" class="form-label">Agrupamento</label>
-                <select class="form-select" id="agrupamento" name="group">
+                <label for="agrupamento" class="form-label">Agrupamento (Detalhes)</label>
+                <select class="form-select" id="agrupamento" name="agrupamento">
                     <option value="cliente">Cliente</option>
                     <option value="veiculo">Veículo</option>
                     <option value="distribuidora">Distribuidora</option>
                 </select>
             </div>
             <div class="col-md-3 d-flex align-items-end gap-2">
-                <button type="button" class="btn btn-success flex-grow-1" onclick="loadFinanceiroData()">
+                <button type="button" class="btn btn-success flex-grow-1" id="applyFiltersBtn">
                     <i class="fas fa-filter me-2"></i>Filtrar
                 </button>
-                <button type="button" class="btn btn-outline-secondary" onclick="resetFilters()" title="Reset filters">
+                <button type="button" class="btn btn-outline-secondary" id="resetFiltersBtn" title="Resetar filtros">
                     <i class="fas fa-undo"></i>
                 </button>
             </div>
@@ -43,69 +42,71 @@
     </div>
 </div>
 
-<!-- Summary Cards -->
 <div class="row mb-4 g-4">
-    <div class="col-md-3">
+    <div class="col-xl-2 col-md-4 col-sm-6">
         <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
             <div class="card-body">
-                <h5 class="card-title" style="color: var(--verde-secundario);">Faturamento Total</h5>
-                <p class="card-text h2" id="faturamento-total">R$ 0,00</p>
+                <h6 class="card-title text-truncate" style="color: var(--verde-secundario);">Faturamento Total</h6>
+                <p class="card-text h4" id="faturamento-total">R$ 0,00</p>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card shadow h-100" style="border-left: 4px solid #4e73df;">
             <div class="card-body">
-                <h5 class="card-title" style="color: var(--verde-secundario);">CIF</h5>
-                <p class="card-text h2" id="valor-cif">R$ 0,00</p>
-                <p class="card-text" id="percent-cif">0% do total</p>
+                <h6 class="card-title text-truncate" style="color: #4e73df;">Total CT-es</h6>
+                <p class="card-text h4" id="total-ctes">0</p>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card shadow h-100" style="border-left: 4px solid #1cc88a;">
             <div class="card-body">
-                <h5 class="card-title" style="color: var(--verde-secundario);">FOB</h5>
-                <p class="card-text h2" id="valor-fob">R$ 0,00</p>
-                <p class="card-text" id="percent-fob">0% do total</p>
+                <h6 class="card-title text-truncate" style="color: #1cc88a;">Ticket Médio</h6>
+                <p class="card-text h4" id="ticket-medio">R$ 0,00</p>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card shadow h-100" style="border-left: 4px solid var(--verde-secundario);">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card shadow h-100" style="border-left: 4px solid #36b9cc;">
             <div class="card-body">
-                <h5 class="card-title" style="color: var(--verde-secundario);">Tributos</h5>
-                <p class="card-text h2" id="valor-tributos">R$ 0,00</p>
-                <p class="card-text" id="percent-tributos">0% do faturamento</p>
+                <h6 class="card-title text-truncate" style="color: #36b9cc;">Valor CIF</h6>
+                <p class="card-text h4" id="valor-cif">R$ 0,00</p>
+                <small class="text-muted" id="percent-cif">0% do total</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="card shadow h-100" style="border-left: 4px solid #f6c23e;">
+            <div class="card-body">
+                <h6 class="card-title text-truncate" style="color: #f6c23e;">Valor FOB</h6>
+                <p class="card-text h4" id="valor-fob">R$ 0,00</p>
+                <small class="text-muted" id="percent-fob">0% do total</small>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Charts Row -->
 <div class="row mb-4 g-4">
-    <!-- Monthly Trend -->
     <div class="col-lg-8">
         <div class="card shadow h-100">
             <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Faturamento Mensal</h5>
+                <h5 class="card-title mb-0">Desempenho Mensal (Faturamento, CIF, FOB, Entregas)</h5>
             </div>
             <div class="card-body">
-                <div style="height: 300px;">
+                <div style="height: 350px;" id="faturamentoMensalChartContainer"> 
                     <canvas id="faturamentoMensalChart"></canvas>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- CIF/FOB Distribution -->
     <div class="col-lg-4">
         <div class="card shadow h-100">
             <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Distribuição CIF/FOB</h5>
+                <h5 class="card-title mb-0">Distribuição CIF/FOB (Período)</h5>
             </div>
-            <div class="card-body">
-                <div style="height: 300px;">
+            <div class="card-body d-flex align-items-center justify-content-center">
+                <div style="height: 320px; width: 100%;" id="cifFobChartContainer"> 
                     <canvas id="cifFobChart"></canvas>
                 </div>
             </div>
@@ -113,12 +114,11 @@
     </div>
 </div>
 
-<!-- Grouping Table -->
 <div class="card shadow mb-4">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
         <h5 class="card-title mb-0" id="agrupamento-titulo">Faturamento por Cliente</h5>
-        <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('agrupadoTable', 'faturamento_por_cliente.csv')">
-            <i class="fas fa-download me-1"></i>Exportar
+        <button class="btn btn-sm btn-outline-success" id="exportAgrupamentoBtn">
+            <i class="fas fa-download me-1"></i>Exportar CSV
         </button>
     </div>
     <div class="card-body p-0">
@@ -127,33 +127,30 @@
                 <thead>
                     <tr>
                         <th id="agrupamento-coluna-nome">Cliente</th>
-                        <th>Faturamento</th>
+                        <th>Faturamento Total</th>
                         <th>Qt. CT-es</th>
-                        <th>Valor Médio</th>
+                        <th>Ticket Médio</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
-                <tbody id="agrupamento-dados">
-                    <tr>
-                        <td colspan="5" class="text-center">
-                            <div class="spinner-border spinner-border-sm text-success me-2" role="status">
-                                <span class="visually-hidden">Carregando...</span>
-                            </div>
-                            Carregando dados...
-                        </td>
-                    </tr>
-                </tbody>
+                <tbody id="agrupamento-dados-body">
+                    </tbody>
             </table>
         </div>
     </div>
+    <div class="card-footer py-2">
+        <nav aria-label="Paginação Tabela Agrupamento">
+            <ul class="pagination justify-content-center mb-0" id="agrupamento-pagination">
+                </ul>
+        </nav>
+    </div>
 </div>
 
-<!-- Monthly Details -->
 <div class="card shadow">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0">Detalhamento Mensal</h5>
-        <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('mensalTable', 'detalhamento_mensal.csv')">
-            <i class="fas fa-download me-1"></i>Exportar
+        <h5 class="card-title mb-0">Detalhamento Mensal (Faturamento, CIF, FOB, Entregas)</h5>
+        <button class="btn btn-sm btn-outline-success" id="exportMensalBtn">
+            <i class="fas fa-download me-1"></i>Exportar CSV
         </button>
     </div>
     <div class="card-body p-0">
@@ -161,49 +158,40 @@
             <table class="table table-hover table-striped mb-0" id="mensalTable">
                 <thead>
                     <tr>
-                        <th>Período</th>
-                        <th>Faturamento</th>
-                        <th>CIF</th>
-                        <th>FOB</th>
-                        <th>CT-es</th>
+                        <th>Mês/Ano</th>
+                        <th>Faturamento Total</th>
+                        <th>Valor CIF</th>
+                        <th>Valor FOB</th>
+                        <th>Qt. Entregas (CT-es)</th>
                     </tr>
                 </thead>
-                <tbody id="mensal-dados">
-                    <tr>
-                        <td colspan="5" class="text-center">
-                            <div class="spinner-border spinner-border-sm text-success me-2" role="status">
-                                <span class="visually-hidden">Carregando...</span>
-                            </div>
-                            Carregando dados...
-                        </td>
-                    </tr>
-                </tbody>
+                <tbody id="mensal-dados-body">
+                    </tbody>
             </table>
         </div>
     </div>
+    <div class="card-footer py-2">
+        <nav aria-label="Paginação Tabela Detalhamento Mensal">
+            <ul class="pagination justify-content-center mb-0" id="mensal-pagination">
+                </ul>
+        </nav>
+    </div>
 </div>
 
-<!-- Detalhe Modal -->
 <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title" id="detailModalLabel">Detalhamento</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" id="detalheModalBody">
                 <div id="detalheContent">
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-success" role="status">
-                            <span class="visually-hidden">Carregando...</span>
-                        </div>
-                        <p class="mt-2">Carregando detalhes...</p>
                     </div>
-                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-success" id="exportDetalhe">
-                    <i class="fas fa-download me-1"></i>Exportar
+                <button type="button" class="btn btn-outline-success" id="exportDetalheBtn">
+                    <i class="fas fa-download me-1"></i>Exportar Detalhes CSV
                 </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
@@ -213,5 +201,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <script src="{% static 'js/financeiro.js' %}"></script>
 {% endblock %}
