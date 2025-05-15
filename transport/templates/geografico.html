@@ -1,198 +1,175 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block page_title %}Análise Geográfica{% endblock %}
+{% block page_title %}Painel Geográfico{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Container para o gráfico de Rotas UF */
+    #rotasUfChartContainer { 
+        height: 450px; /* Altura ajustável conforme necessidade */
+        width: 100%; 
+        position: relative; /* Para mensagens de sobreposição */
+    }
+    .table th, .table td { vertical-align: middle; }
+    .pagination .page-link { cursor: pointer; }
+    .chart-message-overlay { /* Estilo para mensagem sobre o gráfico */
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 20px;
+        border-radius: 5px;
+        z-index: 10; /* Para ficar sobre o canvas, se necessário */
+        text-align: center;
+        border: 1px solid #eee;
+    }
+</style>
+{% endblock %}
 
 {% block breadcrumbs %}
-<li class="breadcrumb-item active">Análise Geográfica</li>
+<li class="breadcrumb-item active">Painel Geográfico</li>
 {% endblock %}
 
 {% block content %}
-<!-- Filter Form -->
 <div class="card shadow mb-4" style="border-left: 4px solid var(--verde-primario);">
     <div class="card-header text-white" style="background-color: var(--verde-primario);">
         <i class="fas fa-filter me-2"></i>Filtros
     </div>
     <div class="card-body">
-        <form id="filterForm" class="row g-3">
-            <div class="col-md-3">
-                <label for="data_inicio" class="form-label">Data Inicial</label>
-                <input type="date" class="form-control" id="data_inicio" name="date_from">
+        <form id="filterFormGeo" class="row g-3">
+            <div class="col-md-4">
+                <label for="data_inicio_geo" class="form-label">Data Inicial</label>
+                <input type="date" class="form-control" id="data_inicio_geo" name="data_inicio">
             </div>
-            <div class="col-md-3">
-                <label for="data_fim" class="form-label">Data Final</label>
-                <input type="date" class="form-control" id="data_fim" name="date_to">
+            <div class="col-md-4">
+                <label for="data_fim_geo" class="form-label">Data Final</label>
+                <input type="date" class="form-control" id="data_fim_geo" name="data_fim">
             </div>
-            <div class="col-md-3">
-                <label for="uf" class="form-label">UF</label>
-                <select class="form-select" id="uf" name="uf">
-                    <option value="">Todas</option>
-                    <option value="AC">AC</option>
-                    <option value="AL">AL</option>
-                    <option value="AM">AM</option>
-                    <option value="AP">AP</option>
-                    <option value="BA">BA</option>
-                    <option value="CE">CE</option>
-                    <option value="DF">DF</option>
-                    <option value="ES">ES</option>
-                    <option value="GO">GO</option>
-                    <option value="MA">MA</option>
-                    <option value="MG">MG</option>
-                    <option value="MS">MS</option>
-                    <option value="MT">MT</option>
-                    <option value="PA">PA</option>
-                    <option value="PB">PB</option>
-                    <option value="PE">PE</option>
-                    <option value="PI">PI</option>
-                    <option value="PR">PR</option>
-                    <option value="RJ">RJ</option>
-                    <option value="RN">RN</option>
-                    <option value="RO">RO</option>
-                    <option value="RR">RR</option>
-                    <option value="RS">RS</option>
-                    <option value="SC">SC</option>
-                    <option value="SE">SE</option>
-                    <option value="SP">SP</option>
-                    <option value="TO">TO</option>
-                </select>
-            </div>
-            <div class="col-md-3 d-flex align-items-end">
-                <button type="button" class="btn btn-success w-100" onclick="loadGeograficoData()">
-                    <i class="fas fa-filter me-2"></i>Filtrar
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="button" class="btn btn-success w-100" id="applyFiltersGeoBtn">
+                    <i class="fas fa-filter me-2"></i>Filtrar Dados Geográficos
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Main Map Card -->
-<div class="card shadow mb-4">
-    <div class="card-header bg-light">
-        <h5 class="card-title mb-0">Mapa de Distribuição de Entregas</h5>
-    </div>
-    <div class="card-body">
-        <div id="mapa-brasil" style="height: 500px;">
-            <!-- Mapa será carregado aqui via JavaScript -->
-            <div class="d-flex justify-content-center align-items-center h-100">
-                <div class="spinner-border text-success me-2" role="status">
-                    <span class="visually-hidden">Carregando...</span>
-                </div>
-                <span>Carregando mapa...</span>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Analysis Row -->
 <div class="row mb-4 g-4">
-    <!-- Top Origins -->
-    <div class="col-md-6">
+    <div class="col-lg-7">
         <div class="card shadow h-100">
             <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Top 10 Origens</h5>
+                <h5 class="card-title mb-0"><i class="fas fa-chart-bar me-2"></i>Fluxo de Rotas por UF (Top 10 - Contagem)</h5>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>UF</th>
-                                <th>Município</th>
-                                <th>Quantidade</th>
-                                <th>Valor (R$)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="top-origens">
-                            <tr>
-                                <td colspan="4" class="text-center">
-                                    <div class="spinner-border spinner-border-sm text-success me-2" role="status">
-                                        <span class="visually-hidden">Carregando...</span>
-                                    </div>
-                                    Carregando dados...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="card-body">
+                <div id="rotasUfChartContainer"> 
+                    {# O JS irá inserir o <canvas id="rotasUfChart"> aqui ou uma mensagem #}
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Top Destinations -->
-    <div class="col-md-6">
+
+    <div class="col-lg-5">
         <div class="card shadow h-100">
-            <div class="card-header bg-light">
-                <h5 class="card-title mb-0">Top 10 Destinos</h5>
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="fas fa-map-pin me-2"></i>Top Origens (Municípios)</h5>
+                <button class="btn btn-sm btn-outline-success" id="exportTopOrigensBtn" title="Exportar Top Origens">
+                    <i class="fas fa-download"></i> CSV
+                </button>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
+                    <table class="table table-sm table-hover table-striped mb-0" id="topOrigensTable">
+                        <thead>
                             <tr>
-                                <th>UF</th>
                                 <th>Município</th>
-                                <th>Quantidade</th>
-                                <th>Valor (R$)</th>
+                                <th>UF</th>
+                                <th class="text-end">CT-es</th>
+                                <th class="text-end">Valor (R$)</th>
                             </tr>
                         </thead>
-                        <tbody id="top-destinos">
-                            <tr>
-                                <td colspan="4" class="text-center">
-                                    <div class="spinner-border spinner-border-sm text-success me-2" role="status">
-                                        <span class="visually-hidden">Carregando...</span>
-                                    </div>
-                                    Carregando dados...
-                                </td>
-                            </tr>
-                        </tbody>
+                        <tbody id="top-origens-body"></tbody>
                     </table>
                 </div>
+            </div>
+            <div class="card-footer py-2">
+                <nav aria-label="Paginação Top Origens">
+                    <ul class="pagination pagination-sm justify-content-center mb-0" id="top-origens-pagination"></ul>
+                </nav>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Most Frequent Routes -->
-<div class="card shadow">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0">Rotas Mais Frequentes</h5>
-        <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('rotas-table', 'rotas_frequentes.csv')">
-            <i class="fas fa-download me-1"></i>Exportar
-        </button>
+<div class="row mb-4 g-4">
+    <div class="col-lg-6">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="fas fa-bullseye me-2"></i>Top Destinos (Municípios)</h5>
+                 <button class="btn btn-sm btn-outline-success" id="exportTopDestinosBtn" title="Exportar Top Destinos">
+                    <i class="fas fa-download"></i> CSV
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-striped mb-0" id="topDestinosTable">
+                        <thead>
+                            <tr>
+                                <th>Município</th>
+                                <th>UF</th>
+                                <th class="text-end">CT-es</th>
+                                <th class="text-end">Valor (R$)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-destinos-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer py-2">
+                <nav aria-label="Paginação Top Destinos">
+                    <ul class="pagination pagination-sm justify-content-center mb-0" id="top-destinos-pagination"></ul>
+                </nav>
+            </div>
+        </div>
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0" id="rotas-table">
-                <thead class="table-light">
-                    <tr>
-                        <th>Origem (UF)</th>
-                        <th>Destino (UF)</th>
-                        <th>Quantidade</th>
-                        <th>Km Total</th>
-                        <th>Valor Total (R$)</th>
-                        <th>Valor/Km (R$)</th>
-                    </tr>
-                </thead>
-                <tbody id="rotas-frequentes">
-                    <tr>
-                        <td colspan="6" class="text-center">
-                            <div class="spinner-border spinner-border-sm text-success me-2" role="status">
-                                <span class="visually-hidden">Carregando...</span>
-                            </div>
-                            Carregando dados...
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+    <div class="col-lg-6">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="fas fa-route me-2"></i>Top Rotas Frequentes (Municípios)</h5>
+                 <button class="btn btn-sm btn-outline-success" id="exportRotasFrequentesBtn" title="Exportar Rotas Frequentes">
+                    <i class="fas fa-download"></i> CSV
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-striped mb-0" id="rotasFrequentesTable">
+                        <thead>
+                            <tr>
+                                <th>Origem</th>
+                                <th>Destino</th>
+                                <th class="text-end">CT-es</th>
+                                <th class="text-end">Valor (R$)</th>
+                                <th class="text-end">KM Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rotas-frequentes-body"></tbody>
+                    </table>
+                </div>
+            </div>
+             <div class="card-footer py-2">
+                <nav aria-label="Paginação Rotas Frequentes">
+                    <ul class="pagination pagination-sm justify-content-center mb-0" id="rotas-frequentes-pagination"></ul>
+                </nav>
+            </div>
         </div>
     </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
-<!-- Leaflet Map JS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+{# Chart.js deve ser incluído em base.html ou aqui se não estiver global #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <script src="{% static 'js/geografico.js' %}"></script>
 {% endblock %}
