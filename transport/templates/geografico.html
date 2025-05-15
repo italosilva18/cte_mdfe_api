@@ -25,16 +25,21 @@
         text-align: center;
         border: 1px solid #eee;
     }
+    .border-left-verde { 
+        border-left: 4px solid var(--verde-primario);
+    }
 </style>
 {% endblock %}
 
 {% block breadcrumbs %}
-<li class="breadcrumb-item active">Painel Geográfico</li>
-{% endblock %}
+<ul>
+    <li class="breadcrumb-item active">Painel Geográfico</li>
+</ul>
+<div class="card shadow mb-4 border-left-verde">
 
 {% block content %}
-<div class="card shadow mb-4" style="border-left: 4px solid var(--verde-primario);">
-    <div class="card-header text-white" style="background-color: var(--verde-primario);">
+<div class="card shadow mb-4 border-left-verde">
+    <div class="card-header text-white bg-verde-primario">
         <i class="fas fa-filter me-2"></i>Filtros
     </div>
     <div class="card-body">
