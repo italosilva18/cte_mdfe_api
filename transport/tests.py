@@ -11,7 +11,6 @@ from .services.parser_mdfe import parse_mdfe_completo
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
- main
 
 class AuthTests(APITestCase):
     def setUp(self):
