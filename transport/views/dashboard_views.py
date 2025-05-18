@@ -11,10 +11,11 @@ from django.db.models.functions import Coalesce, TruncDate, TruncMonth
 from django.shortcuts import get_object_or_404 # Pode ser necessário em futuras expansões
 
 # Imports Django REST Framework
+from rest_framework import viewsets, status  # Usado para retornos de erro, se necessário
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import status # Usado para retornos de erro, se necessário
 
 # Imports Locais
 from ..serializers.dashboard_serializers import (  # Use .. para voltar um nível
