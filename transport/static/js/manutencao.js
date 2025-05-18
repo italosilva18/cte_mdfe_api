@@ -11,6 +11,8 @@ let manutencoesList = [];
 
 // Current item being edited
 let currentEditId = null;
+// Map of plates to vehicle IDs for form submission
+let veiculoIdMap = {};
 
 /**
  * Initializes the maintenance panel when page loads
@@ -183,21 +185,23 @@ function resetFilters() {
 function loadManutencoesData() {
     // Show loading state
     showLoading();
-    
+
     // Get filter values
     const dataInicio = document.getElementById('data_inicio')?.value;
     const dataFim = document.getElementById('data_fim')?.value;
     const placa = document.getElementById('placa')?.value;
     const status = document.getElementById('status')?.value;
     const searchText = document.getElementById('search_text')?.value;
-    
-    // Build API URL with query params - USING CORRECT ENDPOINT
-    let apiUrl = `/api/manutencao/painel/ultimos/?limit=${pageSize}`;
-    
-    // Since the nested route doesn't exist, we'll use the maintenance panel endpoint
-    // This is a workaround until the proper endpoint is created
-    
-    // Fetch data with authentication
+
+    // Build API URL with query params
+    let apiUrl = `/api/manutencoes/?page=${currentPage}&page_size=${pageSize}`;
+
+    if (dataInicio) apiUrl += `&data_inicio=${dataInicio}`;
+    if (dataFim) apiUrl += `&data_fim=${dataFim}`;
+    if (placa) apiUrl += `&placa=${encodeURIComponent(placa)}`;
+    if (status) apiUrl += `&status=${status}`;
+    if (searchText) apiUrl += `&q=${encodeURIComponent(searchText)}`;
+
     Auth.fetchWithAuth(apiUrl)
         .then(response => {
             if (!response.ok) {
@@ -206,21 +210,17 @@ function loadManutencoesData() {
             return response.json();
         })
         .then(data => {
-            // Handle the response from the "ultimos" endpoint
-            manutencoesList = Array.isArray(data) ? data : [];
-            totalItems = manutencoesList.length;
-            
-            // Render table with results
+            manutencoesList = data.results || [];
+            totalItems = data.count || manutencoesList.length;
+
             renderManutencoesTable();
-            
-            // Hide loading indicator
+            updatePagination();
             hideLoading();
         })
         .catch(error => {
             console.error('Error loading maintenance data:', error);
             showNotification('Não foi possível carregar os dados das manutenções. Tente novamente.', 'error');
-            
-            // Clear table with error message
+
             const tbody = document.getElementById('manutencoes-list');
             if (tbody) {
                 tbody.innerHTML = `
@@ -231,8 +231,7 @@ function loadManutencoesData() {
                     </td>
                 </tr>`;
             }
-            
-            // Hide loading indicator
+
             hideLoading();
         });
 }
@@ -458,8 +457,11 @@ function renderVeiculoChart(container, data) {
 function loadVeiculos() {
     const veiculoSelect = document.getElementById('veiculo');
     const filtroPlaca = document.getElementById('placa');
-    
+
     if (!veiculoSelect && !filtroPlaca) return;
+
+    // Reset mapping
+    veiculoIdMap = {};
     
     // Clear existing options first (keep the first empty option)
     if (veiculoSelect) {
@@ -498,11 +500,14 @@ function loadVeiculos() {
             if (veiculoSelect) {
                 veiculos.forEach(veiculo => {
                     if (!veiculo.ativo && veiculo.ativo !== undefined) return; // Skip inactive vehicles
-                    
+
                     const option = document.createElement('option');
                     option.value = veiculo.id;
                     option.textContent = `${veiculo.placa} - ${veiculo.proprietario_nome || 'Próprio'}`;
                     veiculoSelect.appendChild(option);
+
+                    // store mapping id<->placa
+                    veiculoIdMap[veiculo.placa] = veiculo.id;
                 });
             }
             
@@ -514,6 +519,9 @@ function loadVeiculos() {
                         option.value = veiculo.placa;
                         option.textContent = veiculo.placa;
                         filtroPlaca.appendChild(option);
+
+                        // store mapping for quick lookup
+                        veiculoIdMap[veiculo.placa] = veiculo.id;
                     }
                 });
             }
@@ -554,13 +562,16 @@ function loadPlacasFromMDFe() {
             let page = 1;
             let totalLoaded = 0;
             let hasMore = true;
-            
+            const pageSize = 100;
+            let totalPages = null;
+            const maxPages = 50;
+
             while (hasMore) {
                 try {
                     console.log(`Carregando página ${page} dos MDF-es...`);
                     showNotification(`Processando página ${page} dos MDF-es...`, 'info', 1000);
-                    
-                    const response = await Auth.fetchWithAuth(`/api/mdfes/?page=${page}&page_size=100`);
+
+                    const response = await Auth.fetchWithAuth(`/api/mdfes/?page=${page}&page_size=${pageSize}`);
                     
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -568,6 +579,10 @@ function loadPlacasFromMDFe() {
                     
                     const data = await response.json();
                     console.log(`Página ${page} - Count: ${data.count}, Results: ${data.results ? data.results.length : 0}`);
+
+                    if (totalPages === null && data.count) {
+                        totalPages = Math.ceil(data.count / pageSize);
+                    }
                     
                     const mdfes = data.results || data;
                     
@@ -583,11 +598,10 @@ function loadPlacasFromMDFe() {
                     // Verifica se há próxima página
                     hasMore = data.next !== null && data.next !== undefined;
                     page++;
-                    
-                    // Limite de segurança (máximo 10 páginas por vez)
-                    if (page > 10) {
-                        console.log('Carregadas 10 páginas. Continuando...');
-                        break;
+
+                    // Limite de segurança para evitar chamadas infinitas
+                    if ((totalPages !== null && page > totalPages) || page > maxPages) {
+                        hasMore = false;
                     }
                     
                     // Se não há mais dados, pare
@@ -620,6 +634,11 @@ function loadPlacasFromMDFe() {
                         option.value = placa;
                         option.textContent = `${placa} - (Via MDF-e)`;
                         veiculoSelect.appendChild(option);
+
+                        // store mapping with undefined ID so salvarManutencao can handle
+                        if (!(placa in veiculoIdMap)) {
+                            veiculoIdMap[placa] = null;
+                        }
                     });
                 }
                 
@@ -630,6 +649,10 @@ function loadPlacasFromMDFe() {
                         option.value = placa;
                         option.textContent = placa;
                         filtroPlaca.appendChild(option);
+
+                        if (!(placa in veiculoIdMap)) {
+                            veiculoIdMap[placa] = null;
+                        }
                     });
                 }
                 
@@ -665,11 +688,14 @@ function loadPlacasFromCTe() {
         let page = 1;
         let hasMore = true;
         let totalProcessed = 0;
-        
-        while (hasMore && page <= 5) { // Limitar a 5 páginas
+        const pageSize = 100;
+        let totalPages = null;
+        const maxPages = 50;
+
+        while (hasMore) {
             try {
                 console.log(`Carregando página ${page} dos CT-es...`);
-                const response = await Auth.fetchWithAuth(`/api/ctes/?page=${page}&page_size=100`);
+                const response = await Auth.fetchWithAuth(`/api/ctes/?page=${page}&page_size=${pageSize}`);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -677,6 +703,10 @@ function loadPlacasFromCTe() {
                 
                 const data = await response.json();
                 const ctes = data.results || data;
+
+                if (totalPages === null && data.count) {
+                    totalPages = Math.ceil(data.count / pageSize);
+                }
                 
                 if (Array.isArray(ctes)) {
                     ctes.forEach(cte => {
@@ -695,6 +725,10 @@ function loadPlacasFromCTe() {
                 
                 hasMore = data.next !== null;
                 page++;
+
+                if ((totalPages !== null && page > totalPages) || page > maxPages) {
+                    hasMore = false;
+                }
             } catch (error) {
                 console.error(`Erro na página ${page} dos CT-es:`, error);
                 hasMore = false;
@@ -714,24 +748,32 @@ function loadPlacasFromCTe() {
             
             if (plates.length > 0) {
                 // Update vehicle select
-                if (veiculoSelect) {
-                    plates.forEach(placa => {
-                        const option = document.createElement('option');
-                        option.value = placa;
-                        option.textContent = `${placa} - (Via CT-e)`;
-                        veiculoSelect.appendChild(option);
-                    });
-                }
+            if (veiculoSelect) {
+                plates.forEach(placa => {
+                    const option = document.createElement('option');
+                    option.value = placa;
+                    option.textContent = `${placa} - (Via CT-e)`;
+                    veiculoSelect.appendChild(option);
+
+                    if (!(placa in veiculoIdMap)) {
+                        veiculoIdMap[placa] = null;
+                    }
+                });
+            }
                 
                 // Update filter select
-                if (filtroPlaca) {
-                    plates.forEach(placa => {
-                        const option = document.createElement('option');
-                        option.value = placa;
-                        option.textContent = placa;
-                        filtroPlaca.appendChild(option);
-                    });
-                }
+            if (filtroPlaca) {
+                plates.forEach(placa => {
+                    const option = document.createElement('option');
+                    option.value = placa;
+                    option.textContent = placa;
+                    filtroPlaca.appendChild(option);
+
+                    if (!(placa in veiculoIdMap)) {
+                        veiculoIdMap[placa] = null;
+                    }
+                });
+            }
                 
                 showNotification(`${plates.length} placas carregadas dos CT-es (${totalProcessed} registros processados)`, 'success', 4000);
             } else {
@@ -998,18 +1040,41 @@ function editarManutencao(id) {
         modalTitle.textContent = 'Editar Manutenção';
     }
     
-    // Show loading state in form
     const form = document.getElementById('manutencaoForm');
     form.classList.add('loading');
-    
-    // Show modal while loading
+
     const modal = new bootstrap.Modal(document.getElementById('addManutencaoModal'));
     modal.show();
-    
-    // Note: Since we don't have the proper endpoint, we'll need to work with a different approach
-    // For now, let's show a message that edit functionality needs proper API
-    form.classList.remove('loading');
-    showNotification('Funcionalidade de edição requer implementação da API de manutenções', 'warning');
+
+    Auth.fetchWithAuth(`/api/manutencoes/${id}/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Falha ao carregar dados da manutenção');
+            }
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById('veiculo').value = data.veiculo || '';
+            if (data.veiculo) updateVeiculoDetails(data.veiculo);
+            document.getElementById('servico_realizado').value = data.servico_realizado || '';
+            document.getElementById('data_servico').value = data.data_servico || '';
+            document.getElementById('quilometragem').value = data.quilometragem || '';
+            document.getElementById('oficina').value = data.oficina || '';
+            document.getElementById('peca_utilizada').value = data.peca_utilizada || '';
+            document.getElementById('valor_peca').value = data.valor_peca || 0;
+            document.getElementById('valor_mao_obra').value = data.valor_mao_obra || 0;
+            document.getElementById('status_manutencao').value = data.status || 'PENDENTE';
+            document.getElementById('observacoes').value = data.observacoes || '';
+            document.getElementById('nota_fiscal').value = data.nota_fiscal || '';
+        })
+        .catch(error => {
+            console.error('Error loading maintenance:', error);
+            showNotification('Não foi possível carregar os dados da manutenção.', 'error');
+            bootstrap.Modal.getInstance(document.getElementById('addManutencaoModal')).hide();
+        })
+        .finally(() => {
+            form.classList.remove('loading');
+        });
 }
 
 /**
@@ -1017,8 +1082,53 @@ function editarManutencao(id) {
  * @param {string} id - Maintenance ID
  */
 function visualizarManutencao(id) {
-    // Note: Since we don't have the proper endpoint, show a message
-    showNotification('Funcionalidade de visualização requer implementação da API de manutenções', 'warning');
+    const modal = document.getElementById('detailModal');
+    const modalTitle = document.getElementById('detailModalLabel');
+    const modalBody = document.getElementById('detailContent');
+    const editBtn = document.getElementById('editManutencao');
+
+    if (!modal || !modalTitle || !modalBody || !editBtn) return;
+
+    modalTitle.textContent = 'Detalhes da Manutenção';
+    editBtn.onclick = () => editarManutencao(id);
+    modalBody.innerHTML = `<div class="d-flex justify-content-center"><div class="spinner-border text-success" role="status"><span class="visually-hidden">Carregando...</span></div></div>`;
+
+    const modalInstance = bootstrap.Modal.getInstance(modal) || new bootstrap.Modal(modal);
+    modalInstance.show();
+
+    Auth.fetchWithAuth(`/api/manutencoes/${id}/`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Falha ao carregar detalhes');
+            }
+            return response.json();
+        })
+        .then(manutencao => {
+            modalBody.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Veículo:</strong> ${manutencao.veiculo_placa || '--'}</p>
+                        <p><strong>Serviço Realizado:</strong> ${manutencao.servico_realizado || '--'}</p>
+                        <p><strong>Data do Serviço:</strong> ${formatDate(manutencao.data_servico)}</p>
+                        <p><strong>KM:</strong> ${formatNumber(manutencao.quilometragem) || '--'}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Oficina:</strong> ${manutencao.oficina || '--'}</p>
+                        <p><strong>Valor Peças:</strong> ${formatCurrency(manutencao.valor_peca)}</p>
+                        <p><strong>Valor M. Obra:</strong> ${formatCurrency(manutencao.valor_mao_obra)}</p>
+                        <p><strong>Valor Total:</strong> ${formatCurrency(manutencao.valor_total)}</p>
+                        <p><strong>Status:</strong> ${getStatusHTML(manutencao.status)}</p>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <h6>Observações:</h6>
+                    <p class="text-muted">${manutencao.observacoes || 'Nenhuma.'}</p>
+                </div>`;
+        })
+        .catch(error => {
+            console.error('Error loading maintenance details:', error);
+            modalBody.innerHTML = '<div class="alert alert-danger">Erro ao carregar dados.</div>';
+        });
 }
 
 /**
@@ -1039,12 +1149,22 @@ function salvarManutencao() {
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...';
     
-    // Get vehicle value
+    // Get vehicle value and resolve ID if plate selected
     const veiculoValue = document.getElementById('veiculo').value;
-    
-    // Collect form data
+    let veiculoId = veiculoValue;
+    if (veiculoValue && isNaN(parseInt(veiculoValue))) {
+        veiculoId = veiculoIdMap[veiculoValue];
+    }
+
+    if (!veiculoId) {
+        showNotification('Veículo selecionado não está cadastrado.', 'warning');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
+        return;
+    }
+
     const formData = {
-        placa: veiculoValue, // Using plate since we might not have vehicle IDs
+        veiculo: veiculoId,
         servico_realizado: document.getElementById('servico_realizado').value,
         data_servico: document.getElementById('data_servico').value,
         quilometragem: document.getElementById('quilometragem').value,
@@ -1056,21 +1176,37 @@ function salvarManutencao() {
         observacoes: document.getElementById('observacoes').value,
         nota_fiscal: document.getElementById('nota_fiscal').value
     };
-    
-    console.log('Dados do formulário:', formData);
-    
-    // Since the maintenance API doesn't exist yet, show a message
-    setTimeout(() => {
-        // Re-enable save button
+
+    const endpoint = currentEditId ? `/api/manutencoes/${currentEditId}/` : '/api/manutencoes/';
+    const method = currentEditId ? 'PATCH' : 'POST';
+
+    Auth.fetchWithAuth(endpoint, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                const errorMessages = Object.values(data).flat().join(' ');
+                throw new Error(errorMessages || 'Erro ao salvar manutenção');
+            });
+        }
+        return response.json();
+    })
+    .then(() => {
+        showNotification(currentEditId ? 'Manutenção atualizada com sucesso!' : 'Manutenção criada com sucesso!', 'success');
+        bootstrap.Modal.getInstance(document.getElementById('addManutencaoModal')).hide();
+        loadManutencoesData();
+    })
+    .catch(error => {
+        console.error('Error saving maintenance:', error);
+        showNotification(`Erro ao salvar manutenção: ${error.message}`, 'error');
+    })
+    .finally(() => {
         saveBtn.disabled = false;
         saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
-        
-        showNotification('API de manutenções ainda não implementada. Dados preparados para envio.', 'info');
-        console.log('Dados que seriam enviados:', formData);
-        
-        // Hide modal
-        bootstrap.Modal.getInstance(document.getElementById('addManutencaoModal')).hide();
-    }, 1000);
+    });
 }
 
 /**
@@ -1082,9 +1218,23 @@ function excluirManutencao(id) {
     if (!confirm('Tem certeza que deseja excluir esta manutenção?')) {
         return;
     }
-    
-    // Since the API doesn't exist yet, show a message
-    showNotification('API de manutenções ainda não implementada. Funcionalidade de exclusão indisponível.', 'warning');
+
+    Auth.fetchWithAuth(`/api/manutencoes/${id}/`, { method: 'DELETE' })
+        .then(response => {
+            if (response.status === 204) {
+                showNotification('Manutenção excluída com sucesso!', 'success');
+                loadManutencoesData();
+            } else {
+                return response.json().then(data => {
+                    const msg = data.detail || 'Erro ao excluir manutenção';
+                    throw new Error(msg);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting maintenance:', error);
+            showNotification(`Erro ao excluir manutenção: ${error.message}`, 'error');
+        });
 }
 
 /**
