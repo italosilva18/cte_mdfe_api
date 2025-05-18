@@ -483,20 +483,39 @@ function loadVeiculos() {
     console.log('Iniciando carregamento de placas...');
     showNotification('Carregando placas dos veículos...', 'info', 2000);
     
-    // Primeira tentativa: API de veículos
+    // Primeira tentativa: API de veículos com paginação
     console.log('Tentando carregar veículos da API /api/veiculos/...');
-    Auth.fetchWithAuth('/api/veiculos/')
-        .then(response => {
+
+    async function fetchAllVeiculos() {
+        const allVeiculos = [];
+        let url = '/api/veiculos/';
+        let page = 1;
+
+        while (url) {
+            const requestUrl = page === 1 ? url : `/api/veiculos/?page=${page}`;
+            const response = await Auth.fetchWithAuth(requestUrl);
             console.log('Veículos - Response status:', response.status);
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            return response.json();
-        })
-        .then(data => {
+
+            const data = await response.json();
             console.log('Dados recebidos da API veículos:', data);
             const veiculos = data.results || data;
+            if (Array.isArray(veiculos)) {
+                allVeiculos.push(...veiculos);
+            }
 
+            url = data.next;
+            page += 1;
+        }
+
+        return allVeiculos;
+    }
+
+    fetchAllVeiculos()
+        .then(veiculos => {
             if (!Array.isArray(veiculos) || veiculos.length === 0) {
                 showNotification(
                     'Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.',
@@ -505,7 +524,7 @@ function loadVeiculos() {
                 );
                 throw new Error('Nenhum veículo encontrado na API');
             }
-            
+
             // Update form select
             if (veiculoSelect) {
                 veiculos.forEach(veiculo => {
@@ -520,7 +539,7 @@ function loadVeiculos() {
                     veiculoIdMap[veiculo.placa] = veiculo.id;
                 });
             }
-            
+
             // Update filter select with plates
             if (filtroPlaca) {
                 veiculos.forEach(veiculo => {
@@ -535,7 +554,7 @@ function loadVeiculos() {
                     }
                 });
             }
-            
+
             console.log(`${veiculos.length} veículos carregados com sucesso`);
             showNotification(`${veiculos.length} veículos carregados com sucesso`, 'success', 2000);
         })
@@ -1188,15 +1207,6 @@ function salvarManutencao() {
         saveBtn.disabled = false;
         saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
         return;
-        if (!veiculoId) {
-            showNotification('Veículo selecionado inválido.', 'error');
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
-            return;
-        }
-
- main
-
     }
 
     const formData = {
