@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 # Importar serializers de outros módulos se forem aninhados aqui
 from .payment_serializers import PagamentoAgregadoSerializer, PagamentoProprioSerializer
+from ..models import AlertaSistema
 
 # =====================================================
 # === Serializadores para Dashboards/Painéis ===
@@ -100,3 +101,14 @@ class AlertaPagamentoSerializer(serializers.Serializer):
     proprios_pendentes = PagamentoProprioSerializer(many=True, required=False, read_only=True)
     # Campo informativo sobre o filtro de dias aplicado
     dias_alerta = serializers.IntegerField(required=False, read_only=True)
+
+
+class AlertaSistemaSerializer(serializers.ModelSerializer):
+    """Serializer para o modelo AlertaSistema."""
+
+    class Meta:
+        model = AlertaSistema
+        fields = [
+            'id', 'prioridade', 'data_hora', 'tipo', 'mensagem',
+            'dados_adicionais', 'modulo', 'usuario', 'referencia'
+        ]

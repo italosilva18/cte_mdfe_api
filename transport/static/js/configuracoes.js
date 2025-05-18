@@ -1,6 +1,6 @@
 /**
- * cte_panel.js
- * Functions for the CT-e panel page
+ * configuracoes.js
+ * Funções para a página de Configurações do sistema
  */
 
 // Global variables

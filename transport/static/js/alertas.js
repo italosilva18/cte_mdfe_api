@@ -930,30 +930,39 @@ function confirmLimparAlertaSistema(id) {
 window.confirmLimparAlertaSistema = confirmLimparAlertaSistema;
 
 function limparAlertaSistema(id) {
-    // TODO: Implementar chamada à API para marcar o alerta como "limpo" ou removê-lo
-    // Exemplo:
-    // Auth.fetchWithAuth(`/api/alertas/sistema/${id}/`, { method: 'DELETE' })
-    // .then(...)
-    showNotification(`Alerta ${id} limpo (simulado).`, 'info');
-    // Remover da lista local e renderizar novamente
-    sistemaList = sistemaList.filter(a => a.id.toString() !== id.toString());
-    renderSistemaTable();
-    updateSummaryCards(pagamentosList.length, manutencoesList.length, documentosList.length, sistemaList.length);
+    Auth.fetchWithAuth(`/api/alertas/sistema/${id}/`, { method: 'DELETE' })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => Promise.reject(err));
+            }
+            showNotification('Alerta removido com sucesso.', 'success');
+            // Remover localmente
+            sistemaList = sistemaList.filter(a => a.id.toString() !== id.toString());
+            renderSistemaTable();
+            updateSummaryCards(pagamentosList.length, manutencoesList.length, documentosList.length, sistemaList.length);
+        })
+        .catch(() => {
+            showNotification('Falha ao remover alerta.', 'error');
+        });
 }
 
 /**
  * Confirms and clears all system alerts.
  */
 function confirmLimparAlertasSistema() {
-    // Esta função é chamada pelo data-callback do modal de confirmação
-    // TODO: Implementar chamada à API para limpar todos os alertas do sistema
-    // Exemplo:
-    // Auth.fetchWithAuth(`/api/alertas/sistema/limpar_todos/`, { method: 'POST' })
-    // .then(...)
-    showNotification('Todos os alertas do sistema foram limpos (simulado).', 'info');
-    sistemaList = [];
-    renderSistemaTable();
-    updateSummaryCards(pagamentosList.length, manutencoesList.length, documentosList.length, 0);
+    Auth.fetchWithAuth('/api/alertas/sistema/limpar_todos/', { method: 'POST' })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => Promise.reject(err));
+            }
+            showNotification('Todos os alertas do sistema foram limpos.', 'success');
+            sistemaList = [];
+            renderSistemaTable();
+            updateSummaryCards(pagamentosList.length, manutencoesList.length, documentosList.length, 0);
+        })
+        .catch(() => {
+            showNotification('Falha ao limpar alertas do sistema.', 'error');
+        });
 }
 window.confirmLimparAlertasSistema = confirmLimparAlertasSistema; // Torna global para o data-callback-name
 
