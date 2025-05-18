@@ -52,3 +52,11 @@ The main API routes are available under `/api/`.
 Authentication is handled via JWT tokens obtained from `/api/token/` and `/api/token/refresh/`.
 
 **Note:** Before registering a maintenance entry in `/api/manutencoes/` (or the nested `/api/veiculos/<veiculo_pk>/manutencoes/` route), you must first create the corresponding vehicle via `/api/veiculos/`.
+
+## Environment Variables
+
+For a production deployment the application expects certain variables to be present in the environment:
+
+- `DJANGO_SECRET_KEY` – Secret key for cryptographic signing.
+- `DJANGO_DEBUG` – Set to `true` or `false`. Use `false` in production.
+- `DJANGO_ALLOWED_HOSTS` – Comma separated list of hosts that can serve the app.
