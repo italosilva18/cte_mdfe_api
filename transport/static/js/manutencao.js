@@ -1171,15 +1171,6 @@ function salvarManutencao() {
         saveBtn.disabled = false;
         saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
         return;
-        if (!veiculoId) {
-            showNotification('Veículo selecionado inválido.', 'error');
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
-            return;
-        }
-
- main
-
     }
 
     const formData = {
