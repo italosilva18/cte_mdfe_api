@@ -72,3 +72,17 @@ For a production deployment the application expects certain variables to be pres
 - `DJANGO_SECRET_KEY` – Secret key for cryptographic signing.
 - `DJANGO_DEBUG` – Set to `true` or `false`. Use `false` in production.
 - `DJANGO_ALLOWED_HOSTS` – Comma separated list of hosts that can serve the app.
+
+## Running Tests
+
+To run the automated tests use:
+
+```bash
+python manage.py test
+```
+
+If you have `pytest` installed, you can also run:
+
+```bash
+pytest
+```
