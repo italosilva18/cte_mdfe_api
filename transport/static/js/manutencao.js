@@ -735,6 +735,7 @@ function loadPlacasFromMDFe() {
                 // Update vehicle select with plates
                 if (veiculoSelect && plates.length > 0) {
                     plates.forEach(placa => {
+
                         const option = document.createElement('option');
                         option.value = placa;
                         option.textContent = `${placa} - (Via MDF-e)`;
@@ -864,6 +865,15 @@ function loadPlacasFromCTe() {
                         if (!(placa in veiculoIdMap)) {
                             veiculoIdMap[placa] = null;
                         }
+
+                        const opt = document.createElement('option');
+                        opt.value = placa;
+                        opt.textContent = `${placa} - (Via MDF-e)`;
+                        veiculoSelect.appendChild(opt);
+
+                        // store mapping for reference only (no ID available)
+                        veiculoIdMap[placa] = null;
+
                     });
                 }
 
@@ -880,6 +890,7 @@ function loadPlacasFromCTe() {
                     });
                 }
 
+
                 showNotification(
                     `${plates.length} placas carregadas dos CT-es para referência (${totalProcessed} registros processados)`,
                     'success',
@@ -888,11 +899,23 @@ function loadPlacasFromCTe() {
             } else {
                 showNotification('Nenhuma placa encontrada em nenhuma fonte. Verifique se há dados cadastrados.', 'warning');
             }
+
+                console.log(`${veiculos.length} veículos carregados com sucesso`);
+                showNotification(`${veiculos.length} veículos carregados com sucesso`, 'success', 2000);
+                return;
+
+                showNotification(
+                'Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.',
+                'warning',
+                4000
+            );
+
         })
         .catch(error => {
             console.error('Erro ao carregar placas dos CT-es:', error);
             showNotification('Não foi possível carregar placas de nenhuma fonte disponível.', 'error');
         });
+    });
 }
 
 

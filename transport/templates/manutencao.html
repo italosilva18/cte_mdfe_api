@@ -12,7 +12,7 @@
 <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addManutencaoModal" id="btnNewManutencao">
     <i class="fas fa-plus me-1"></i>Nova Manutenção
 </button>
-<button class="btn btn-sm btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#addVeiculoModal">
+<button class="btn btn-sm btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#addVeiculoModal" id="btnOpenVeiculoModal">
     <i class="fas fa-truck me-1"></i>Cadastrar Veículo
 </button>
 {% endblock %}
@@ -206,8 +206,12 @@
                                     <option value="">Selecione um veículo</option>
                                     <!-- Opções carregadas dinamicamente pelo JS -->
                                 </select>
+
                                 <button class="btn btn-outline-primary" type="button" id="novoVeiculoBtn" title="Novo Veículo"
                                         data-bs-toggle="modal" data-bs-target="#addVeiculoModal">
+
+                                <button class="btn btn-outline-primary" type="button" id="novoVeiculoBtn" data-bs-toggle="modal" data-bs-target="#addVeiculoModal" title="Novo Veículo">
+
                                     <i class="fas fa-plus"></i>
                                 </button>
                             </div>
