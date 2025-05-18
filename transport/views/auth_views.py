@@ -80,4 +80,7 @@ class UserViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True) # Levanta erro se inválido
             serializer.save()
             return Response(serializer.data)
-        # DRF cuida de retornar 405 Method Not Allowed para outros métodos
+        # Para outros métodos, DRF normalmente retornaria 405 automaticamente,
+        # mas explicitamos para evitar comportamentos inesperados.
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
