@@ -39,9 +39,13 @@ from ..services.parser_cte import parse_cte_completo # Serviço usado na action 
 
 # --- Função Auxiliar (pode ser movida para utils.py) ---
 def _gerar_csv_response(queryset, serializer_class, filename):
-    """Gera uma HttpResponse com CSV a partir de um queryset e serializer."""
+    """Gera uma :class:`HttpResponse` com CSV a partir de um queryset e serializer.
+
+    Em caso de erro (por exemplo, queryset ou dados serializados vazios) a
+    função retorna um ``Response`` do DRF com o status apropriado.
+    """
     if not queryset.exists():
-        # Retorna um Response do DRF em vez de HttpResponse para consistência da API
+        # Erros retornam Response para manter consistência com as demais APIs
         return Response({"error": "Não há dados para gerar o relatório CSV."},
                        status=status.HTTP_404_NOT_FOUND)
 
@@ -50,7 +54,7 @@ def _gerar_csv_response(queryset, serializer_class, filename):
 
     # Usa o primeiro item para obter as chaves (cabeçalhos)
     if not dados:
-         # Retorna um Response do DRF
+         # Também trata erro retornando Response
         return Response({"error": "Não há dados serializados para gerar o relatório CSV."},
                        status=status.HTTP_404_NOT_FOUND)
 
