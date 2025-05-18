@@ -1,10 +1,7 @@
 # transport/views/mdfe_views.py
 
 # Imports padrão
-import csv
 from datetime import datetime, timedelta
-from decimal import Decimal
-from io import StringIO
 
 # Imports Django
 from django.http import HttpResponse
@@ -39,40 +36,8 @@ from ..models import ( # Modelos usados pelo ViewSet e filtros
     MDFeMunicipioDescarga,
     CTeDocumento # Usado na action 'documentos'
 )
-from ..services.parser_mdfe import parse_mdfe_completo # Serviço usado na action reprocessar
-
-
-# --- Função Auxiliar (pode ser movida para utils.py) ---
-# Copiada de cte_views.py - idealmente ficaria em utils.py
-def _gerar_csv_response(queryset, serializer_class, filename):
-    """Gera uma HttpResponse com CSV a partir de um queryset e serializer."""
-    if not queryset.exists():
-        # Retorna um Response do DRF em vez de HttpResponse para consistência da API
-        return Response({"error": "Não há dados para gerar o relatório CSV."},
-                       status=status.HTTP_404_NOT_FOUND)
-
-    serializer = serializer_class(queryset, many=True)
-    dados = serializer.data
-
-    # Usa o primeiro item para obter as chaves (cabeçalhos)
-    if not dados:
-         # Retorna um Response do DRF
-        return Response({"error": "Não há dados serializados para gerar o relatório CSV."},
-                       status=status.HTTP_404_NOT_FOUND)
-
-    field_names = list(dados[0].keys())
-
-    # Usa StringIO para construir o CSV em memória
-    output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=field_names)
-    writer.writeheader()
-    writer.writerows(dados)
-
-    # Cria a HttpResponse com o conteúdo CSV
-    response = HttpResponse(output.getvalue(), content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-
-    return response
+from ..services.parser_mdfe import parse_mdfe_completo  # Serviço usado na action reprocessar
+from ..utils import csv_response
 
 # ===============================================================
 # ==> APIS PARA MDF-e
@@ -177,7 +142,7 @@ class MDFeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
         """Exporta os MDF-es filtrados para CSV."""
         queryset = self.get_queryset()
         filename = f"mdfes_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        return _gerar_csv_response(queryset, MDFeDocumentoListSerializer, filename)
+        return csv_response(queryset, MDFeDocumentoListSerializer, filename)
 
     @action(detail=True, methods=['get'])
     def xml(self, request, pk=None):

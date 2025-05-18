@@ -1,10 +1,7 @@
 # transport/views/cte_views.py
 
 # Imports padrão
-import csv
 from datetime import datetime, timedelta
-from decimal import Decimal # Importado caso _gerar_csv_response precise formatar
-from io import StringIO
 
 # Imports Django
 from django.http import HttpResponse
@@ -37,43 +34,10 @@ from ..models import ( # Modelos usados pelo ViewSet e filtros
     CTeProtocoloAutorizacao, # Usado no filtro e DACTE
     CTeCancelamento # Usado no filtro
 )
-from ..services.parser_cte import parse_cte_completo # Serviço usado na action reprocessar
+from ..services.parser_cte import parse_cte_completo  # Serviço usado na action reprocessar
+from ..utils import csv_response
 
 
-# --- Função Auxiliar (pode ser movida para utils.py) ---
-def _gerar_csv_response(queryset, serializer_class, filename):
-    """Gera uma :class:`HttpResponse` com CSV a partir de um queryset e serializer.
-
-    Em caso de erro (por exemplo, queryset ou dados serializados vazios) a
-    função retorna um ``Response`` do DRF com o status apropriado.
-    """
-    if not queryset.exists():
-        # Erros retornam Response para manter consistência com as demais APIs
-        return Response({"error": "Não há dados para gerar o relatório CSV."},
-                       status=status.HTTP_404_NOT_FOUND)
-
-    serializer = serializer_class(queryset, many=True)
-    dados = serializer.data
-
-    # Usa o primeiro item para obter as chaves (cabeçalhos)
-    if not dados:
-         # Também trata erro retornando Response
-        return Response({"error": "Não há dados serializados para gerar o relatório CSV."},
-                       status=status.HTTP_404_NOT_FOUND)
-
-    field_names = list(dados[0].keys())
-
-    # Usa StringIO para construir o CSV em memória
-    output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=field_names)
-    writer.writeheader()
-    writer.writerows(dados)
-
-    # Cria a HttpResponse com o conteúdo CSV
-    response = HttpResponse(output.getvalue(), content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-
-    return response
 
 # ===============================================================
 # ==> APIS PARA CT-e
@@ -198,7 +162,7 @@ class CTeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = self.get_queryset() # Aplica os mesmos filtros da listagem
         filename = f"ctes_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
         # Usa o serializer de lista para exportar os campos resumidos
-        return _gerar_csv_response(queryset, CTeDocumentoListSerializer, filename)
+        return csv_response(queryset, CTeDocumentoListSerializer, filename)
 
     @action(detail=True, methods=['get'])
     def xml(self, request, pk=None):
