@@ -496,8 +496,13 @@ function loadVeiculos() {
         .then(data => {
             console.log('Dados recebidos da API veículos:', data);
             const veiculos = data.results || data;
-            
+
             if (!Array.isArray(veiculos) || veiculos.length === 0) {
+                showNotification(
+                    'Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.',
+                    'warning',
+                    4000
+                );
                 throw new Error('Nenhum veículo encontrado na API');
             }
             
@@ -537,7 +542,11 @@ function loadVeiculos() {
         .catch(error => {
             console.error('Erro ao carregar veículos da API:', error);
             console.log('Tentando carregar placas de MDF-es como fallback...');
-            showNotification('API de veículos indisponível. Carregando placas dos MDF-es...', 'warning', 3000);
+            showNotification(
+                'Nenhum veículo cadastrado ou API indisponível. Placas dos MDF-es serão carregadas apenas para referência.',
+                'warning',
+                4000
+            );
             
             // Fallback para MDF-es
             loadPlacasFromMDFe()
@@ -662,7 +671,11 @@ function loadPlacasFromMDFe() {
                 }
                 
                 if (plates.length > 0) {
-                    showNotification(`${plates.length} placas únicas carregadas dos MDF-es (${totalProcessed} registros processados)`, 'success', 4000);
+                    showNotification(
+                        `${plates.length} placas carregadas dos MDF-es para referência (${totalProcessed} registros processados)`,
+                        'success',
+                        4000
+                    );
                     resolve(plates);
                 } else {
                     showNotification('Nenhuma placa encontrada nos MDF-es', 'warning', 3000);
@@ -685,7 +698,7 @@ function loadPlacasFromCTe() {
     const filtroPlaca = document.getElementById('placa');
     
     console.log('Tentando carregar placas dos CT-es...');
-    showNotification('Tentando carregar placas dos CT-es...', 'info', 2000);
+    showNotification('Tentando carregar placas dos CT-es para referência...', 'info', 2000);
     
     // Função para carregar várias páginas de CT-es
     async function carregarPlacasCTe() {
@@ -780,7 +793,11 @@ function loadPlacasFromCTe() {
                 });
             }
                 
-                showNotification(`${plates.length} placas carregadas dos CT-es (${totalProcessed} registros processados)`, 'success', 4000);
+                showNotification(
+                    `${plates.length} placas carregadas dos CT-es para referência (${totalProcessed} registros processados)`,
+                    'success',
+                    4000
+                );
             } else {
                 showNotification('Nenhuma placa encontrada em nenhuma fonte. Verifique se há dados cadastrados.', 'warning');
             }
