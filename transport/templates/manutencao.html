@@ -201,10 +201,15 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="veiculo" class="form-label">Veículo <span class="text-danger">*</span></label>
-                            <select class="form-select" id="veiculo" name="veiculo" required>
-                                <option value="">Selecione um veículo</option>
-                                <!-- Opções carregadas dinamicamente pelo JS -->
-                            </select>
+                            <div class="input-group">
+                                <select class="form-select" id="veiculo" name="veiculo" required>
+                                    <option value="">Selecione um veículo</option>
+                                    <!-- Opções carregadas dinamicamente pelo JS -->
+                                </select>
+                                <button class="btn btn-outline-primary" type="button" id="novoVeiculoBtn" title="Novo Veículo">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                             <!-- Container para informações do veículo selecionado -->
                             <div id="veiculo_info" class="mt-2"></div>
                         </div>
@@ -280,6 +285,87 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-success" id="saveManutencao">
+                    <i class="fas fa-save me-2"></i>Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Adicionar Veículo -->
+<div class="modal fade" id="addVeiculoModal" tabindex="-1" aria-labelledby="addVeiculoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: var(--verde-primario);">
+                <h5 class="modal-title" id="addVeiculoModalLabel">Novo Veículo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="veiculoForm">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="placa_veiculo" class="form-label">Placa <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="placa_veiculo" name="placa" maxlength="8" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="renavam" class="form-label">Renavam</label>
+                            <input type="text" class="form-control" id="renavam" name="renavam">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="tipo_proprietario" class="form-label">Tipo Proprietário</label>
+                            <select class="form-select" id="tipo_proprietario" name="tipo_proprietario">
+                                <option value="">Selecione</option>
+                                <option value="00">Próprio</option>
+                                <option value="01">Arrendado</option>
+                                <option value="02">Agregado</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="proprietario_nome" class="form-label">Nome Proprietário</label>
+                            <input type="text" class="form-control" id="proprietario_nome" name="proprietario_nome">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="proprietario_cnpj" class="form-label">CNPJ</label>
+                            <input type="text" class="form-control" id="proprietario_cnpj" name="proprietario_cnpj">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="proprietario_cpf" class="form-label">CPF</label>
+                            <input type="text" class="form-control" id="proprietario_cpf" name="proprietario_cpf">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="rntrc_proprietario" class="form-label">RNTRC</label>
+                            <input type="text" class="form-control" id="rntrc_proprietario" name="rntrc_proprietario">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="uf_proprietario" class="form-label">UF</label>
+                            <input type="text" class="form-control" id="uf_proprietario" name="uf_proprietario" maxlength="2">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="tara" class="form-label">Tara (kg)</label>
+                            <input type="number" class="form-control" id="tara" name="tara" min="0">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="capacidade_kg" class="form-label">Cap. (kg)</label>
+                            <input type="number" class="form-control" id="capacidade_kg" name="capacidade_kg" min="0">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="capacidade_m3" class="form-label">Cap. (m³)</label>
+                            <input type="number" class="form-control" id="capacidade_m3" name="capacidade_m3" min="0">
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="ativo" name="ativo" checked>
+                        <label class="form-check-label" for="ativo">Ativo</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="saveVeiculo">
                     <i class="fas fa-save me-2"></i>Salvar
                 </button>
             </div>
