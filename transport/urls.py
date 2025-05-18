@@ -56,6 +56,8 @@ router.register(r"pagamentos/agregados", PagamentoAgregadoViewSet, basename="pag
 router.register(r"pagamentos/proprios", PagamentoProprioViewSet, basename="pagamento-proprio")
 router.register(r"faixas-km", FaixaKMViewSet, basename="faixa-km")
 router.register(r"manutencao/painel", ManutencaoPainelViewSet, basename="manutencao-painel")
+# Rota direta para manutenções (além da aninhada em /veiculos/)
+router.register(r"manutencoes", ManutencaoVeiculoViewSet, basename="manutencao-veiculo")
 router.register(r"usuarios", UserViewSet, basename="usuario")
 router.register(r"configuracoes/empresa", ConfiguracaoEmpresaViewSet, basename="configuracao-empresa")
 router.register(r"configuracoes/parametros", ParametroSistemaViewSet, basename="parametros-sistema")
