@@ -13,6 +13,10 @@ let manutencoesList = [];
 let currentEditId = null;
 // Map of plates to vehicle IDs for form submission
 let veiculoIdMap = {};
+// Track plate selected before opening the vehicle modal
+let selectedPlateBeforeVeiculoModal = null;
+// Store the ID of a newly created vehicle to pre-select after reload
+let newVeiculoIdToSelect = null;
 
 /**
  * Initializes the maintenance panel when page loads
@@ -64,6 +68,17 @@ function setupEventListeners() {
             showManutencaoForm();
         });
     }
+
+    // Novo Veiculo button
+    const novoVeiculoBtn = document.getElementById('novoVeiculoBtn');
+    if (novoVeiculoBtn) {
+        novoVeiculoBtn.addEventListener('click', function() {
+            const select = document.getElementById('veiculo');
+            selectedPlateBeforeVeiculoModal = select ? select.value : null;
+            const modal = new bootstrap.Modal(document.getElementById('addVeiculoModal'));
+            modal.show();
+        });
+    }
     
     // Form submission
     const form = document.getElementById('manutencaoForm');
@@ -79,6 +94,22 @@ function setupEventListeners() {
     if (saveBtn) {
         saveBtn.addEventListener('click', function() {
             salvarManutencao();
+        });
+    }
+
+    // Save vehicle button
+    const saveVeiculoBtn = document.getElementById('saveVeiculo');
+    if (saveVeiculoBtn) {
+        saveVeiculoBtn.addEventListener('click', function() {
+            saveVeiculo();
+        });
+    }
+
+    const veiculoForm = document.getElementById('veiculoForm');
+    if (veiculoForm) {
+        veiculoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveVeiculo();
         });
     }
     
@@ -118,6 +149,13 @@ function setupEventListeners() {
         manModal.addEventListener('hidden.bs.modal', function() {
             resetForm();
             currentEditId = null;
+        });
+    }
+
+    const veicModal = document.getElementById('addVeiculoModal');
+    if (veicModal) {
+        veicModal.addEventListener('hidden.bs.modal', function() {
+            document.getElementById('veiculoForm').reset();
         });
     }
     
@@ -1248,6 +1286,73 @@ function salvarManutencao() {
     .catch(error => {
         console.error('Error saving maintenance:', error);
         showNotification(`Erro ao salvar manutenção: ${error.message}`, 'error');
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
+    });
+}
+
+/**
+ * Saves vehicle data and refreshes the vehicle list
+ */
+function saveVeiculo() {
+    const form = document.getElementById('veiculoForm');
+
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    const saveBtn = document.getElementById('saveVeiculo');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...';
+
+    const formData = {
+        placa: document.getElementById('placa_veiculo').value,
+        renavam: document.getElementById('renavam').value,
+        tipo_proprietario: document.getElementById('tipo_proprietario').value,
+        proprietario_nome: document.getElementById('proprietario_nome').value,
+        proprietario_cnpj: document.getElementById('proprietario_cnpj').value,
+        proprietario_cpf: document.getElementById('proprietario_cpf').value,
+        rntrc_proprietario: document.getElementById('rntrc_proprietario').value,
+        uf_proprietario: document.getElementById('uf_proprietario').value,
+        tara: document.getElementById('tara').value || null,
+        capacidade_kg: document.getElementById('capacidade_kg').value || null,
+        capacidade_m3: document.getElementById('capacidade_m3').value || null,
+        ativo: document.getElementById('ativo').checked
+    };
+
+    Auth.fetchWithAuth('/api/veiculos/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                const errorMessages = Object.values(data).flat().join(' ');
+                throw new Error(errorMessages || 'Erro ao salvar veículo');
+            });
+        }
+        return response.json();
+    })
+    .then(veiculo => {
+        showNotification('Veículo criado com sucesso!', 'success');
+        bootstrap.Modal.getInstance(document.getElementById('addVeiculoModal')).hide();
+        newVeiculoIdToSelect = veiculo.id;
+        loadVeiculos();
+        if (selectedPlateBeforeVeiculoModal && selectedPlateBeforeVeiculoModal === veiculo.placa) {
+            setTimeout(() => {
+                document.getElementById('veiculo').value = veiculo.id;
+                selectedPlateBeforeVeiculoModal = null;
+                newVeiculoIdToSelect = null;
+            }, 1200);
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao salvar veículo:', error);
+        showNotification(`Erro ao salvar veículo: ${error.message}`, 'error');
     })
     .finally(() => {
         saveBtn.disabled = false;
