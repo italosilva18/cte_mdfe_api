@@ -37,6 +37,7 @@ from ..models import ( # Modelos usados pelo ViewSet e filtros
     CTeDocumento # Usado na action 'documentos'
 )
 from ..services.parser_mdfe import parse_mdfe_completo # Serviço usado na action reprocessar
+from ..services.pdf_generation import gerar_damdfe_pdf
 
 
 # --- Função Auxiliar (pode ser movida para utils.py) ---
@@ -202,31 +203,13 @@ class MDFeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"error": f"DAMDFE não disponível para MDF-e {status_text}."},
                            status=status.HTTP_400_BAD_REQUEST)
 
-        # --- Lógica de Geração do DAMDFE (Placeholder) ---
-        # pdf_content = gerar_damdfe_pdf(mdfe)
-        # response = HttpResponse(pdf_content, content_type='application/pdf')
-        # response['Content-Disposition'] = f'attachment; filename="DAMDFE_{mdfe.chave}.pdf"'
-        # return response
-        # --------------------------------------------------
-
-        # Implementação atual de placeholder: retorna JSON com dados básicos
-        data_emissao = getattr(mdfe.identificacao, 'dh_emi', None)
-        placa_tracao = getattr(getattr(mdfe.modal_rodoviario, 'veiculo_tracao', None), 'placa', None)
-
-        data = {
-            "message": "Funcionalidade de geração de DAMDFE (PDF) em implementação.",
-            "info": "Dados básicos para DAMDFE:",
-            "chave": mdfe.chave,
-            "numero": getattr(mdfe.identificacao, 'n_mdf', None),
-            "serie": getattr(mdfe.identificacao, 'serie', None),
-            "data_emissao": data_emissao.strftime('%d/%m/%Y %H:%M') if data_emissao else None,
-            "uf_inicio": getattr(mdfe.identificacao, 'uf_ini', None),
-            "uf_fim": getattr(mdfe.identificacao, 'uf_fim', None),
-            "placa": placa_tracao,
-            "protocolo": getattr(mdfe.protocolo, 'numero_protocolo', None),
-            "encerrado": mdfe.encerrado,
-        }
-        return Response(data)
+        # Geração efetiva do DAMDFE em PDF
+        pdf_content = gerar_damdfe_pdf(mdfe)
+        response = HttpResponse(pdf_content, content_type="application/pdf")
+        response['Content-Disposition'] = (
+            f'attachment; filename="DAMDFE_{mdfe.chave}.pdf"'
+        )
+        return response
 
     @action(detail=True, methods=['post'])
     def reprocessar(self, request, pk=None):
