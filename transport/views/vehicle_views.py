@@ -1,10 +1,8 @@
 # transport/views/vehicle_views.py
 
 # Imports padrão
-import csv
 from datetime import datetime, timedelta
 from decimal import Decimal
-from io import StringIO
 
 # Imports Django
 from django.http import HttpResponse
@@ -32,33 +30,8 @@ from ..models import ( # Modelos usados pelos ViewSets
 )
 # Importar FaixaKM se a lógica de pagamento for integrada aqui no futuro
 # from ..models import FaixaKM
+from ..utils import csv_response
 
-# --- Função Auxiliar (pode ser movida para utils.py) ---
-# Copiada dos arquivos anteriores - idealmente ficaria em utils.py
-def _gerar_csv_response(queryset, serializer_class, filename):
-    """Gera uma HttpResponse com CSV a partir de um queryset e serializer."""
-    if not queryset.exists():
-        return Response({"error": "Não há dados para gerar o relatório CSV."},
-                       status=status.HTTP_404_NOT_FOUND)
-
-    serializer = serializer_class(queryset, many=True)
-    dados = serializer.data
-
-    if not dados:
-        return Response({"error": "Não há dados serializados para gerar o relatório CSV."},
-                       status=status.HTTP_404_NOT_FOUND)
-
-    field_names = list(dados[0].keys())
-
-    output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=field_names)
-    writer.writeheader()
-    writer.writerows(dados)
-
-    response = HttpResponse(output.getvalue(), content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-
-    return response
 
 # ===============================================================
 # ==> APIS PARA VEÍCULOS E MANUTENÇÕES
@@ -109,7 +82,7 @@ class VeiculoViewSet(viewsets.ModelViewSet):
         """Exporta os veículos filtrados para CSV."""
         queryset = self.get_queryset()
         filename = f"veiculos_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        return _gerar_csv_response(queryset, self.get_serializer_class(), filename)
+        return csv_response(queryset, self.get_serializer_class(), filename)
 
     @action(detail=True, methods=['get'])
     def estatisticas(self, request, pk=None):
@@ -221,7 +194,7 @@ class ManutencaoVeiculoViewSet(viewsets.ModelViewSet):
         """Exporta as manutenções filtradas para CSV."""
         queryset = self.get_queryset()
         filename = f"manutencoes_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        return _gerar_csv_response(queryset, self.get_serializer_class(), filename)
+        return csv_response(queryset, self.get_serializer_class(), filename)
 
 
 class ManutencaoPainelViewSet(viewsets.ViewSet):

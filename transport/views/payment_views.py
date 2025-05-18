@@ -1,11 +1,9 @@
 # transport/views/payment_views.py
 
 # Imports padrão
-import csv
 import re
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from io import StringIO
 
 # Imports Django
 from django.http import HttpResponse
@@ -29,7 +27,7 @@ from ..serializers.payment_serializers import ( # Use .. para voltar um nível
     PagamentoAgregadoSerializer,
     PagamentoProprioSerializer
 )
-from ..models import ( # Modelos usados pelos ViewSets
+from ..models import (  # Modelos usados pelos ViewSets
     FaixaKM,
     PagamentoAgregado,
     PagamentoProprio,
@@ -43,33 +41,8 @@ from ..models import ( # Modelos usados pelos ViewSets
 )
 # Funções utilitárias de outros módulos (se necessário)
 # Ex: from ..utils import format_currency
+from ..utils import csv_response
 
-# --- Função Auxiliar (pode ser movida para utils.py) ---
-# Copiada dos arquivos anteriores - idealmente ficaria em utils.py
-def _gerar_csv_response(queryset, serializer_class, filename):
-    """Gera uma HttpResponse com CSV a partir de um queryset e serializer."""
-    if not queryset.exists():
-        return Response({"error": "Não há dados para gerar o relatório CSV."},
-                       status=status.HTTP_404_NOT_FOUND)
-
-    serializer = serializer_class(queryset, many=True)
-    dados = serializer.data
-
-    if not dados:
-        return Response({"error": "Não há dados serializados para gerar o relatório CSV."},
-                       status=status.HTTP_404_NOT_FOUND)
-
-    field_names = list(dados[0].keys())
-
-    output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=field_names)
-    writer.writeheader()
-    writer.writerows(dados)
-
-    response = HttpResponse(output.getvalue(), content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-
-    return response
 
 # ===============================================================
 # ==> APIS PARA PAGAMENTOS
@@ -279,7 +252,7 @@ class PagamentoAgregadoViewSet(viewsets.ModelViewSet):
         """Exporta os pagamentos agregados filtrados para CSV."""
         queryset = self.get_queryset()
         filename = f"pagamentos_agregados_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        return _gerar_csv_response(queryset, self.get_serializer_class(), filename)
+        return csv_response(queryset, self.get_serializer_class(), filename)
 
 
 class PagamentoProprioViewSet(viewsets.ModelViewSet):
@@ -570,4 +543,4 @@ class PagamentoProprioViewSet(viewsets.ModelViewSet):
         """Exporta os pagamentos próprios filtrados para CSV."""
         queryset = self.get_queryset()
         filename = f"pagamentos_proprios_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        return _gerar_csv_response(queryset, self.get_serializer_class(), filename)
+        return csv_response(queryset, self.get_serializer_class(), filename)
