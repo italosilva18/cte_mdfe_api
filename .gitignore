@@ -7,7 +7,7 @@
 /.virtualenv/
 /mediafiles/
 /media/
-db.sqlite3
+/db.sqlite3
 # Ignore Python cache files -----------------------------
 __pycache__/
 *.py[cod]
