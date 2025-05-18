@@ -562,13 +562,16 @@ function loadPlacasFromMDFe() {
             let page = 1;
             let totalLoaded = 0;
             let hasMore = true;
-            
+            const pageSize = 100;
+            let totalPages = null;
+            const maxPages = 50;
+
             while (hasMore) {
                 try {
                     console.log(`Carregando página ${page} dos MDF-es...`);
                     showNotification(`Processando página ${page} dos MDF-es...`, 'info', 1000);
-                    
-                    const response = await Auth.fetchWithAuth(`/api/mdfes/?page=${page}&page_size=100`);
+
+                    const response = await Auth.fetchWithAuth(`/api/mdfes/?page=${page}&page_size=${pageSize}`);
                     
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -576,6 +579,10 @@ function loadPlacasFromMDFe() {
                     
                     const data = await response.json();
                     console.log(`Página ${page} - Count: ${data.count}, Results: ${data.results ? data.results.length : 0}`);
+
+                    if (totalPages === null && data.count) {
+                        totalPages = Math.ceil(data.count / pageSize);
+                    }
                     
                     const mdfes = data.results || data;
                     
@@ -591,11 +598,10 @@ function loadPlacasFromMDFe() {
                     // Verifica se há próxima página
                     hasMore = data.next !== null && data.next !== undefined;
                     page++;
-                    
-                    // Limite de segurança (máximo 10 páginas por vez)
-                    if (page > 10) {
-                        console.log('Carregadas 10 páginas. Continuando...');
-                        break;
+
+                    // Limite de segurança para evitar chamadas infinitas
+                    if ((totalPages !== null && page > totalPages) || page > maxPages) {
+                        hasMore = false;
                     }
                     
                     // Se não há mais dados, pare
@@ -628,6 +634,11 @@ function loadPlacasFromMDFe() {
                         option.value = placa;
                         option.textContent = `${placa} - (Via MDF-e)`;
                         veiculoSelect.appendChild(option);
+
+                        // store mapping with undefined ID so salvarManutencao can handle
+                        if (!(placa in veiculoIdMap)) {
+                            veiculoIdMap[placa] = null;
+                        }
                     });
                 }
                 
@@ -638,6 +649,10 @@ function loadPlacasFromMDFe() {
                         option.value = placa;
                         option.textContent = placa;
                         filtroPlaca.appendChild(option);
+
+                        if (!(placa in veiculoIdMap)) {
+                            veiculoIdMap[placa] = null;
+                        }
                     });
                 }
                 
@@ -673,11 +688,14 @@ function loadPlacasFromCTe() {
         let page = 1;
         let hasMore = true;
         let totalProcessed = 0;
-        
-        while (hasMore && page <= 5) { // Limitar a 5 páginas
+        const pageSize = 100;
+        let totalPages = null;
+        const maxPages = 50;
+
+        while (hasMore) {
             try {
                 console.log(`Carregando página ${page} dos CT-es...`);
-                const response = await Auth.fetchWithAuth(`/api/ctes/?page=${page}&page_size=100`);
+                const response = await Auth.fetchWithAuth(`/api/ctes/?page=${page}&page_size=${pageSize}`);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -685,6 +703,10 @@ function loadPlacasFromCTe() {
                 
                 const data = await response.json();
                 const ctes = data.results || data;
+
+                if (totalPages === null && data.count) {
+                    totalPages = Math.ceil(data.count / pageSize);
+                }
                 
                 if (Array.isArray(ctes)) {
                     ctes.forEach(cte => {
@@ -703,6 +725,10 @@ function loadPlacasFromCTe() {
                 
                 hasMore = data.next !== null;
                 page++;
+
+                if ((totalPages !== null && page > totalPages) || page > maxPages) {
+                    hasMore = false;
+                }
             } catch (error) {
                 console.error(`Erro na página ${page} dos CT-es:`, error);
                 hasMore = false;
@@ -722,24 +748,32 @@ function loadPlacasFromCTe() {
             
             if (plates.length > 0) {
                 // Update vehicle select
-                if (veiculoSelect) {
-                    plates.forEach(placa => {
-                        const option = document.createElement('option');
-                        option.value = placa;
-                        option.textContent = `${placa} - (Via CT-e)`;
-                        veiculoSelect.appendChild(option);
-                    });
-                }
+            if (veiculoSelect) {
+                plates.forEach(placa => {
+                    const option = document.createElement('option');
+                    option.value = placa;
+                    option.textContent = `${placa} - (Via CT-e)`;
+                    veiculoSelect.appendChild(option);
+
+                    if (!(placa in veiculoIdMap)) {
+                        veiculoIdMap[placa] = null;
+                    }
+                });
+            }
                 
                 // Update filter select
-                if (filtroPlaca) {
-                    plates.forEach(placa => {
-                        const option = document.createElement('option');
-                        option.value = placa;
-                        option.textContent = placa;
-                        filtroPlaca.appendChild(option);
-                    });
-                }
+            if (filtroPlaca) {
+                plates.forEach(placa => {
+                    const option = document.createElement('option');
+                    option.value = placa;
+                    option.textContent = placa;
+                    filtroPlaca.appendChild(option);
+
+                    if (!(placa in veiculoIdMap)) {
+                        veiculoIdMap[placa] = null;
+                    }
+                });
+            }
                 
                 showNotification(`${plates.length} placas carregadas dos CT-es (${totalProcessed} registros processados)`, 'success', 4000);
             } else {
@@ -1023,7 +1057,8 @@ function editarManutencao(id) {
             document.getElementById('veiculo').value = data.veiculo || '';
             if (data.veiculo) updateVeiculoDetails(data.veiculo);
             document.getElementById('servico_realizado').value = data.servico_realizado || '';
- codex/atualizar-funcionalidades-de-manutencao-js-74p72f
+            document.getElementById('data_servico').value = data.data_servico || '';
+
             document.getElementById('data_servico').value = formatDateForInput(new Date(data.data_servico)) || '';
 
             document.getElementById('data_servico').value = data.data_servico || '';
@@ -1124,7 +1159,13 @@ function salvarManutencao() {
     let veiculoId = veiculoValue;
     if (veiculoValue && isNaN(parseInt(veiculoValue))) {
         veiculoId = veiculoIdMap[veiculoValue];
- codex/atualizar-funcionalidades-de-manutencao-js-74p72f
+    }
+
+    if (!veiculoId) {
+        showNotification('Veículo selecionado não está cadastrado.', 'warning');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
+        return;
         if (!veiculoId) {
             showNotification('Veículo selecionado inválido.', 'error');
             saveBtn.disabled = false;
@@ -1133,6 +1174,7 @@ function salvarManutencao() {
         }
 
  main
+
     }
 
     const formData = {
