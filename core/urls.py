@@ -36,5 +36,9 @@ urlpatterns = [
     path("", include("transport.urls")),
 
     # Landing page pública (index)
-    path("", TemplateView.as_view(template_name="index.html"), name="home"),
+    path(
+        "index/",
+        TemplateView.as_view(template_name="index.html"),
+        name="index",
+    ),
 ]
