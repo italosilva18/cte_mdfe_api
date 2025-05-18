@@ -284,10 +284,10 @@ class MDFeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
                 'chave': doc.chave_documento,
                 'tipo': tipo_doc,
                 'municipio': {
-                    'codigo': obj.municipio_descarga.c_mun_descarga,
-                    'nome': obj.municipio_descarga.x_mun_descarga
+                    'codigo': doc.municipio_descarga.c_mun_descarga,
+                    'nome': doc.municipio_descarga.x_mun_descarga
                 } if hasattr(doc, 'municipio_descarga') and doc.municipio_descarga else None,
-                'produtos_perigosos': [] # Inicializa
+                'produtos_perigosos': []  # Inicializa
             }
 
             # Adiciona dados do CT-e relacionado se existir
