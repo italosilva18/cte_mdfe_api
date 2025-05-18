@@ -119,17 +119,19 @@ function login(username, password) {
     localStorage.setItem(AUTH_TOKEN_KEY, data.access);
     if (data.refresh) localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
 
-    // Busca dados do usuário APÓS salvar os tokens
-    return fetchUserInfo().then((userData) => {
-        if (userData) { // Verifica se os dados do usuário foram realmente obtidos
-            window.location.href = '/dashboard/'; // Redireciona após sucesso
-            return true; // Indica sucesso no login
-        } else {
-            // Se fetchUserInfo falhar (ex: usuário inativo, token recém-obtido é inválido por algum motivo)
-            clearAuthData(); // Limpa tokens
-            showLoginError("Falha ao obter dados do usuário após login.");
-            return false; // Indica falha
-        }
+    // Cria sessão tradicional no Django para acessar páginas HTML protegidas
+    return createSession(username, password).then(() => {
+        // Busca dados do usuário APÓS salvar os tokens e criar sessão
+        return fetchUserInfo().then((userData) => {
+            if (userData) {
+                window.location.href = '/dashboard/';
+                return true;
+            } else {
+                clearAuthData();
+                showLoginError("Falha ao obter dados do usuário após login.");
+                return false;
+            }
+        });
     });
   })
   .catch(err => {
@@ -149,6 +151,32 @@ function clearAuthData() {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_DATA_KEY);
+}
+
+// Envia credenciais para /login/ para criar sessão do Django
+function createSession(username, password) {
+    const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    const csrfToken = csrfInput ? csrfInput.value : '';
+    const formData = new URLSearchParams();
+    formData.append('username', username);
+    formData.append('password', password);
+    if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken);
+
+    return fetch('/login/?next=/dashboard/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+        credentials: 'same-origin'
+    }).then(res => {
+        // Sucesso mesmo que tenha redirecionado (status 302)
+        if (!res.ok && res.status !== 302) {
+            throw new Error('Falha ao criar sessão');
+        }
+        return true;
+    }).catch(err => {
+        console.error('Erro ao criar sessão:', err);
+        return false;
+    });
 }
 
 function setupLogoutButtons() {
