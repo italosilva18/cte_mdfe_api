@@ -17,6 +17,8 @@ let veiculoIdMap = {};
 let selectedPlateBeforeVeiculoModal = null;
 // Store the ID of a newly created vehicle to pre-select after reload
 let newVeiculoIdToSelect = null;
+// Flag: vehicle modal opened from maintenance modal
+let openedFromManutencaoModal = false;
 
 /**
  * Initializes the maintenance panel when page loads
@@ -75,8 +77,16 @@ function setupEventListeners() {
         novoVeiculoBtn.addEventListener('click', function() {
             const select = document.getElementById('veiculo');
             selectedPlateBeforeVeiculoModal = select ? select.value : null;
-            const modal = new bootstrap.Modal(document.getElementById('addVeiculoModal'));
-            modal.show();
+            openedFromManutencaoModal = true;
+
+            const manModalEl = document.getElementById('addManutencaoModal');
+            const manModal = bootstrap.Modal.getInstance(manModalEl);
+            if (manModal) {
+                manModal.hide();
+            }
+
+            const veicModal = new bootstrap.Modal(document.getElementById('addVeiculoModal'));
+            veicModal.show();
         });
     }
     
@@ -152,10 +162,24 @@ function setupEventListeners() {
         });
     }
 
-    const veicModal = document.getElementById('addVeiculoModal');
-    if (veicModal) {
-        veicModal.addEventListener('hidden.bs.modal', function() {
+    const veicModalEl = document.getElementById('addVeiculoModal');
+    if (veicModalEl) {
+        veicModalEl.addEventListener('show.bs.modal', function() {
+            if (selectedPlateBeforeVeiculoModal) {
+                const placaInput = document.getElementById('placa_veiculo');
+                if (placaInput) {
+                    placaInput.value = selectedPlateBeforeVeiculoModal;
+                }
+            }
+        });
+
+        veicModalEl.addEventListener('hidden.bs.modal', function() {
             document.getElementById('veiculoForm').reset();
+            if (openedFromManutencaoModal) {
+                openedFromManutencaoModal = false;
+                const manModal = new bootstrap.Modal(document.getElementById('addManutencaoModal'));
+                manModal.show();
+            }
         });
     }
     
@@ -707,55 +731,45 @@ function loadPlacasFromMDFe() {
             .then(result => {
                 const { plates, totalProcessed, pagesLoaded } = result;
                 console.log(`Placas extraídas dos MDF-es: ${plates.length} únicas de ${totalProcessed} registros em ${pagesLoaded} páginas`);
-                
+
                 // Update vehicle select with plates
                 if (veiculoSelect && plates.length > 0) {
                     plates.forEach(placa => {
-                        const option = document.createElement('option');
-                        option.value = placa;
-                        option.textContent = `${placa} - (Via MDF-e)`;
+                        const opt = document.createElement('option');
+                        opt.value = placa;
+                        opt.textContent = `${placa} - (Via MDF-e)`;
+                        veiculoSelect.appendChild(opt);
 
-                        const option = document.createElement('option');
-                        option.value = veiculo.id;
-                        option.textContent = `${veiculo.placa} - ${veiculo.proprietario_nome || 'Próprio'}`;
-
-                        veiculoSelect.appendChild(option);
-
-                        // store mapping id<->placa
-                        veiculoIdMap[veiculo.placa] = veiculo.id;
+                        // store mapping for reference only (no ID available)
+                        veiculoIdMap[placa] = null;
                     });
                 }
 
                 // Update filter select with plates
                 if (filtroPlaca) {
-                    veiculos.forEach(veiculo => {
-                        if (veiculo.placa) {
-                            const option = document.createElement('option');
-                            option.value = veiculo.placa;
-                            option.textContent = veiculo.placa;
-                            filtroPlaca.appendChild(option);
-
-                            // store mapping for quick lookup
-                            veiculoIdMap[veiculo.placa] = veiculo.id;
-                        }
+                    plates.forEach(placa => {
+                        const option = document.createElement('option');
+                        option.value = placa;
+                        option.textContent = placa;
+                        filtroPlaca.appendChild(option);
                     });
                 }
 
-                console.log(`${veiculos.length} veículos carregados com sucesso`);
-                showNotification(`${veiculos.length} veículos carregados com sucesso`, 'success', 2000);
-                return;
-            }
+                if (plates.length > 0) {
+                    console.log(`${plates.length} placas carregadas com sucesso`);
+                    showNotification(`${plates.length} placas carregadas com sucesso`, 'success', 2000);
+                } else {
+                    showNotification('Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.', 'warning', 4000);
+                }
 
-            showNotification(
-                'Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.',
-                'warning',
-                4000
-            );
-        })
-        .catch(error => {
-            console.error('Erro ao carregar veículos da API:', error);
-            showNotification('Erro ao carregar veículos. Tente novamente mais tarde.', 'error');
-        });
+                resolve(plates);
+            })
+            .catch(error => {
+                console.error('Erro ao carregar placas dos MDF-es:', error);
+                showNotification('Erro ao carregar veículos. Tente novamente mais tarde.', 'error');
+                reject(error);
+            });
+    });
 }
 
 
