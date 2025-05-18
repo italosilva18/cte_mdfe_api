@@ -243,36 +243,42 @@ function loadDashboardData() {
     // Get filter values
     const dataInicio = document.getElementById('data_inicio')?.value;
     const dataFim = document.getElementById('data_fim')?.value;
-    
-    // Build API URL with query params
-    let apiUrl = `/api/manutencao/painel/graficos/`;
+
+    // Build query params
     const params = [];
-    
     if (dataInicio) params.push(`data_inicio=${dataInicio}`);
     if (dataFim) params.push(`data_fim=${dataFim}`);
-    
-    if (params.length > 0) {
-        apiUrl += '?' + params.join('&');
-    }
-    
-    // Fetch dashboard data
-    Auth.fetchWithAuth(apiUrl)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Falha ao carregar dados do dashboard');
-            }
-            return response.json();
+    const queryString = params.length > 0 ? '?' + params.join('&') : '';
+
+    // Prepare API URLs
+    const apiGraficos = `/api/manutencao/painel/graficos/${queryString}`;
+    const apiIndicadores = `/api/manutencao/painel/indicadores/${queryString}`;
+
+    // Fetch both endpoints concurrently
+    Promise.all([
+        Auth.fetchWithAuth(apiGraficos).then(r => {
+            if (!r.ok) throw new Error('Falha ao carregar gráficos');
+            return r.json();
+        }),
+        Auth.fetchWithAuth(apiIndicadores).then(r => {
+            if (!r.ok) throw new Error('Falha ao carregar indicadores');
+            return r.json();
         })
-        .then(data => {
+    ])
+        .then(([graficosData, indicadoresData]) => {
             // Render dashboard charts
             const statusChart = document.getElementById('statusChart');
             const veiculoChart = document.getElementById('veiculoChart');
-            
-            if (statusChart) renderStatusChart(statusChart, data.por_status || []);
-            if (veiculoChart) renderVeiculoChart(veiculoChart, data.por_veiculo || []);
-            
-            // Update indicator cards
-            updateIndicadorCards(data);
+
+            if (statusChart) {
+                renderStatusChart(statusChart, graficosData.por_status || []);
+            }
+            if (veiculoChart) {
+                renderVeiculoChart(veiculoChart, graficosData.por_veiculo || []);
+            }
+
+            // Update indicator cards with indicadores endpoint
+            updateIndicadorCards(indicadoresData);
         })
         .catch(error => {
             console.error('Error loading dashboard data:', error);
@@ -339,7 +345,6 @@ function renderStatusChart(container, data) {
     const statusColors = {
         'PENDENTE': '#FFC107',
         'AGENDADO': '#17A2B8',
-        'CONCLUIDO': '#28A745',
         'PAGO': '#28A745',
         'CANCELADO': '#DC3545'
     };
@@ -1342,7 +1347,6 @@ function getStatusHTML(status) {
     const statusMap = {
         'PENDENTE': '<span class="badge bg-warning text-dark">Pendente</span>',
         'AGENDADO': '<span class="badge bg-info">Agendado</span>',
-        'CONCLUIDO': '<span class="badge bg-success">Concluído</span>',
         'PAGO': '<span class="badge bg-success">Pago</span>',
         'CANCELADO': '<span class="badge bg-danger">Cancelado</span>'
     };
