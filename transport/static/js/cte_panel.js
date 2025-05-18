@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCTeList();       // Carrega a lista principal de CT-es com o range padrão
 
     setupEventListeners();
+    openDetailFromHash(); // Abre modal se hash contiver ID
 });
 
 function setupEventListeners() {
@@ -718,6 +719,16 @@ function getChartColors(count) {
 function getChartBorderColors(count) {
      const baseColors = ['#388E3C', '#0f3b2f', '#FFA000', '#1976D2', '#E64A19', '#455A64', '#7B1FA2', '#0097A7', '#689F38', '#C2185B'];
     return Array.from({ length: count }, (_, i) => baseColors[i % baseColors.length]);
+}
+
+// Abre automaticamente o modal de detalhes se a URL contiver '#detalhe-<id>'
+function openDetailFromHash() {
+    const match = window.location.hash.match(/^#detalhe-(\d+)/);
+    if (match) {
+        showCTeDetails(match[1]);
+        // Limpa o hash para evitar repetição ao fechar o modal
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
 }
 
 async function handleFetchResponse(response) {

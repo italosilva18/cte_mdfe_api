@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setDefaultDateRange();
     loadAllData(); // Carrega dados do painel e a primeira página da lista
     setupEventListeners();
+    openDetailFromHash(); // Abre modal se hash contiver ID
 });
 
 /**
@@ -807,6 +808,15 @@ function showNotification(message, type = 'success', duration = 5000) {
     const toast = new bootstrap.Toast(toastElement, { delay: duration });
     toast.show();
     toastElement.addEventListener('hidden.bs.toast', function() { this.remove(); if (toastContainer.children.length === 0) toastContainer.remove(); });
+}
+
+// Abre automaticamente o modal de detalhes se a URL contiver '#detalhe-<id>'
+function openDetailFromHash() {
+    const match = window.location.hash.match(/^#detalhe-(\d+)/);
+    if (match) {
+        showMDFeDetails(match[1]);
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
 }
 
 // Adicionar o objeto Auth simulado se não estiver globalmente disponível para testes
