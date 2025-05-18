@@ -2,6 +2,7 @@
 
 from django.urls import reverse
 from django.contrib.auth.models import User
+from django.test import TestCase, Client
 
 import os
 import re
@@ -11,7 +12,6 @@ from .services.parser_mdfe import parse_mdfe_completo
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
- main
 
 class AuthTests(APITestCase):
     def setUp(self):
@@ -409,3 +409,15 @@ class PanelEndpointsTests(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.first_name, 'PatchedViaViewSetMe')
 
+
+    def test_cte_dacte_returns_pdf(self):
+        url = reverse('cte-documento-dacte', kwargs={'pk': self.cte_doc.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+
+    def test_mdfe_damdfe_returns_pdf(self):
+        url = reverse('mdfe-documento-damdfe', kwargs={'pk': self.mdfe_doc.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')

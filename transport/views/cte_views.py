@@ -35,6 +35,7 @@ from ..models import ( # Modelos usados pelo ViewSet e filtros
     CTeCancelamento # Usado no filtro
 )
 from ..services.parser_cte import parse_cte_completo # Serviço usado na action reprocessar
+from ..services.pdf_generation import gerar_dacte_pdf
 
 
 # --- Função Auxiliar (pode ser movida para utils.py) ---
@@ -225,30 +226,13 @@ class CTeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"error": f"DACTE não disponível para CT-e {status_text}."},
                            status=status.HTTP_400_BAD_REQUEST)
 
-        # --- Lógica de Geração do DACTE (Placeholder) ---
-        # Em produção, aqui você chamaria uma função para gerar o PDF
-        # Ex: pdf_content = gerar_dacte_pdf(cte)
-        # response = HttpResponse(pdf_content, content_type='application/pdf')
-        # response['Content-Disposition'] = f'attachment; filename="DACTE_{cte.chave}.pdf"'
-        # return response
-        # -------------------------------------------------
-
-        # Implementação atual de placeholder: retorna JSON com dados básicos
-        data_emissao = getattr(cte.identificacao, 'data_emissao', None)
-        data = {
-            "message": "Funcionalidade de geração de DACTE (PDF) em implementação.",
-            "info": "Dados básicos para DACTE:",
-            "chave": cte.chave,
-            "numero": getattr(cte.identificacao, 'numero', None),
-            "serie": getattr(cte.identificacao, 'serie', None),
-            "data_emissao": data_emissao.strftime('%d/%m/%Y %H:%M') if data_emissao else None,
-            "remetente": getattr(cte.remetente, 'razao_social', None),
-            "destinatario": getattr(cte.destinatario, 'razao_social', None),
-            "valor_total": float(getattr(cte.prestacao, 'valor_total_prestado', 0)),
-            "protocolo": getattr(cte.protocolo, 'numero_protocolo', None),
-            "modalidade": cte.modalidade,
-        }
-        return Response(data) # Retorna JSON por enquanto
+        # Geração efetiva do DACTE em PDF
+        pdf_content = gerar_dacte_pdf(cte)
+        response = HttpResponse(pdf_content, content_type="application/pdf")
+        response['Content-Disposition'] = (
+            f'attachment; filename="DACTE_{cte.chave}.pdf"'
+        )
+        return response
 
     @action(detail=True, methods=['post'])
     def reprocessar(self, request, pk=None):

@@ -17,3 +17,4 @@ six==1.17.0
 sqlparse==0.5.3
 uritemplate==4.1.1
 xmltodict==0.13.0
+reportlab>=3.6
