@@ -28,6 +28,18 @@ This project is a Django REST API for managing CT-e and MDF-e documents, vehicle
    ```
    The application uses SQLite by default (configured in `core/settings.py`).
 
+## Database Initialization and Sample Data
+
+After applying migrations you can load optional sample data to quickly populate
+the application with example records:
+
+```bash
+python manage.py loaddata sample_data.json
+```
+
+You can generate your own fixture with `python manage.py dumpdata > sample_data.json`
+once you have real data in the database.
+
 ## API Endpoints
 
 The main API routes are available under `/api/`.
