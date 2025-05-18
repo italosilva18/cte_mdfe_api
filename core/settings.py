@@ -179,8 +179,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django REST Framework Settings
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
+        # Use JWT authentication for all API endpoints. SessionAuthentication is
+        # disabled to avoid mixing session based auth with token auth.
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-        "rest_framework.authentication.SessionAuthentication", # For Browsable API
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         # By default, require authentication for all API views.
@@ -261,7 +262,8 @@ SWAGGER_SETTINGS = {
             'description': "Enter 'Bearer <token>'",
         }
     },
-    'USE_SESSION_AUTH': True, # Useful for Browsable API login
+    # With JWT-only authentication we disable session auth in Swagger UI
+    'USE_SESSION_AUTH': False,
     'LOGIN_URL': LOGIN_URL,
     'LOGOUT_URL': '/admin/logout/', # Using admin logout for Swagger UI
     'VALIDATOR_URL': None, # Set to None to disable schema validation errors in UI
