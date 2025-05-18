@@ -516,47 +516,57 @@ function loadVeiculos() {
 
     fetchAllVeiculos()
         .then(veiculos => {
-            if (!Array.isArray(veiculos) || veiculos.length === 0) {
-                showNotification(
-                    'Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.',
-                    'warning',
-                    4000
-                );
-                throw new Error('Nenhum veículo encontrado na API');
-            }
+            if (Array.isArray(veiculos) && veiculos.length > 0) {
+                // Update form select
+                if (veiculoSelect) {
+                    veiculos.forEach(veiculo => {
+                        if (!veiculo.ativo && veiculo.ativo !== undefined) return; // Skip inactive vehicles
 
-            // Update form select
-            if (veiculoSelect) {
-                veiculos.forEach(veiculo => {
-                    if (!veiculo.ativo && veiculo.ativo !== undefined) return; // Skip inactive vehicles
-
-                    const option = document.createElement('option');
-                    option.value = veiculo.id;
-                    option.textContent = `${veiculo.placa} - ${veiculo.proprietario_nome || 'Próprio'}`;
-                    veiculoSelect.appendChild(option);
-
-                    // store mapping id<->placa
-                    veiculoIdMap[veiculo.placa] = veiculo.id;
-                });
-            }
-
-            // Update filter select with plates
-            if (filtroPlaca) {
-                veiculos.forEach(veiculo => {
-                    if (veiculo.placa) {
                         const option = document.createElement('option');
-                        option.value = veiculo.placa;
-                        option.textContent = veiculo.placa;
-                        filtroPlaca.appendChild(option);
+                        option.value = veiculo.id;
+                        option.textContent = `${veiculo.placa} - ${veiculo.proprietario_nome || 'Próprio'}`;
+                        veiculoSelect.appendChild(option);
 
-                        // store mapping for quick lookup
+                        // store mapping id<->placa
                         veiculoIdMap[veiculo.placa] = veiculo.id;
-                    }
-                });
+                    });
+                }
+
+                // Update filter select with plates
+                if (filtroPlaca) {
+                    veiculos.forEach(veiculo => {
+                        if (veiculo.placa) {
+                            const option = document.createElement('option');
+                            option.value = veiculo.placa;
+                            option.textContent = veiculo.placa;
+                            filtroPlaca.appendChild(option);
+
+                            // store mapping for quick lookup
+                            veiculoIdMap[veiculo.placa] = veiculo.id;
+                        }
+                    });
+                }
+
+                console.log(`${veiculos.length} veículos carregados com sucesso`);
+                showNotification(`${veiculos.length} veículos carregados com sucesso`, 'success', 2000);
+                return; // Early return to avoid fallback
             }
 
-            console.log(`${veiculos.length} veículos carregados com sucesso`);
-            showNotification(`${veiculos.length} veículos carregados com sucesso`, 'success', 2000);
+            // Sem veículos - tenta carregar placas dos MDF-es
+            showNotification(
+                'Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.',
+                'warning',
+                4000
+            );
+
+            return loadPlacasFromMDFe()
+                .then(plates => {
+                    console.log('Placas carregadas dos MDF-es:', plates.length);
+                })
+                .catch(error => {
+                    console.error('Erro nos MDF-es, tentando CT-es:', error);
+                    loadPlacasFromCTe();
+                });
         })
         .catch(error => {
             console.error('Erro ao carregar veículos da API:', error);
@@ -566,8 +576,8 @@ function loadVeiculos() {
                 'warning',
                 4000
             );
-            
-            // Fallback para MDF-es
+
+            // Fallback para MDF-es em caso de erro
             loadPlacasFromMDFe()
                 .then(plates => {
                     console.log('Placas carregadas dos MDF-es:', plates.length);
