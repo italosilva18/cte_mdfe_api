@@ -558,11 +558,167 @@ function loadVeiculos() {
                 // Update form select
                 if (veiculoSelect) {
                     veiculos.forEach(veiculo => {
-                        if (!veiculo.ativo && veiculo.ativo !== undefined) return; // Skip inactive vehicles
+
 
                         const option = document.createElement('option');
                         option.value = veiculo.id;
                         option.textContent = `${veiculo.placa} - ${veiculo.proprietario_nome || 'Próprio'}`;
+                        veiculoSelect.appendChild(option);
+
+                        // store mapping id<->placa
+                        veiculoIdMap[veiculo.placa] = veiculo.id;
+                    });
+                }
+
+                // Update filter select with plates
+                if (filtroPlaca) {
+                    veiculos.forEach(veiculo => {
+                        if (veiculo.placa) {
+                            const option = document.createElement('option');
+                            option.value = veiculo.placa;
+                            option.textContent = veiculo.placa;
+                            filtroPlaca.appendChild(option);
+
+                            // store mapping for quick lookup
+                            veiculoIdMap[veiculo.placa] = veiculo.id;
+                        }
+                    });
+                }
+
+                console.log(`${veiculos.length} veículos carregados com sucesso`);
+                showNotification(`${veiculos.length} veículos carregados com sucesso`, 'success', 2000);
+                return; // Early return to avoid fallback
+            }
+
+            // Sem veículos - tenta carregar placas dos MDF-es
+            showNotification(
+                'Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.',
+                'warning',
+                4000
+            );
+
+            return loadPlacasFromMDFe()
+                .then(plates => {
+                    console.log('Placas carregadas dos MDF-es:', plates.length);
+                })
+                .catch(error => {
+                    console.error('Erro nos MDF-es, tentando CT-es:', error);
+                    loadPlacasFromCTe();
+                });
+        })
+        .catch(error => {
+            console.error('Erro ao carregar veículos da API:', error);
+            console.log('Tentando carregar placas de MDF-es como fallback...');
+            showNotification(
+                'Nenhum veículo cadastrado ou API indisponível. Placas dos MDF-es serão carregadas apenas para referência.',
+                'warning',
+                4000
+            );
+
+            // Fallback para MDF-es em caso de erro
+            loadPlacasFromMDFe()
+                .then(plates => {
+                    console.log('Placas carregadas dos MDF-es:', plates.length);
+                })
+                .catch(error => {
+                    console.error('Erro nos MDF-es, tentando CT-es:', error);
+                    loadPlacasFromCTe();
+                });
+        });
+}
+
+/**
+ * Load vehicle plates from MDFe documents as fallback (IMPROVED VERSION)
+ */
+function loadPlacasFromMDFe() {
+    return new Promise((resolve, reject) => {
+        const veiculoSelect = document.getElementById('veiculo');
+        const filtroPlaca = document.getElementById('placa');
+        
+        console.log('Carregando placas dos MDF-es...');
+        
+        // Função para carregar todas as páginas de MDF-es
+        async function carregarTodasAsPlacas() {
+            const platesSet = new Set();
+            let page = 1;
+            let totalLoaded = 0;
+            let hasMore = true;
+            const pageSize = 100;
+            let totalPages = null;
+            const maxPages = 50;
+
+            while (hasMore) {
+                try {
+                    console.log(`Carregando página ${page} dos MDF-es...`);
+                    showNotification(`Processando página ${page} dos MDF-es...`, 'info', 1000);
+
+                    const response = await Auth.fetchWithAuth(`/api/mdfes/?page=${page}&page_size=${pageSize}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log(`Página ${page} - Count: ${data.count}, Results: ${data.results ? data.results.length : 0}`);
+
+                    if (totalPages === null && data.count) {
+                        totalPages = Math.ceil(data.count / pageSize);
+                    }
+                    
+                    const mdfes = data.results || data;
+                    
+                    if (Array.isArray(mdfes)) {
+                        mdfes.forEach(mdfe => {
+                            if (mdfe.placa_tracao) {
+                                platesSet.add(mdfe.placa_tracao);
+                                totalLoaded++;
+                            }
+                        });
+                    }
+                    
+                    // Verifica se há próxima página
+                    hasMore = data.next !== null && data.next !== undefined;
+                    page++;
+
+                    // Limite de segurança para evitar chamadas infinitas
+                    if ((totalPages !== null && page > totalPages) || page > maxPages) {
+                        hasMore = false;
+                    }
+                    
+                    // Se não há mais dados, pare
+                    if (!mdfes || mdfes.length === 0) {
+                        hasMore = false;
+                    }
+                } catch (error) {
+                    console.error(`Erro na página ${page}:`, error);
+                    hasMore = false;
+                }
+            }
+            
+            return {
+                plates: Array.from(platesSet).sort(),
+                totalProcessed: totalLoaded,
+                pagesLoaded: page - 1
+            };
+        }
+        
+        // Executar o carregamento
+        carregarTodasAsPlacas()
+            .then(result => {
+                const { plates, totalProcessed, pagesLoaded } = result;
+                console.log(`Placas extraídas dos MDF-es: ${plates.length} únicas de ${totalProcessed} registros em ${pagesLoaded} páginas`);
+                
+                // Update vehicle select with plates
+                if (veiculoSelect && plates.length > 0) {
+                    plates.forEach(placa => {
+                        const option = document.createElement('option');
+                        option.value = placa;
+                        option.textContent = `${placa} - (Via MDF-e)`;
+
+                        const option = document.createElement('option');
+                        option.value = veiculo.id;
+                        option.textContent = `${veiculo.placa} - ${veiculo.proprietario_nome || 'Próprio'}`;
+
                         veiculoSelect.appendChild(option);
 
                         // store mapping id<->placa
