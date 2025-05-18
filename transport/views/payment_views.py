@@ -18,6 +18,9 @@ from django.db import transaction
 from rest_framework import viewsets, status, serializers # Importa serializers para ValidationError
 from rest_framework.response import Response
 from rest_framework.decorators import action
+import logging
+
+logger = logging.getLogger(__name__)
 from rest_framework.permissions import IsAuthenticated
 
 # Imports Locais
@@ -360,8 +363,13 @@ class PagamentoProprioViewSet(viewsets.ModelViewSet):
 
             return km_total if km_total is not None else 0
         except Exception as e:
-            print(f"Erro ao calcular KM para {veiculo.placa} no período {periodo_str}: {e}")
-            return 0 # Retorna 0 em caso de erro
+            logger.warning(
+                "Erro ao calcular KM para %s no período %s: %s",
+                veiculo.placa,
+                periodo_str,
+                e,
+            )
+            return 0  # Retorna 0 em caso de erro
 
     @action(detail=False, methods=['post'])
     def calcular_km(self, request):
@@ -434,7 +442,12 @@ class PagamentoProprioViewSet(viewsets.ModelViewSet):
             })
 
         except Exception as e:
-            print(f"Erro ao calcular valor base para {veiculo.placa} / {periodo}: {e}")
+            logger.warning(
+                "Erro ao calcular valor base para %s / %s: %s",
+                veiculo.placa,
+                periodo,
+                e,
+            )
             return Response({"error": f"Erro ao calcular valor base: {str(e)}"},
                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -474,7 +487,7 @@ class PagamentoProprioViewSet(viewsets.ModelViewSet):
         except ValueError as ve:
              return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            print(f"Erro ao buscar veículos: {e}")
+            logger.warning("Erro ao buscar veículos: %s", e)
             return Response({"error": "Erro ao buscar veículos."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if not veiculos.exists():
@@ -535,7 +548,12 @@ class PagamentoProprioViewSet(viewsets.ModelViewSet):
                 })
 
             except Exception as e:
-                print(f"Erro ao gerar pagamento para {veiculo.placa} / {periodo}: {e}")
+                logger.warning(
+                    "Erro ao gerar pagamento para %s / %s: %s",
+                    veiculo.placa,
+                    periodo,
+                    e,
+                )
                 resultados['erros'] += 1
                 resultados['detalhes'].append({'veiculo': veiculo.placa, 'status': 'erro', 'motivo': str(e)})
 

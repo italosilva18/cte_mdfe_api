@@ -12,6 +12,9 @@ import traceback
 from io import StringIO
 from datetime import datetime
 from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Imports Django
 from django.http import HttpResponse, JsonResponse, FileResponse
@@ -157,7 +160,7 @@ class ParametroSistemaViewSet(viewsets.ModelViewSet):
             except ValidationError as ve: # Captura erros de validação do Django
                  erros.append({'nome': nome, 'erro': str(ve)})
             except Exception as e:
-                print(f"Erro ao atualizar parâmetro {nome}: {e}")
+                logger.warning("Erro ao atualizar parâmetro %s: %s", nome, e)
                 erros.append({'nome': nome, 'erro': f"Erro inesperado: {str(e)}"})
 
         # Se houve erros, a transação será revertida pelo @transaction.atomic
@@ -246,7 +249,7 @@ class BackupAPIView(viewsets.ViewSet):
             serializer = RegistroBackupSerializer(registros, many=True)
             return Response(serializer.data)
         except Exception as e:
-            print(f"Erro ao listar backups: {e}")
+            logger.warning("Erro ao listar backups: %s", e)
             return Response({"error": f"Erro interno ao listar backups: {str(e)}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -258,7 +261,7 @@ class BackupAPIView(viewsets.ViewSet):
 
         try:
             # --- Lógica Real de Backup (Adaptar ao seu banco) ---
-            print("INFO: Iniciando geração de backup...")
+            logger.info("INFO: Iniciando geração de backup...")
             db_settings = settings.DATABASES['default']
             db_name = db_settings.get('NAME')
             db_engine = db_settings.get('ENGINE', '')
@@ -289,9 +292,13 @@ class BackupAPIView(viewsets.ViewSet):
                 raise NotImplementedError(f"Backup não implementado para o banco de dados: {db_engine}")
 
             # Executa o comando
-            print(f"Executando comando de backup: {command}")
+            logger.info("Executando comando de backup: %s", command)
             result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True, encoding='utf-8', errors='ignore', env=env)
-            print(f"Comando de backup concluído. Saída: {result.stdout}, Erro: {result.stderr}")
+            logger.info(
+                "Comando de backup concluído. Saída: %s, Erro: %s",
+                result.stdout,
+                result.stderr,
+            )
 
             # Calcula tamanho e hash MD5
             if not os.path.exists(filepath):
@@ -308,11 +315,11 @@ class BackupAPIView(viewsets.ViewSet):
                 nome_arquivo=filename,
                 tamanho_bytes=tamanho_bytes,
                 md5_hash=md5_hex,
-                localizacao=filepath, # Salva o caminho completo
+                localizacao=filepath,  # Salva o caminho completo
                 usuario=request.user.username,
                 status='completo'
             )
-            print(f"INFO: Backup {filename} gerado e registrado com sucesso.")
+            logger.info("INFO: Backup %s gerado e registrado com sucesso.", filename)
             # --- Fim da Lógica Real ---
 
             # Retorna FileResponse para download direto do backup gerado
@@ -327,9 +334,9 @@ class BackupAPIView(viewsets.ViewSet):
             return response
 
         except subprocess.CalledProcessError as cpe:
-             # Erro específico na execução do comando
-             print(f"ERRO (Comando Backup): {cpe.stderr}")
-             error_details = f"Erro ao executar comando de backup: {cpe.stderr}"
+            # Erro específico na execução do comando
+            logger.warning("ERRO (Comando Backup): %s", cpe.stderr)
+            error_details = f"Erro ao executar comando de backup: {cpe.stderr}"
              if registro: # Se o registro foi criado antes do erro de comando
                  registro.status = 'erro'
                  registro.detalhes = error_details
@@ -343,9 +350,9 @@ class BackupAPIView(viewsets.ViewSet):
              return Response({"error": "Erro ao executar comando de backup.", "details": cpe.stderr},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
-             # Outros erros (permissão, NotImplementedError, etc.)
-             print(f"ERRO ao gerar backup: {e}")
-             traceback.print_exc()
+            # Outros erros (permissão, NotImplementedError, etc.)
+            logger.warning("ERRO ao gerar backup: %s", e)
+            traceback.print_exc()
              error_details = f"Erro ao gerar backup: {str(e)}\n{traceback.format_exc()}"
              if registro: # Atualiza registro se já criado
                  registro.status = 'erro'
@@ -378,8 +385,8 @@ class BackupAPIView(viewsets.ViewSet):
                 filename=registro.nome_arquivo # Usa o nome original para o download
             )
         except Exception as e:
-             print(f"Erro ao baixar backup {registro.nome_arquivo}: {e}")
-             return Response({"error": f"Erro ao tentar baixar o arquivo: {str(e)}"},
+            logger.warning("Erro ao baixar backup %s: %s", registro.nome_arquivo, e)
+            return Response({"error": f"Erro ao tentar baixar o arquivo: {str(e)}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'])
@@ -406,7 +413,12 @@ class BackupAPIView(viewsets.ViewSet):
             # A restauração real é complexa e arriscada via web.
             # O ideal é salvar o arquivo e instruir o admin a restaurar manualmente.
 
-            print(f"INFO: Solicitação de restauração recebida com arquivo {backup_file.name} ({backup_file.size} bytes) pelo usuário {request.user.username}.")
+            logger.info(
+                "INFO: Solicitação de restauração recebida com arquivo %s (%s bytes) pelo usuário %s.",
+                backup_file.name,
+                backup_file.size,
+                request.user.username,
+            )
 
             # Exemplo Simulado: Salva o arquivo temporariamente para inspeção
             temp_dir = tempfile.mkdtemp(prefix="backup_restore_")
@@ -415,13 +427,13 @@ class BackupAPIView(viewsets.ViewSet):
                 with open(temp_path, 'wb+') as destination:
                     for chunk in backup_file.chunks():
                         destination.write(chunk)
-                print(f"INFO: Arquivo de backup salvo temporariamente em {temp_path}.")
+                logger.info("INFO: Arquivo de backup salvo temporariamente em %s.", temp_path)
                 # Aqui, você poderia adicionar lógica para notificar o admin
             finally:
                  # É importante limpar o diretório temporário depois,
                  # a menos que o admin precise do arquivo lá.
-                 # shutil.rmtree(temp_dir) # Descomentar se quiser limpar automaticamente
-                 print(f"INFO: Limpeza do diretório temporário {temp_dir} pode ser necessária.")
+                # shutil.rmtree(temp_dir) # Descomentar se quiser limpar automaticamente
+                logger.info("INFO: Limpeza do diretório temporário %s pode ser necessária.", temp_dir)
 
 
             # Retorna mensagem indicando que a restauração é manual
@@ -434,7 +446,7 @@ class BackupAPIView(viewsets.ViewSet):
             # --- Fim da Lógica (Simulada) ---
 
         except Exception as e:
-            print(f"ERRO ao processar solicitação de restauração: {e}")
+            logger.warning("ERRO ao processar solicitação de restauração: %s", e)
             traceback.print_exc()
             return Response({"error": f"Erro ao processar pedido de restauração: {str(e)}"},
                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -512,9 +524,9 @@ class RelatorioAPIView(APIView):
                  return Response({"error": f"Formato '{formato}' não suportado."}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-             print(f"Erro ao gerar relatório '{tipo}': {e}")
-             traceback.print_exc()
-             return Response({"error": f"Erro interno ao gerar relatório: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.warning("Erro ao gerar relatório '%s': %s", tipo, e)
+            traceback.print_exc()
+            return Response({"error": f"Erro interno ao gerar relatório: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # --- Métodos Auxiliares de Geração (NÃO IMPLEMENTADOS) ---
     def _gerar_relatorio_faturamento(self, data_inicio, data_fim, filtros):
@@ -548,27 +560,27 @@ class RelatorioAPIView(APIView):
 
     def _gerar_relatorio_ctes(self, data_inicio, data_fim, filtros):
         """(NÃO IMPLEMENTADO) Gera dados para o relatório de CT-es."""
-        print(f"INFO: Gerando relatório de CT-es com filtros: {filtros}")
+        logger.info("INFO: Gerando relatório de CT-es com filtros: %s", filtros)
         return {"message": "Relatório de CT-es ainda não implementado.", "filtros": filtros}
 
     def _gerar_relatorio_mdfes(self, data_inicio, data_fim, filtros):
         """(NÃO IMPLEMENTADO) Gera dados para o relatório de MDF-es."""
-        print(f"INFO: Gerando relatório de MDF-es com filtros: {filtros}")
+        logger.info("INFO: Gerando relatório de MDF-es com filtros: %s", filtros)
         return {"message": "Relatório de MDF-es ainda não implementado.", "filtros": filtros}
 
     def _gerar_relatorio_pagamentos(self, data_inicio, data_fim, filtros):
         """(NÃO IMPLEMENTADO) Gera dados para o relatório de pagamentos."""
-        print(f"INFO: Gerando relatório de pagamentos com filtros: {filtros}")
+        logger.info("INFO: Gerando relatório de pagamentos com filtros: %s", filtros)
         return {"message": "Relatório de pagamentos ainda não implementado.", "filtros": filtros}
 
     def _gerar_relatorio_km_rodado(self, data_inicio, data_fim, filtros):
         """(NÃO IMPLEMENTADO) Gera dados para o relatório de KM rodado."""
-        print(f"INFO: Gerando relatório de KM rodado com filtros: {filtros}")
+        logger.info("INFO: Gerando relatório de KM rodado com filtros: %s", filtros)
         return {"message": "Relatório de KM rodado ainda não implementado.", "filtros": filtros}
 
     def _gerar_relatorio_manutencoes(self, data_inicio, data_fim, filtros):
         """(NÃO IMPLEMENTADO) Gera dados para o relatório de manutenções."""
-        print(f"INFO: Gerando relatório de manutenções com filtros: {filtros}")
+        logger.info("INFO: Gerando relatório de manutenções com filtros: %s", filtros)
         # Exemplo básico de busca (sem filtros específicos da API, apenas data)
         qs = ManutencaoVeiculo.objects.all()
         if data_inicio: qs = qs.filter(data_servico__gte=data_inicio)

@@ -17,6 +17,9 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+import logging
+
+logger = logging.getLogger(__name__)
 
 import xmltodict
 from dateutil import parser as date_parser
@@ -198,7 +201,12 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
                 # Tentativa 2: Estrutura alternativa <procEvento*><infEvento> (sem o wrapper <evento*>)
                 if not inf_evento:
                     inf_evento = safe_get(xml_dict, f'{path_prefix_ns}.infEvento')
-                    if inf_evento: print(f"INFO (Identificar): Encontrado <infEvento> diretamente sob <{root_tag_no_ns}> para {filename}")
+                    if inf_evento:
+                        logger.info(
+                            "INFO (Identificar): Encontrado <infEvento> diretamente sob <%s> para %s",
+                            root_tag_no_ns,
+                            filename,
+                        )
 
                 if inf_evento:
                     chave_doc_principal_evento = safe_get(inf_evento, 'chCTe') or safe_get(inf_evento, 'chMDFe')
@@ -207,7 +215,13 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
                         chave_doc = chave_doc_principal_evento
                         doc_tipo_base = "CT" if safe_get(inf_evento, 'chCTe') else "MDFE"
                         tipo_xml = f"PROC_EVENTO_{doc_tipo_base}_{tp_evento}"
-                        print(f"INFO (Identificar): Arq {filename} (root: {root_tag_no_ns}) classificado como {tipo_xml}, Chave: {chave_doc}")
+                        logger.info(
+                            "INFO (Identificar): Arq %s (root: %s) classificado como %s, Chave: %s",
+                            filename,
+                            root_tag_no_ns,
+                            tipo_xml,
+                            chave_doc,
+                        )
             
             elif root_tag_no_ns in ('retEventoCTe', 'retEventoMDFe'):
                 is_retorno_confirmado = True
@@ -249,11 +263,20 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
                     # Deixa como DESCONHECIDO, o batch_upload tentará como principal se o root_tag for CT/MDFE
                     elif root_tag_no_ns in ('CTe', 'procCTe', 'cteProc', 'MDFe', 'procMDFe', 'mdfeProc'):
                         # Isso não deveria acontecer se a extração por dict/regex funcionou
-                        print(f"WARN (Identificar-FallbackNome): Arq {filename} com chave {chave_doc} (nome) e root '{root_tag_no_ns}' suspeito de ser principal, mas não classificado antes.")
+                        logger.warning(
+                            "WARN (Identificar-FallbackNome): Arq %s com chave %s (nome) e root '%s' suspeito de ser principal, mas não classificado antes.",
+                            filename,
+                            chave_doc,
+                            root_tag_no_ns,
+                        )
                         # tipo_xml poderia ser CT ou MDFE aqui se tivéssemos certeza, mas _get_chave_from_dict/regex deveriam ter pego.
 
         except Exception as e:
-            print(f"WARN (Identificar XML): Erro crítico ao parsear/identificar {filename}: {e}.")
+            logger.warning(
+                "WARN (Identificar XML): Erro crítico ao parsear/identificar %s: %s.",
+                filename,
+                e,
+            )
             traceback.print_exc()
             # Tenta pegar chave pelo nome como último recurso
             if not chave_doc: chave_doc = _get_chave_from_filename(filename)
@@ -261,7 +284,12 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
                 is_retorno_confirmado = True; tipo_xml = "RET_EVENTO_NOME"
         
         if tipo_xml == "DESCONHECIDO" and chave_doc:
-            print(f"WARN (Lote - Identificar Final): Arq {filename} com chave {chave_doc} (root: {root_tag_no_ns}), mas tipo final DESCONHECIDO.")
+            logger.warning(
+                "WARN (Lote - Identificar Final): Arq %s com chave %s (root: %s), mas tipo final DESCONHECIDO.",
+                filename,
+                chave_doc,
+                root_tag_no_ns,
+            )
 
         return tipo_xml, chave_doc, is_retorno_confirmado, xml_dict, root_tag_no_ns
 
@@ -287,7 +315,11 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
         if arquivo_retorno_obj:
             xml_content_retorno, error_msg_r = self._read_xml_file_content(arquivo_retorno_obj)
             if error_msg_r:
-                print(f"Warning (Upload Individual): Erro ao ler XML de retorno ({arquivo_retorno_obj.name}): {error_msg_r}")
+                logger.warning(
+                    "Warning (Upload Individual): Erro ao ler XML de retorno (%s): %s",
+                    arquivo_retorno_obj.name,
+                    error_msg_r,
+                )
 
         try:
             tipo_detectado, _chave_detectada, _is_ret, xml_dict_principal, root_tag_principal = self._identificar_xml_e_chave(arquivo_principal_obj.name, xml_content_principal)
@@ -295,7 +327,12 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
             if not xml_dict_principal or not root_tag_principal:
                  return Response({"error": "Tag raiz do XML principal não identificada ou XML inválido.", "filename": arquivo_principal_obj.name}, status=status.HTTP_400_BAD_REQUEST)
 
-            print(f"INFO: Upload Individual - Raiz: {root_tag_principal}, Arq: {arquivo_principal_obj.name}, Tipo Det.: {tipo_detectado}")
+            logger.info(
+                "INFO: Upload Individual - Raiz: %s, Arq: %s, Tipo Det.: %s",
+                root_tag_principal,
+                arquivo_principal_obj.name,
+                tipo_detectado,
+            )
 
             if tipo_detectado == "CT": # Usa o tipo detectado
                 return self._process_cte(xml_content_principal, arquivo_principal_obj, xml_dict_principal)
@@ -312,7 +349,11 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
                     "error": f"Tipo de XML não reconhecido. Raiz: '{root_tag_principal}'. Tipo detectado: '{tipo_detectado}'", "filename": arquivo_principal_obj.name
                 }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            print(f"ERRO (Upload Individual - Parse/Process): {e} para arq {arquivo_principal_obj.name}")
+            logger.warning(
+                "ERRO (Upload Individual - Parse/Process): %s para arq %s",
+                e,
+                arquivo_principal_obj.name,
+            )
             traceback.print_exc()
             return Response({"error": f"Erro inesperado no processamento do XML: {str(e)}", "filename": arquivo_principal_obj.name}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -433,9 +474,14 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
                 elif "EVENTO" in arq_info['tipo_xml']: # Evento de envio puro
                     grupo['eventos_envio'].append(arq_info)
                 else: # DESCONHECIDO com chave
-                    print(f"WARN (Lote - Agrupamento): Arq {arq_info['name']} com chave {chave} mas tipo {arq_info['tipo_xml']}. Tentando como principal.")
+                    logger.warning(
+                        "WARN (Lote - Agrupamento): Arq %s com chave %s mas tipo %s. Tentando como principal.",
+                        arq_info['name'],
+                        chave,
+                        arq_info['tipo_xml'],
+                    )
                     if not any(p['name'] == arq_info['name'] for p in grupo['principais']):
-                         grupo['principais'].append(arq_info)
+                        grupo['principais'].append(arq_info)
             else: # Sem chave
                 if arq_info['tipo_xml'] in ["CT", "MDFE"]:
                      arquivos_sem_chave_validos.append(arq_info)
@@ -463,7 +509,11 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
 
 
             if doc_principal_a_processar:
-                print(f"INFO (Lote - Fase 2A): Processando principal {doc_principal_a_processar['name']} para chave {chave}")
+                logger.info(
+                    "INFO (Lote - Fase 2A): Processando principal %s para chave %s",
+                    doc_principal_a_processar['name'],
+                    chave,
+                )
                 resultado_p = {'arquivo_principal_nome': doc_principal_a_processar['name'], 'chave': chave, 'status': 'erro'}
                 try:
                     resp_obj = None

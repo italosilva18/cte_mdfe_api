@@ -17,6 +17,9 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Imports Locais
 from ..serializers.cte_serializers import (
@@ -274,10 +277,10 @@ class CTeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
                  return Response({"error": "Falha durante o reprocessamento. Verifique os logs."},
                                 status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
-             # Captura exceções levantadas pelo parser
-             print(f"ERRO ao reprocessar CT-e {cte.chave}: {e}")
-             # Garante que o status volte para não processado
-             cte.processado = False
-             cte.save(update_fields=['processado'])
-             return Response({"error": f"Erro durante o reprocessamento: {str(e)}"},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Captura exceções levantadas pelo parser
+            logger.warning("ERRO ao reprocessar CT-e %s: %s", cte.chave, e)
+            # Garante que o status volte para não processado
+            cte.processado = False
+            cte.save(update_fields=['processado'])
+            return Response({"error": f"Erro durante o reprocessamento: {str(e)}"},
+                              status=status.HTTP_500_INTERNAL_SERVER_ERROR)
