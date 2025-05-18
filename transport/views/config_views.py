@@ -17,6 +17,8 @@ from django.utils import timezone
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Sum
+from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404
 
 # Imports Django REST Framework
@@ -34,10 +36,13 @@ from ..serializers.config_serializers import ( # Use .. para voltar um nível
     RegistroBackupSerializer,
     # Adicionar serializers de relatórios se/quando criados
 )
-from ..models import ( # Modelos usados
+from ..serializers.vehicle_serializers import VeiculoSerializer, ManutencaoVeiculoSerializer
+from ..models import (
     ParametroSistema,
     ConfiguracaoEmpresa,
-    RegistroBackup
+    RegistroBackup,
+    Veiculo,
+    CTePrestacaoServico,
 )
 
 # ===============================================================
@@ -513,17 +518,33 @@ class RelatorioAPIView(APIView):
 
     # --- Métodos Auxiliares de Geração (NÃO IMPLEMENTADOS) ---
     def _gerar_relatorio_faturamento(self, data_inicio, data_fim, filtros):
-        """(NÃO IMPLEMENTADO) Gera dados para o relatório de faturamento."""
-        print(f"INFO: Gerando relatório de faturamento com filtros: {filtros}")
-        # Lógica para buscar e formatar dados de faturamento
-        # Exemplo de retorno: [{'periodo': '2024-04', 'valor': 15000.50}, ...]
-        return {"message": "Relatório de faturamento ainda não implementado.", "filtros": filtros} # Placeholder
+        """Gera dados agregados de faturamento por mês."""
+        qs = CTePrestacaoServico.objects.select_related('cte__identificacao')
+        if data_inicio:
+            qs = qs.filter(cte__identificacao__data_emissao__date__gte=data_inicio)
+        if data_fim:
+            qs = qs.filter(cte__identificacao__data_emissao__date__lte=data_fim)
+
+        agregados = qs.annotate(mes=TruncMonth('cte__identificacao__data_emissao'))\
+            .values('mes')\
+            .annotate(valor=Sum('valor_total_prestado'))\
+            .order_by('mes')
+
+        dados = []
+        for item in agregados:
+            mes = item['mes'].strftime('%Y-%m') if item['mes'] else 'N/A'
+            dados.append({'mes': mes, 'valor': float(item['valor'] or 0)})
+        return dados
 
     def _gerar_relatorio_veiculos(self, filtros):
-        """(NÃO IMPLEMENTADO) Gera dados para o relatório de veículos."""
-        print(f"INFO: Gerando relatório de veículos com filtros: {filtros}")
-        # Lógica para buscar e formatar dados de veículos
-        return {"message": "Relatório de veículos ainda não implementado.", "filtros": filtros}
+        """Retorna dados do cadastro de veículos."""
+        qs = Veiculo.objects.all()
+        if 'ativo' in filtros:
+            qs = qs.filter(ativo=bool(filtros['ativo']))
+        if 'placa' in filtros:
+            qs = qs.filter(placa__icontains=filtros['placa'])
+        serializer = VeiculoSerializer(qs, many=True)
+        return serializer.data
 
     def _gerar_relatorio_ctes(self, data_inicio, data_fim, filtros):
         """(NÃO IMPLEMENTADO) Gera dados para o relatório de CT-es."""

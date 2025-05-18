@@ -1247,6 +1247,32 @@ class RegistroBackup(models.Model):
        return f"Backup {self.nome_arquivo} ({self.data_hora:%d/%m/%Y %H:%M})"
 
 
+class AlertaSistema(models.Model):
+    """Registros de alertas gerais do sistema."""
+    PRIORIDADE_OPCOES = [
+        ('alta', 'Alta'),
+        ('media', 'Média'),
+        ('baixa', 'Baixa'),
+    ]
+
+    prioridade = models.CharField(max_length=10, choices=PRIORIDADE_OPCOES)
+    data_hora = models.DateTimeField(auto_now_add=True)
+    tipo = models.CharField(max_length=60, blank=True)
+    mensagem = models.TextField()
+    dados_adicionais = models.JSONField(null=True, blank=True)
+    modulo = models.CharField(max_length=60, blank=True)
+    usuario = models.CharField(max_length=60, blank=True)
+    referencia = models.CharField(max_length=60, blank=True)
+
+    class Meta:
+        verbose_name = "Alerta do Sistema"
+        verbose_name_plural = "Alertas do Sistema"
+        ordering = ['-data_hora']
+
+    def __str__(self):
+        return f"[{self.prioridade.upper()}] {self.tipo or 'Alerta'}"
+
+
 # --------------------------------------------------
 #  R E L A C I O N A M E N T O S   F I N A I S
 # --------------------------------------------------

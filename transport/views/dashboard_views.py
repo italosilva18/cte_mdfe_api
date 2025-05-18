@@ -17,18 +17,18 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status # Usado para retornos de erro, se necessário
 
 # Imports Locais
-from ..serializers.dashboard_serializers import ( # Use .. para voltar um nível
+from ..serializers.dashboard_serializers import (  # Use .. para voltar um nível
     DashboardGeralDataSerializer, FinanceiroPainelSerializer, FinanceiroMensalSerializer,
     FinanceiroDetalheSerializer, CtePainelSerializer, MdfePainelSerializer,
-    GeograficoPainelSerializer, AlertaPagamentoSerializer
+    GeograficoPainelSerializer, AlertaPagamentoSerializer, AlertaSistemaSerializer
 )
-from ..models import ( # Modelos usados para consultas nos painéis
+from ..models import (  # Modelos usados para consultas nos painéis
     CTeDocumento, MDFeDocumento,
     CTeIdentificacao, CTePrestacaoServico, CTeRemetente, CTEDestinatario,
     CTeProtocoloAutorizacao, CTeCancelamento, CTeModalRodoviario, CTeVeiculoRodoviario,
     MDFeIdentificacao, MDFeProtocoloAutorizacao, MDFeCancelamento, MDFeModalRodoviario,
     MDFeVeiculoTracao, MDFeVeiculoReboque, MDFeDocumentosVinculados,
-    PagamentoAgregado, PagamentoProprio,
+    PagamentoAgregado, PagamentoProprio, AlertaSistema,
     # Adicione outros modelos se forem usados nas queries dos painéis
 )
 
@@ -843,3 +843,15 @@ class AlertasPagamentoAPIView(APIView):
         })
 
         return Response(serializer.data)
+
+
+class AlertaSistemaViewSet(viewsets.ModelViewSet):
+    """API para listar e limpar alertas do sistema."""
+    queryset = AlertaSistema.objects.all()
+    serializer_class = AlertaSistemaSerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['post'])
+    def limpar_todos(self, request):
+        AlertaSistema.objects.all().delete()
+        return Response({'message': 'Alertas do sistema removidos.'})

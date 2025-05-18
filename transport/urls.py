@@ -23,7 +23,7 @@ from .views.payment_views import FaixaKMViewSet, PagamentoAgregadoViewSet, Pagam
 from .views.dashboard_views import (
     DashboardGeralAPIView, CtePainelAPIView, MdfePainelAPIView,
     FinanceiroPainelAPIView, FinanceiroMensalAPIView, FinanceiroDetalheAPIView,
-    GeograficoPainelAPIView, AlertasPagamentoAPIView
+    GeograficoPainelAPIView, AlertasPagamentoAPIView, AlertaSistemaViewSet
 )
 from .views.config_views import (
     ConfiguracaoEmpresaViewSet, ParametroSistemaViewSet,
@@ -86,6 +86,21 @@ urlpatterns = [
     path("api/financeiro/detalhe/", FinanceiroDetalheAPIView.as_view(), name="financeiro-detalhe"),
     path("api/painel/geografico/", GeograficoPainelAPIView.as_view(), name="painel-geografico"),
     path("api/alertas/pagamentos/", AlertasPagamentoAPIView.as_view(), name="alertas-pagamentos"),
+    path(
+        "api/alertas/sistema/",
+        AlertaSistemaViewSet.as_view({"get": "list"}),
+        name="alertas-sistema",
+    ),
+    path(
+        "api/alertas/sistema/<int:pk>/",
+        AlertaSistemaViewSet.as_view({"delete": "destroy"}),
+        name="alertas-sistema-detalhe",
+    ),
+    path(
+        "api/alertas/sistema/limpar_todos/",
+        AlertaSistemaViewSet.as_view({"post": "limpar_todos"}),
+        name="alertas-sistema-limpar-todos",
+    ),
 
     # Endpoint de Relatórios (APIView)
     path("api/relatorios/", RelatorioAPIView.as_view(), name="relatorios"),
