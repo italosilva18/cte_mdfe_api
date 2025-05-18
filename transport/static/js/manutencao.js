@@ -17,6 +17,8 @@ let veiculoIdMap = {};
 let selectedPlateBeforeVeiculoModal = null;
 // Store the ID of a newly created vehicle to pre-select after reload
 let newVeiculoIdToSelect = null;
+// Flag: vehicle modal opened from maintenance modal
+let openedFromManutencaoModal = false;
 
 /**
  * Initializes the maintenance panel when page loads
@@ -75,8 +77,16 @@ function setupEventListeners() {
         novoVeiculoBtn.addEventListener('click', function() {
             const select = document.getElementById('veiculo');
             selectedPlateBeforeVeiculoModal = select ? select.value : null;
-            const modal = new bootstrap.Modal(document.getElementById('addVeiculoModal'));
-            modal.show();
+            openedFromManutencaoModal = true;
+
+            const manModalEl = document.getElementById('addManutencaoModal');
+            const manModal = bootstrap.Modal.getInstance(manModalEl);
+            if (manModal) {
+                manModal.hide();
+            }
+
+            const veicModal = new bootstrap.Modal(document.getElementById('addVeiculoModal'));
+            veicModal.show();
         });
     }
     
@@ -152,10 +162,24 @@ function setupEventListeners() {
         });
     }
 
-    const veicModal = document.getElementById('addVeiculoModal');
-    if (veicModal) {
-        veicModal.addEventListener('hidden.bs.modal', function() {
+    const veicModalEl = document.getElementById('addVeiculoModal');
+    if (veicModalEl) {
+        veicModalEl.addEventListener('show.bs.modal', function() {
+            if (selectedPlateBeforeVeiculoModal) {
+                const placaInput = document.getElementById('placa_veiculo');
+                if (placaInput) {
+                    placaInput.value = selectedPlateBeforeVeiculoModal;
+                }
+            }
+        });
+
+        veicModalEl.addEventListener('hidden.bs.modal', function() {
             document.getElementById('veiculoForm').reset();
+            if (openedFromManutencaoModal) {
+                openedFromManutencaoModal = false;
+                const manModal = new bootstrap.Modal(document.getElementById('addManutencaoModal'));
+                manModal.show();
+            }
         });
     }
     
@@ -634,9 +658,9 @@ function loadPlacasFromMDFe() {
     return new Promise((resolve, reject) => {
         const veiculoSelect = document.getElementById('veiculo');
         const filtroPlaca = document.getElementById('placa');
-        
+
         console.log('Carregando placas dos MDF-es...');
-        
+
         // Função para carregar todas as páginas de MDF-es
         async function carregarTodasAsPlacas() {
             const platesSet = new Set();
@@ -653,20 +677,20 @@ function loadPlacasFromMDFe() {
                     showNotification(`Processando página ${page} dos MDF-es...`, 'info', 1000);
 
                     const response = await Auth.fetchWithAuth(`/api/mdfes/?page=${page}&page_size=${pageSize}`);
-                    
+
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
-                    
+
                     const data = await response.json();
                     console.log(`Página ${page} - Count: ${data.count}, Results: ${data.results ? data.results.length : 0}`);
 
                     if (totalPages === null && data.count) {
                         totalPages = Math.ceil(data.count / pageSize);
                     }
-                    
+
                     const mdfes = data.results || data;
-                    
+
                     if (Array.isArray(mdfes)) {
                         mdfes.forEach(mdfe => {
                             if (mdfe.placa_tracao) {
@@ -675,7 +699,7 @@ function loadPlacasFromMDFe() {
                             }
                         });
                     }
-                    
+
                     // Verifica se há próxima página
                     hasMore = data.next !== null && data.next !== undefined;
                     page++;
@@ -684,7 +708,7 @@ function loadPlacasFromMDFe() {
                     if ((totalPages !== null && page > totalPages) || page > maxPages) {
                         hasMore = false;
                     }
-                    
+
                     // Se não há mais dados, pare
                     if (!mdfes || mdfes.length === 0) {
                         hasMore = false;
@@ -694,67 +718,180 @@ function loadPlacasFromMDFe() {
                     hasMore = false;
                 }
             }
-            
+
             return {
                 plates: Array.from(platesSet).sort(),
                 totalProcessed: totalLoaded,
                 pagesLoaded: page - 1
             };
         }
-        
+
         // Executar o carregamento
         carregarTodasAsPlacas()
             .then(result => {
                 const { plates, totalProcessed, pagesLoaded } = result;
                 console.log(`Placas extraídas dos MDF-es: ${plates.length} únicas de ${totalProcessed} registros em ${pagesLoaded} páginas`);
-                
+
                 // Update vehicle select with plates
                 if (veiculoSelect && plates.length > 0) {
                     plates.forEach(placa => {
                         const option = document.createElement('option');
                         option.value = placa;
                         option.textContent = `${placa} - (Via MDF-e)`;
-
-                        const option = document.createElement('option');
-                        option.value = veiculo.id;
-                        option.textContent = `${veiculo.placa} - ${veiculo.proprietario_nome || 'Próprio'}`;
-
                         veiculoSelect.appendChild(option);
 
-                        // store mapping id<->placa
-                        veiculoIdMap[veiculo.placa] = veiculo.id;
-                    });
-                }
-
-                // Update filter select with plates
-                if (filtroPlaca) {
-                    veiculos.forEach(veiculo => {
-                        if (veiculo.placa) {
-                            const option = document.createElement('option');
-                            option.value = veiculo.placa;
-                            option.textContent = veiculo.placa;
-                            filtroPlaca.appendChild(option);
-
-                            // store mapping for quick lookup
-                            veiculoIdMap[veiculo.placa] = veiculo.id;
+                        // store mapping with undefined ID so salvarManutencao can handle
+                        if (!(placa in veiculoIdMap)) {
+                            veiculoIdMap[placa] = null;
                         }
                     });
                 }
 
-                console.log(`${veiculos.length} veículos carregados com sucesso`);
-                showNotification(`${veiculos.length} veículos carregados com sucesso`, 'success', 2000);
-                return;
-            }
+                // Update filter select with plates
+                if (filtroPlaca && plates.length > 0) {
+                    plates.forEach(placa => {
+                        const option = document.createElement('option');
+                        option.value = placa;
+                        option.textContent = placa;
+                        filtroPlaca.appendChild(option);
 
-            showNotification(
-                'Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.',
-                'warning',
-                4000
-            );
+                        if (!(placa in veiculoIdMap)) {
+                            veiculoIdMap[placa] = null;
+                        }
+                    });
+                }
+
+                if (plates.length > 0) {
+                    showNotification(
+                        `${plates.length} placas carregadas dos MDF-es para referência (${totalProcessed} registros processados)`,
+                        'success',
+                        4000
+                    );
+                    resolve(plates);
+                } else {
+                    showNotification('Nenhuma placa encontrada nos MDF-es', 'warning', 3000);
+                    reject(new Error('Nenhuma placa encontrada'));
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar placas dos MDF-es:', error);
+                showNotification('Erro ao carregar placas dos MDF-es', 'error');
+                reject(error);
+            });
+    });
+}
+
+/**
+ * Alternative method to load vehicles - try CT-e documents
+ */
+function loadPlacasFromCTe() {
+    const veiculoSelect = document.getElementById('veiculo');
+    const filtroPlaca = document.getElementById('placa');
+
+    console.log('Tentando carregar placas dos CT-es...');
+    showNotification('Tentando carregar placas dos CT-es para referência...', 'info', 2000);
+
+    // Função para carregar várias páginas de CT-es
+    async function carregarPlacasCTe() {
+        const platesSet = new Set();
+        let page = 1;
+        let hasMore = true;
+        let totalProcessed = 0;
+        const pageSize = 100;
+        let totalPages = null;
+        const maxPages = 50;
+
+        while (hasMore) {
+            try {
+                console.log(`Carregando página ${page} dos CT-es...`);
+                const response = await Auth.fetchWithAuth(`/api/ctes/?page=${page}&page_size=${pageSize}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const ctes = data.results || data;
+
+                if (totalPages === null && data.count) {
+                    totalPages = Math.ceil(data.count / pageSize);
+                }
+
+                if (Array.isArray(ctes)) {
+                    ctes.forEach(cte => {
+                        totalProcessed++;
+                        if (cte.placa) platesSet.add(cte.placa);
+                        if (cte.veiculo_placa) platesSet.add(cte.veiculo_placa);
+                        if (cte.modal_rodoviario && cte.modal_rodoviario.veiculos) {
+                            cte.modal_rodoviario.veiculos.forEach(veiculo => {
+                                if (veiculo.placa) platesSet.add(veiculo.placa);
+                            });
+                        }
+                    });
+                }
+
+                hasMore = data.next !== null;
+                page++;
+
+                if ((totalPages !== null && page > totalPages) || page > maxPages) {
+                    hasMore = false;
+                }
+            } catch (error) {
+                console.error(`Erro na página ${page} dos CT-es:`, error);
+                hasMore = false;
+            }
+        }
+
+        return {
+            plates: Array.from(platesSet).sort(),
+            totalProcessed: totalProcessed
+        };
+    }
+
+    carregarPlacasCTe()
+        .then(result => {
+            const { plates, totalProcessed } = result;
+            console.log('Placas extraídas dos CT-es:', plates);
+
+            if (plates.length > 0) {
+                if (veiculoSelect) {
+                    plates.forEach(placa => {
+                        const option = document.createElement('option');
+                        option.value = placa;
+                        option.textContent = `${placa} - (Via CT-e)`;
+                        veiculoSelect.appendChild(option);
+
+                        if (!(placa in veiculoIdMap)) {
+                            veiculoIdMap[placa] = null;
+                        }
+                    });
+                }
+
+                if (filtroPlaca) {
+                    plates.forEach(placa => {
+                        const option = document.createElement('option');
+                        option.value = placa;
+                        option.textContent = placa;
+                        filtroPlaca.appendChild(option);
+
+                        if (!(placa in veiculoIdMap)) {
+                            veiculoIdMap[placa] = null;
+                        }
+                    });
+                }
+
+                showNotification(
+                    `${plates.length} placas carregadas dos CT-es para referência (${totalProcessed} registros processados)`,
+                    'success',
+                    4000
+                );
+            } else {
+                showNotification('Nenhuma placa encontrada em nenhuma fonte. Verifique se há dados cadastrados.', 'warning');
+            }
         })
         .catch(error => {
-            console.error('Erro ao carregar veículos da API:', error);
-            showNotification('Erro ao carregar veículos. Tente novamente mais tarde.', 'error');
+            console.error('Erro ao carregar placas dos CT-es:', error);
+            showNotification('Não foi possível carregar placas de nenhuma fonte disponível.', 'error');
         });
 }
 
@@ -795,6 +932,28 @@ function updateVeiculoDetails(veiculoId) {
             console.error('Error loading vehicle details:', error);
             showNotification('Não foi possível carregar os detalhes do veículo.', 'warning');
         });
+}
+
+/**
+ * Shows basic info for a plate (when using fallback data)
+ * @param {string} placa - Vehicle plate
+ */
+function showPlateInfo(placa) {
+    let veiculoInfo = document.getElementById('veiculo_info');
+    if (!veiculoInfo) {
+        veiculoInfo = document.createElement('div');
+        veiculoInfo.id = 'veiculo_info';
+        veiculoInfo.className = 'mt-2';
+        document.getElementById('veiculo').parentNode.appendChild(veiculoInfo);
+    }
+
+    if (veiculoInfo) {
+        veiculoInfo.innerHTML = `
+        <div class="alert alert-warning">
+            <strong>Placa:</strong> ${placa} |
+            <small>Dados obtidos de documentos MDF-e/CT-e. Informações do proprietário não disponíveis.</small>
+        </div>`;
+    }
 }
 
 /**
