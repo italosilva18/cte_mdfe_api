@@ -1058,6 +1058,11 @@ function editarManutencao(id) {
             if (data.veiculo) updateVeiculoDetails(data.veiculo);
             document.getElementById('servico_realizado').value = data.servico_realizado || '';
             document.getElementById('data_servico').value = data.data_servico || '';
+
+            document.getElementById('data_servico').value = formatDateForInput(new Date(data.data_servico)) || '';
+
+            document.getElementById('data_servico').value = data.data_servico || '';
+          main
             document.getElementById('quilometragem').value = data.quilometragem || '';
             document.getElementById('oficina').value = data.oficina || '';
             document.getElementById('peca_utilizada').value = data.peca_utilizada || '';
@@ -1161,6 +1166,15 @@ function salvarManutencao() {
         saveBtn.disabled = false;
         saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
         return;
+        if (!veiculoId) {
+            showNotification('Veículo selecionado inválido.', 'error');
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Salvar';
+            return;
+        }
+
+ main
+
     }
 
     const formData = {
