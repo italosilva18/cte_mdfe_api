@@ -763,9 +763,8 @@ function loadPlacasFromMDFe() {
                 console.log(`${veiculos.length} veículos carregados com sucesso`);
                 showNotification(`${veiculos.length} veículos carregados com sucesso`, 'success', 2000);
                 return;
-            }
 
-            showNotification(
+                showNotification(
                 'Nenhum veículo cadastrado. Cadastre um veículo antes de registrar manutenções.',
                 'warning',
                 4000
@@ -775,6 +774,7 @@ function loadPlacasFromMDFe() {
             console.error('Erro ao carregar veículos da API:', error);
             showNotification('Erro ao carregar veículos. Tente novamente mais tarde.', 'error');
         });
+    });
 }
 
 
