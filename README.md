@@ -50,6 +50,8 @@ once you have real data in the database.
 
 The main API routes are available under `/api/`.
 
+For a detailed description of these endpoints, see [docs/api_reference.md](docs/api_reference.md).
+
 - `/api/ctes/` – CT-e documents
 - `/api/mdfes/` – MDF-e documents
 - `/api/veiculos/` – vehicle registry
