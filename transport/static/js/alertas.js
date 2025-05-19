@@ -200,15 +200,18 @@ function loadAlertas() {
 
     // Manutenções Pendentes (Exemplo: buscar manutenções com status PENDENTE)
     if (!tipoAlertaFilter || tipoAlertaFilter === 'manutencao') {
-        // TODO: Adicionar filtro de data_servico próximo, se necessário e suportado pela API de manutenção
+        // A API de manutenção não possui filtro de vencimento. Quando existir um
+        // endpoint que permita filtrar por prazos (ex.:
+        // /api/manutencao/?status=PENDENTE&data_servico__lte=YYYY-MM-DD),
+        // esta requisição deverá ser atualizada para utilizá-lo.
         promises.push(
             Auth.fetchWithAuth(`/api/manutencao/painel/ultimos/?limit=50`) // /api/manutencao/?status=PENDENTE&data_fim_prevista=${diasFilterPrazo}
                 .then(response => response.json())
                 .then(data => {
-                    // A API de ultimos retorna ManutencaoVeiculoSerializer, que pode ser filtrado no frontend por status PENDENTE
+                    // A API de ultimos retorna ManutencaoVeiculoSerializer. Filtramos
+                    // no frontend apenas por status PENDENTE enquanto não há suporte
+                    // a prazo de manutenção no backend.
                     manutencoesList = data.filter(m => m.status === 'PENDENTE');
-                    // Para ser mais preciso, a API de alertas de manutenção deveria considerar o prazo.
-                    // Aqui é uma simplificação.
                     manutencoesCount = manutencoesList.length;
                     renderManutencoesTable();
                 }).catch(err => {
