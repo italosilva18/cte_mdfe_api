@@ -66,6 +66,7 @@ The main API routes are available under `/api/`.
 - `/api/alertas/...` – alert management
 - `/api/usuarios/` – user operations (`/api/users/me/` for current user)
 - Swagger and ReDoc documentation at `/api/swagger/` and `/api/redoc/`
+See [docs/api_reference.md](docs/api_reference.md) for panel endpoint details.
 
 Authentication is handled via JWT tokens obtained from `/api/token/` and `/api/token/refresh/`.
 
