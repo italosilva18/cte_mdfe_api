@@ -5,10 +5,12 @@ from django.contrib.auth.models import User
 
 import os
 import re
-from .models import CTeDocumento, MDFeDocumento
+from .models import CTeDocumento, MDFeDocumento, Veiculo, ManutencaoVeiculo
 from .services.parser_cte import parse_cte_completo
 from .services.parser_mdfe import parse_mdfe_completo
 from rest_framework import status
+from decimal import Decimal
+from datetime import date
 from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -407,4 +409,120 @@ class PanelEndpointsTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertEqual(self.user.first_name, 'PatchedViaViewSetMe')
+
+
+class ManutencaoVeiculoTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='maintuser', password='maintpass123', email='maint@example.com'
+        )
+        refresh = RefreshToken.for_user(self.user)
+        self.client = APIClient()
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+
+        self.veiculo = Veiculo.objects.create(placa='XYZ1A23')
+
+        self.manut1 = ManutencaoVeiculo.objects.create(
+            veiculo=self.veiculo,
+            data_servico=date(2024, 1, 1),
+            servico_realizado='Troca óleo',
+            valor_peca=Decimal('100.00'),
+            valor_mao_obra=Decimal('50.00'),
+        )
+        self.manut2 = ManutencaoVeiculo.objects.create(
+            veiculo=self.veiculo,
+            data_servico=date(2024, 2, 1),
+            servico_realizado='Alinhamento',
+            valor_peca=Decimal('0.00'),
+            valor_mao_obra=Decimal('80.00'),
+        )
+
+    def test_list_manutencoes(self):
+        url = reverse('manutencao-veiculo-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(response.data['results']), 2)
+
+    def test_create_manutencao(self):
+        url = reverse('manutencao-veiculo-list')
+        data = {
+            'veiculo': self.veiculo.id,
+            'data_servico': '2024-03-01',
+            'servico_realizado': 'Troca filtro',
+            'valor_peca': '30.00',
+            'valor_mao_obra': '20.00',
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['valor_total'], '50.00')
+        self.assertTrue(
+            ManutencaoVeiculo.objects.filter(id=response.data['id']).exists()
+        )
+
+    def test_update_manutencao(self):
+        url = reverse('manutencao-veiculo-detail', kwargs={'pk': self.manut1.pk})
+        data = {'valor_peca': '150.00'}
+        response = self.client.patch(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.manut1.refresh_from_db()
+        self.assertEqual(str(self.manut1.valor_total), '200.00')
+
+    def test_delete_manutencao(self):
+        url = reverse('manutencao-veiculo-detail', kwargs={'pk': self.manut2.pk})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(ManutencaoVeiculo.objects.filter(pk=self.manut2.pk).exists())
+
+
+class ManutencaoPainelViewSetTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='panelmaint', password='panelpass123', email='panelmaint@example.com'
+        )
+        refresh = RefreshToken.for_user(self.user)
+        self.client = APIClient()
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+
+        self.veiculo = Veiculo.objects.create(placa='AAA1B23')
+        ManutencaoVeiculo.objects.create(
+            veiculo=self.veiculo,
+            data_servico=date(2024, 3, 1),
+            servico_realizado='Revisão',
+            valor_peca=Decimal('10.00'),
+            valor_mao_obra=Decimal('40.00'),
+        )
+        ManutencaoVeiculo.objects.create(
+            veiculo=self.veiculo,
+            data_servico=date(2024, 4, 1),
+            servico_realizado='Troca pneu',
+            valor_peca=Decimal('20.00'),
+            valor_mao_obra=Decimal('60.00'),
+        )
+
+    def test_indicadores_endpoint(self):
+        url = reverse('manutencao-painel-indicadores')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('total_manutencoes', response.data)
+        self.assertIn('valor_total', response.data)
+
+    def test_graficos_endpoint(self):
+        url = reverse('manutencao-painel-graficos')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('por_status', response.data)
+        self.assertIn('por_periodo', response.data)
+
+    def test_ultimos_endpoint(self):
+        url = reverse('manutencao-painel-ultimos')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+
+    def test_tendencias_endpoint(self):
+        url = reverse('manutencao-painel-tendencias')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('tendencia_valor', response.data)
+        self.assertIn('frequencia_por_veiculo', response.data)
 
