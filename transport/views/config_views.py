@@ -337,34 +337,36 @@ class BackupAPIView(viewsets.ViewSet):
             # Erro específico na execução do comando
             logger.warning("ERRO (Comando Backup): %s", cpe.stderr)
             error_details = f"Erro ao executar comando de backup: {cpe.stderr}"
-             if registro: # Se o registro foi criado antes do erro de comando
-                 registro.status = 'erro'
-                 registro.detalhes = error_details
-                 registro.save()
-             else: # Tenta criar registro de erro
-                 try:
-                     RegistroBackup.objects.create(
-                         nome_arquivo=f"erro_backup_{timestamp}.log", status='erro',
-                         usuario=request.user.username, detalhes=error_details)
-                 except: pass
-             return Response({"error": "Erro ao executar comando de backup.", "details": cpe.stderr},
+            if registro:  # Se o registro foi criado antes do erro de comando
+                registro.status = 'erro'
+                registro.detalhes = error_details
+                registro.save()
+            else:  # Tenta criar registro de erro
+                try:
+                    RegistroBackup.objects.create(
+                        nome_arquivo=f"erro_backup_{timestamp}.log", status='erro',
+                        usuario=request.user.username, detalhes=error_details)
+                except:
+                    pass
+            return Response({"error": "Erro ao executar comando de backup.", "details": cpe.stderr},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             # Outros erros (permissão, NotImplementedError, etc.)
             logger.warning("ERRO ao gerar backup: %s", e)
             traceback.print_exc()
-             error_details = f"Erro ao gerar backup: {str(e)}\n{traceback.format_exc()}"
-             if registro: # Atualiza registro se já criado
-                 registro.status = 'erro'
-                 registro.detalhes = error_details
-                 registro.save()
-             else: # Tenta criar registro de erro
-                  try:
-                     RegistroBackup.objects.create(
-                         nome_arquivo=f"erro_backup_{timestamp}.log", status='erro',
-                         usuario=request.user.username, detalhes=error_details[:999]) # Limita tamanho do detalhe
-                  except: pass
-             return Response({"error": f"Erro inesperado ao gerar backup: {str(e)}"},
+            error_details = f"Erro ao gerar backup: {str(e)}\n{traceback.format_exc()}"
+            if registro:  # Atualiza registro se já criado
+                registro.status = 'erro'
+                registro.detalhes = error_details
+                registro.save()
+            else:  # Tenta criar registro de erro
+                try:
+                    RegistroBackup.objects.create(
+                        nome_arquivo=f"erro_backup_{timestamp}.log", status='erro',
+                        usuario=request.user.username, detalhes=error_details[:999])  # Limita tamanho do detalhe
+                except:
+                    pass
+            return Response({"error": f"Erro inesperado ao gerar backup: {str(e)}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
