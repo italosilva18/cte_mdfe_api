@@ -18,11 +18,17 @@ This project is a Django REST API for managing CT-e and MDF-e documents, vehicle
    ```bash
    pip install -r requirements.txt
    ```
-3. Apply database migrations:
+3. Copy `.env.example` to `.env` and load the environment variables:
+   ```bash
+   cp .env.example .env
+   export $(grep -v '^#' .env | xargs)
+   ```
+   These variables must be exported before running any `manage.py` commands.
+4. Apply database migrations:
    ```bash
    python manage.py migrate
    ```
-4. Run the development server:
+5. Run the development server:
    ```bash
    python manage.py runserver
    ```
@@ -72,6 +78,9 @@ For a production deployment the application expects certain variables to be pres
 - `DJANGO_SECRET_KEY` – Secret key for cryptographic signing.
 - `DJANGO_DEBUG` – Set to `true` or `false`. Use `false` in production.
 - `DJANGO_ALLOWED_HOSTS` – Comma separated list of hosts that can serve the app.
+
+A `.env.example` file with these variables is included in the repository. Copy it
+to `.env` and update the values for your environment.
 
 ## Running Tests
 
