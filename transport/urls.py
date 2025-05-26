@@ -135,6 +135,7 @@ urlpatterns = [
     path("backup/", login_required(TemplateView.as_view(template_name="backup.html")), name="backup_page"),
     path("relatorios/", login_required(TemplateView.as_view(template_name="relatorios.html")), name="relatorios_page"),
     path("alertas/", login_required(TemplateView.as_view(template_name="alertas.html")), name="alertas_page"), # Adicionada rota para alertas.html
+    path("pagamentos/", login_required(TemplateView.as_view(template_name="pagamentos.html")), name="pagamentos_page"),
 
     # Rota raiz redireciona para o dashboard se logado
     path('', login_required(TemplateView.as_view(template_name="dashboard.html")), name="home"),

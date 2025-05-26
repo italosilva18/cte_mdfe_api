@@ -1,0 +1,573 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pagamentos - Sistema de Transporte{% endblock %}
+
+{% block extra_css %}
+<style>
+    .nav-tabs .nav-link {
+        color: var(--verde-escuro);
+        font-weight: 500;
+    }
+    .nav-tabs .nav-link.active {
+        background-color: var(--verde-claro);
+        border-color: var(--verde-escuro);
+        color: white;
+    }
+    .status-badge {
+        font-size: 0.875rem;
+        padding: 0.25rem 0.75rem;
+    }
+    .table-pagamentos th {
+        background-color: var(--verde-claro);
+        color: white;
+        font-weight: 500;
+    }
+    .summary-card {
+        border-left: 4px solid var(--verde-escuro);
+    }
+    .summary-card .card-body {
+        padding: 1rem;
+    }
+    .btn-pay {
+        background-color: var(--verde-escuro);
+        color: white;
+        border: none;
+    }
+    .btn-pay:hover {
+        background-color: var(--verde-claro);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-money-bill-wave me-2"></i>Gestão de Pagamentos
+        </h1>
+        <div>
+            <button class="btn btn-outline-success btn-sm" id="btnAtualizarDados">
+                <i class="fas fa-sync-alt me-1"></i>Atualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabs de Navegação -->
+    <ul class="nav nav-tabs mb-4" id="pagamentosTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="agregados-tab" data-bs-toggle="tab" data-bs-target="#agregados" type="button">
+                <i class="fas fa-truck me-2"></i>Pagamentos Agregados
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="proprios-tab" data-bs-toggle="tab" data-bs-target="#proprios" type="button">
+                <i class="fas fa-users me-2"></i>Pagamentos Próprios
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="faixas-tab" data-bs-toggle="tab" data-bs-target="#faixas" type="button">
+                <i class="fas fa-road me-2"></i>Configurar Faixas KM
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="pagamentosTabContent">
+        
+        <!-- Tab Agregados -->
+        <div class="tab-pane fade show active" id="agregados" role="tabpanel">
+            <!-- Cards de Resumo -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card summary-card">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Total Pendente</div>
+                            <div class="h5 mb-0 font-weight-bold text-danger" id="totalPendenteAgregados">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card summary-card">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Total Pago (Mês)</div>
+                            <div class="h5 mb-0 font-weight-bold text-success" id="totalPagoAgregados">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card summary-card">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Qtd. Pendentes</div>
+                            <div class="h5 mb-0 font-weight-bold" id="qtdPendentesAgregados">0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card summary-card">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Percentual Médio</div>
+                            <div class="h5 mb-0 font-weight-bold" id="percentualMedioAgregados">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-header py-2">
+                    <h6 class="m-0 font-weight-bold text-primary">Filtros</h6>
+                </div>
+                <div class="card-body">
+                    <form id="filtrosAgregados" class="row g-3">
+                        <div class="col-md-2">
+                            <label class="form-label">Data Início</label>
+                            <input type="date" class="form-control form-control-sm" id="dataInicioAgregados">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Data Fim</label>
+                            <input type="date" class="form-control form-control-sm" id="dataFimAgregados">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Status</label>
+                            <select class="form-select form-select-sm" id="statusAgregados">
+                                <option value="">Todos</option>
+                                <option value="pendente">Pendente</option>
+                                <option value="pago">Pago</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Condutor</label>
+                            <input type="text" class="form-control form-control-sm" id="condutorAgregados" placeholder="Nome ou CPF">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Placa</label>
+                            <input type="text" class="form-control form-control-sm" id="placaAgregados" placeholder="ABC-1234">
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-info btn-sm w-100" id="btnFiltrarAgregados">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Ações -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <button class="btn btn-success btn-sm" id="btnGerarPagamentosAgregados">
+                        <i class="fas fa-plus-circle me-1"></i>Gerar Pagamentos
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnExportarAgregados">
+                        <i class="fas fa-file-csv me-1"></i>Exportar CSV
+                    </button>
+                </div>
+                <div>
+                    <button class="btn btn-warning btn-sm" id="btnMarcarPagoLote" disabled>
+                        <i class="fas fa-check-double me-1"></i>Marcar Selecionados como Pago
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabela -->
+            <div class="card">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-pagamentos mb-0">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <input type="checkbox" class="form-check-input" id="selectAllAgregados">
+                                    </th>
+                                    <th>CT-e</th>
+                                    <th>Data</th>
+                                    <th>Condutor</th>
+                                    <th>CPF</th>
+                                    <th>Placa</th>
+                                    <th>Valor Frete</th>
+                                    <th>%</th>
+                                    <th>Valor Repasse</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaAgregados">
+                                <tr>
+                                    <td colspan="11" class="text-center py-4">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <nav id="paginacaoAgregados"></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Próprios -->
+        <div class="tab-pane fade" id="proprios" role="tabpanel">
+            <!-- Cards de Resumo -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card summary-card">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Total Pendente</div>
+                            <div class="h5 mb-0 font-weight-bold text-danger" id="totalPendenteProprios">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card summary-card">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Total Pago (Mês)</div>
+                            <div class="h5 mb-0 font-weight-bold text-success" id="totalPagoProprios">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card summary-card">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Veículos Ativos</div>
+                            <div class="h5 mb-0 font-weight-bold" id="veiculosAtivos">0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card summary-card">
+                        <div class="card-body">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">KM Médio/Veículo</div>
+                            <div class="h5 mb-0 font-weight-bold" id="kmMedioProprios">0 km</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-header py-2">
+                    <h6 class="m-0 font-weight-bold text-primary">Filtros</h6>
+                </div>
+                <div class="card-body">
+                    <form id="filtrosProprios" class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Período</label>
+                            <input type="text" class="form-control form-control-sm" id="periodoProprios" placeholder="AAAA-MM ou AAAA-MM-1Q">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Status</label>
+                            <select class="form-select form-select-sm" id="statusProprios">
+                                <option value="">Todos</option>
+                                <option value="pendente">Pendente</option>
+                                <option value="pago">Pago</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Veículo</label>
+                            <select class="form-select form-select-sm" id="veiculoProprios">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="btn btn-info btn-sm w-100" id="btnFiltrarProprios">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Ações -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <button class="btn btn-success btn-sm" id="btnGerarPagamentosProprios">
+                        <i class="fas fa-calculator me-1"></i>Calcular Pagamentos
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btnExportarProprios">
+                        <i class="fas fa-file-csv me-1"></i>Exportar CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabela -->
+            <div class="card">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-pagamentos mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Período</th>
+                                    <th>Veículo</th>
+                                    <th>KM Total</th>
+                                    <th>Valor Base</th>
+                                    <th>Ajustes</th>
+                                    <th>Total a Pagar</th>
+                                    <th>Status</th>
+                                    <th>Data Pgto</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaProprios">
+                                <tr>
+                                    <td colspan="9" class="text-center py-4">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <nav id="paginacaoProprios"></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Faixas KM -->
+        <div class="tab-pane fade" id="faixas" role="tabpanel">
+            <div class="row">
+                <div class="col-md-8">
+                    <!-- Lista de Faixas -->
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-primary">Faixas de Quilometragem</h6>
+                            <button class="btn btn-success btn-sm" id="btnNovaFaixa">
+                                <i class="fas fa-plus"></i> Nova Faixa
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>KM Mínimo</th>
+                                            <th>KM Máximo</th>
+                                            <th>Valor (R$)</th>
+                                            <th width="100">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabelaFaixas">
+                                        <tr>
+                                            <td colspan="4" class="text-center py-4">
+                                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <!-- Calculadora -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="m-0 font-weight-bold text-primary">Calculadora de Valor</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Quilometragem</label>
+                                <input type="number" class="form-control" id="kmCalculadora" placeholder="Digite o KM">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Valor Calculado</label>
+                                <div class="form-control-plaintext">
+                                    <h4 class="text-success mb-0" id="valorCalculado">R$ 0,00</h4>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary w-100" id="btnCalcular">
+                                <i class="fas fa-calculator me-1"></i>Calcular
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Gerar Pagamentos Agregados -->
+<div class="modal fade" id="modalGerarAgregados" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Gerar Pagamentos Agregados</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formGerarAgregados">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Data Início CT-es</label>
+                            <input type="date" class="form-control" id="dataInicioGerar" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Data Fim CT-es</label>
+                            <input type="date" class="form-control" id="dataFimGerar" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Percentual de Repasse (%)</label>
+                            <input type="number" class="form-control" id="percentualGerar" value="25" min="0" max="100" step="0.1" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Data Prevista Pagamento</label>
+                            <input type="date" class="form-control" id="dataPrevistaGerar" required>
+                        </div>
+                        <div class="col-12">
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Serão gerados pagamentos para todos os CT-es autorizados sem pagamento no período.
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="btnConfirmarGerarAgregados">
+                    <i class="fas fa-check me-1"></i>Gerar Pagamentos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Gerar Pagamentos Próprios -->
+<div class="modal fade" id="modalGerarProprios" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Calcular Pagamentos Próprios</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formGerarProprios">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Período</label>
+                            <input type="text" class="form-control" id="periodoGerarProprios" placeholder="Ex: 2024-01 ou 2024-01-1Q" required>
+                            <small class="text-muted">Formato: AAAA-MM (mensal) ou AAAA-MM-1Q/2Q (quinzenal)</small>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Veículos</label>
+                            <select class="form-select" id="veiculosGerarProprios" multiple>
+                                <option value="todos">Todos os Veículos Ativos</option>
+                            </select>
+                            <small class="text-muted">Segure Ctrl para selecionar múltiplos</small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="btnConfirmarGerarProprios">
+                    <i class="fas fa-calculator me-1"></i>Calcular
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Pagamento -->
+<div class="modal fade" id="modalEditarPagamento" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Pagamento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarPagamento">
+                    <input type="hidden" id="idPagamentoEditar">
+                    <input type="hidden" id="tipoPagamentoEditar">
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="statusEditar">
+                                <option value="pendente">Pendente</option>
+                                <option value="pago">Pago</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Data Pagamento</label>
+                            <input type="date" class="form-control" id="dataPagamentoEditar">
+                        </div>
+                        <div class="col-12" id="camposAgregadoEditar" style="display:none;">
+                            <label class="form-label">Percentual (%)</label>
+                            <input type="number" class="form-control" id="percentualEditar" min="0" max="100" step="0.1">
+                        </div>
+                        <div class="col-12" id="camposProprioEditar" style="display:none;">
+                            <label class="form-label">Ajustes (R$)</label>
+                            <input type="number" class="form-control" id="ajustesEditar" step="0.01">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observações</label>
+                            <textarea class="form-control" id="obsEditar" rows="3"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnSalvarEdicao">
+                    <i class="fas fa-save me-1"></i>Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Faixa KM -->
+<div class="modal fade" id="modalFaixa" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tituloModalFaixa">Nova Faixa de KM</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formFaixa">
+                    <input type="hidden" id="idFaixa">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">KM Mínimo</label>
+                            <input type="number" class="form-control" id="minKmFaixa" min="0" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">KM Máximo</label>
+                            <input type="number" class="form-control" id="maxKmFaixa" min="0">
+                            <small class="text-muted">Deixe vazio para "acima de"</small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Valor (R$)</label>
+                            <input type="number" class="form-control" id="valorFaixa" min="0" step="0.01" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="btnSalvarFaixa">
+                    <i class="fas fa-save me-1"></i>Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/pagamentos.js' %}"></script>
+{% endblock %}

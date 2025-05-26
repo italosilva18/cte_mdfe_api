@@ -37,6 +37,7 @@ from ..models import ( # Modelos usados pelo ViewSet e filtros
     CTeDocumento # Usado na action 'documentos'
 )
 from ..services.parser_mdfe import parse_mdfe_completo  # Serviço usado na action reprocessar
+from ..services.damdfe_generator import gerar_damdfe_pdf  # Importar o gerador de DAMDFE
 from ..utils import csv_response
 
 # ===============================================================
@@ -158,7 +159,7 @@ class MDFeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['get'])
     def damdfe(self, request, pk=None):
-        """Endpoint para gerar o DAMDFE (PDF) do MDF-e (atualmente retorna JSON)."""
+        """Endpoint para gerar o DAMDFE (PDF) do MDF-e."""
         mdfe = self.get_object()
 
         # Verifica se o MDF-e está autorizado e não cancelado
@@ -170,31 +171,45 @@ class MDFeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"error": f"DAMDFE não disponível para MDF-e {status_text}."},
                            status=status.HTTP_400_BAD_REQUEST)
 
-        # --- Lógica de Geração do DAMDFE (Placeholder) ---
-        # pdf_content = gerar_damdfe_pdf(mdfe)
-        # response = HttpResponse(pdf_content, content_type='application/pdf')
-        # response['Content-Disposition'] = f'attachment; filename="DAMDFE_{mdfe.chave}.pdf"'
-        # return response
-        # --------------------------------------------------
-
-        # Implementação atual de placeholder: retorna JSON com dados básicos
-        data_emissao = getattr(mdfe.identificacao, 'dh_emi', None)
-        placa_tracao = getattr(getattr(mdfe.modal_rodoviario, 'veiculo_tracao', None), 'placa', None)
-
-        data = {
-            "message": "Funcionalidade de geração de DAMDFE (PDF) em implementação.",
-            "info": "Dados básicos para DAMDFE:",
-            "chave": mdfe.chave,
-            "numero": getattr(mdfe.identificacao, 'n_mdf', None),
-            "serie": getattr(mdfe.identificacao, 'serie', None),
-            "data_emissao": data_emissao.strftime('%d/%m/%Y %H:%M') if data_emissao else None,
-            "uf_inicio": getattr(mdfe.identificacao, 'uf_ini', None),
-            "uf_fim": getattr(mdfe.identificacao, 'uf_fim', None),
-            "placa": placa_tracao,
-            "protocolo": getattr(mdfe.protocolo, 'numero_protocolo', None),
-            "encerrado": mdfe.encerrado,
-        }
-        return Response(data)
+        # Gerar o PDF do DAMDFE
+        try:
+            # Fazer prefetch dos dados relacionados para otimizar
+            mdfe = MDFeDocumento.objects.select_related(
+                'identificacao',
+                'emitente',
+                'modal_rodoviario',
+                'modal_rodoviario__veiculo_tracao',
+                'totais',
+                'adicional',
+                'protocolo'
+            ).prefetch_related(
+                'municipios_descarga',
+                'municipios_descarga__docs_vinculados_municipio',
+                'condutores',
+                'modal_rodoviario__veiculos_reboque',
+                'modal_rodoviario__ciots'
+            ).get(pk=mdfe.pk)
+            
+            pdf_content = gerar_damdfe_pdf(mdfe)
+            
+            # Preparar resposta
+            response = HttpResponse(pdf_content, content_type='application/pdf')
+            
+            # Verificar se deve ser download ou visualização
+            download_param = request.query_params.get('download', 'inline')
+            if download_param == 'attachment':
+                response['Content-Disposition'] = f'attachment; filename="DAMDFE_{mdfe.chave}.pdf"'
+            else:
+                response['Content-Disposition'] = f'inline; filename="DAMDFE_{mdfe.chave}.pdf"'
+                
+            return response
+            
+        except Exception as e:
+            logger.error(f"Erro ao gerar DAMDFE para MDF-e {mdfe.chave}: {str(e)}")
+            return Response(
+                {"error": "Erro ao gerar o DAMDFE. Por favor, tente novamente."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['post'])
     def reprocessar(self, request, pk=None):

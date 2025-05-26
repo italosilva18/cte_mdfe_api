@@ -79,19 +79,30 @@ function setupModalEventListeners() {
     if (!modal) return;
 
     const btnPrintCTe = document.getElementById('btnPrintCTe');
+    const btnDownloadDACTE = document.getElementById('btnDownloadDACTE');
     const btnDownloadXML = document.getElementById('btnDownloadXML');
     const btnReprocessCTe = document.getElementById('btnReprocessCTe');
 
     if (btnPrintCTe) {
         btnPrintCTe.addEventListener('click', function() {
             if (!currentCTeId) return;
+            // Abre o PDF do DACTE em nova aba para visualização
             window.open(`/api/ctes/${currentCTeId}/dacte/`, '_blank');
-            showNotification('A geração de DACTE em PDF está em implementação. Exibindo dados JSON.', 'info');
         });
     }
+    
+    if (btnDownloadDACTE) {
+        btnDownloadDACTE.addEventListener('click', function() {
+            if (!currentCTeId) return;
+            // Força download do DACTE
+            window.open(`/api/ctes/${currentCTeId}/dacte/?download=attachment`, '_blank');
+        });
+    }
+    
     if (btnDownloadXML) {
         btnDownloadXML.addEventListener('click', function() {
             if (!currentCTeId) return;
+            // Download do arquivo XML
             window.open(`/api/ctes/${currentCTeId}/xml/`, '_blank');
         });
     }

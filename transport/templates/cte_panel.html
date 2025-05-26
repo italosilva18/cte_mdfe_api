@@ -233,14 +233,19 @@
                 </div>
             </div>
             <div class="modal-footer">
-                 <button type="button" class="btn btn-warning" id="btnReprocessCTe">
+                <button type="button" class="btn btn-warning" id="btnReprocessCTe" title="Reprocessar XML do CT-e">
                     <i class="fas fa-sync-alt me-2"></i>Reprocessar
                 </button>
-                <button type="button" class="btn btn-primary" id="btnPrintCTe">
-                    <i class="fas fa-print me-2"></i>Imprimir DACTE
-                </button>
-                <button type="button" class="btn btn-info" id="btnDownloadXML"> {# Mudado para info para diferenciar #}
-                    <i class="fas fa-file-code me-2"></i>Download XML
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-primary" id="btnPrintCTe" title="Visualizar DACTE em PDF">
+                        <i class="fas fa-eye me-2"></i>Ver DACTE
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btnDownloadDACTE" title="Baixar DACTE em PDF">
+                        <i class="fas fa-download me-1"></i>
+                    </button>
+                </div>
+                <button type="button" class="btn btn-info" id="btnDownloadXML" title="Baixar arquivo XML">
+                    <i class="fas fa-file-code me-2"></i>Baixar XML
                 </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
