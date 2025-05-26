@@ -1,9 +1,7 @@
 # Ignore virtual environments ----------------------------
 /venv/
 /.venv/
-/env/
-/.env/
-.env
+
 /virtualenv/
 /.virtualenv/
 /mediafiles/
