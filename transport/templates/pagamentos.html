@@ -209,6 +209,34 @@
                     <nav id="paginacaoAgregados"></nav>
                 </div>
             </div>
+            
+            <!-- Gráficos Agregados -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header py-2">
+                            <h6 class="m-0 font-weight-bold text-primary">Status dos Pagamentos</h6>
+                        </div>
+                        <div class="card-body">
+                            <div style="height: 250px;">
+                                <canvas id="chartStatusAgregados"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header py-2">
+                            <h6 class="m-0 font-weight-bold text-primary">Pagamentos por Mês</h6>
+                        </div>
+                        <div class="card-body">
+                            <div style="height: 250px;">
+                                <canvas id="chartTendenciaAgregados"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Tab Próprios -->
@@ -327,6 +355,34 @@
                 </div>
                 <div class="card-footer">
                     <nav id="paginacaoProprios"></nav>
+                </div>
+            </div>
+            
+            <!-- Gráficos Próprios -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header py-2">
+                            <h6 class="m-0 font-weight-bold text-primary">KM por Veículo</h6>
+                        </div>
+                        <div class="card-body">
+                            <div style="height: 250px;">
+                                <canvas id="chartKmProprios"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header py-2">
+                            <h6 class="m-0 font-weight-bold text-primary">Evolução dos Pagamentos</h6>
+                        </div>
+                        <div class="card-body">
+                            <div style="height: 250px;">
+                                <canvas id="chartEvolucaoProprios"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -569,5 +625,8 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Pagamentos JS -->
 <script src="{% static 'js/pagamentos.js' %}"></script>
 {% endblock %}
