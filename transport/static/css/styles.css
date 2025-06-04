@@ -204,6 +204,36 @@ body.dark-theme .border {
     display: none;
 }
 
+/* Animações para transições suaves */
+.sidebar {
+    transition: transform 0.3s ease-in-out, width 0.3s ease-in-out;
+}
+
+.sidebar-overlay {
+    transition: opacity 0.3s ease-in-out;
+}
+
+/* Melhorias para acessibilidade mobile */
+@media (max-width: 991.98px) {
+    .sidebar .nav-link {
+        padding: 15px 20px;
+        font-size: 16px;
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .sidebar .nav-link i {
+        font-size: 18px;
+        width: 24px;
+    }
+    
+    .sidebar-footer .btn {
+        padding: 10px;
+        margin: 2px;
+    }
+}
+
 .sidebar-toggler {
     cursor: pointer;
     text-align: center;
@@ -246,10 +276,59 @@ body.dark-theme .border {
 }
 
 /* === Responsividade === */
+.menu-toggle {
+    display: none;
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 1100;
+    background-color: var(--verde-primario);
+    color: var(--branco);
+    border: none;
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    font-size: 16px;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--sombra-padrao);
+    transition: var(--transicao-padrao);
+    cursor: pointer;
+}
+
+.menu-toggle:hover {
+    background-color: var(--verde-secundario);
+    transform: scale(1.05);
+}
+
+/* Overlay para mobile */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
 @media (max-width: 991.98px) {
     .sidebar {
-        width: 250px;
+        width: 280px;
         transform: translateX(-100%);
+        z-index: 1050;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+        position: fixed;
+        height: 100vh;
+        overflow-y: auto;
     }
     
     .sidebar.active {
@@ -258,6 +337,7 @@ body.dark-theme .border {
     
     .main-content {
         margin-left: 0;
+        padding: 20px 15px;
     }
     
     .main-content.expanded {
@@ -265,24 +345,46 @@ body.dark-theme .border {
     }
     
     .menu-toggle {
-        display: block !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .page-header {
+        margin-top: 60px;
+        padding-top: 10px;
+    }
+    
+    /* Esconde o botão de toggle interno da sidebar no mobile */
+    .sidebar #sidebarToggle {
+        display: none;
+    }
+    
+    /* Ajusta o rodapé da sidebar para mobile */
+    .sidebar-footer {
+        position: relative;
+        margin-top: auto;
     }
 }
 
-.menu-toggle {
-    display: none;
-    position: fixed;
-    top: 15px;
-    left: 15px;
-    z-index: 1050;
-    background-color: var(--verde-primario);
-    color: var(--branco);
-    border: none;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    text-align: center;
-    box-shadow: var(--sombra-padrao);
+@media (max-width: 575.98px) {
+    .sidebar {
+        width: 100%;
+    }
+    
+    .main-content {
+        padding: 15px 10px;
+    }
+    
+    .page-header .container-fluid {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .page-actions-container {
+        width: 100%;
+    }
 }
 
 /* === Cards & Componentes === */
@@ -512,7 +614,126 @@ body.dark-theme .loading::after {
     box-shadow: var(--sombra-padrao);
 }
 
-/* === Print Styles === */
+/* === Dashboard Específico === */
+.metric-card {
+    transition: var(--transicao-padrao);
+    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+.metric-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-card {
+    transition: var(--transicao-padrao);
+    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+.action-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+}
+
+.action-card:hover .card-title {
+    color: var(--verde-primario) !important;
+}
+
+/* Cards modernos sem bordas */
+.card.border-0 {
+    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Progress bars modernos */
+.progress {
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 10px;
+}
+
+.progress-bar {
+    border-radius: 10px;
+    background: linear-gradient(90deg, var(--verde-secundario), var(--verde-primario));
+}
+
+/* Badges modernos */
+.badge.bg-opacity-10 {
+    font-weight: 500;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+}
+
+/* Botões de filtro do gráfico */
+.btn-group .btn-outline-secondary.active,
+.btn-group .btn-outline-secondary:checked + label {
+    background-color: var(--verde-primario);
+    border-color: var(--verde-primario);
+    color: white;
+}
+
+/* Tabela moderna */
+.table > :not(caption) > * > * {
+    border-bottom-width: 1px;
+    border-color: rgba(0, 0, 0, 0.05);
+}
+
+.table-hover > tbody > tr:hover > * {
+    background-color: rgba(var(--bs-success-rgb), 0.05);
+}
+
+/* Estatísticas rápidas */
+.bg-light {
+    background-color: rgba(0, 0, 0, 0.02) !important;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Animações suaves */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.metric-card,
+.action-card {
+    animation: slideInUp 0.6s ease-out;
+}
+
+.metric-card:nth-child(1) { animation-delay: 0.1s; }
+.metric-card:nth-child(2) { animation-delay: 0.2s; }
+.metric-card:nth-child(3) { animation-delay: 0.3s; }
+.metric-card:nth-child(4) { animation-delay: 0.4s; }
+
+/* Responsividade dashboard */
+@media (max-width: 768px) {
+    .metric-card .metric-icon {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .metric-card .h5 {
+        font-size: 1.1rem;
+    }
+    
+    .action-card .action-icon {
+        width: 50px !important;
+        height: 50px !important;
+    }
+}
+
+/* Print Styles */
 @media print {
     .sidebar, .menu-toggle, .page-header button, 
     .no-print, .modal-footer, .card-header button {

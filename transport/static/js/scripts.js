@@ -24,24 +24,8 @@ document.addEventListener('DOMContentLoaded', function() {
  * Initialize UI components
  */
 function initUIComponents() {
-    // Handle sidebar toggle for mobile
-    const menuToggle = document.querySelector('.menu-toggle');
-    const sidebar = document.querySelector('.sidebar');
-    
-    if (menuToggle && sidebar) {
-        menuToggle.addEventListener('click', function() {
-            sidebar.classList.toggle('active');
-        });
-        
-        // Close sidebar when clicking outside (on mobile)
-        document.addEventListener('click', function(e) {
-            if (window.innerWidth < 992 && 
-                !e.target.closest('.sidebar') && 
-                !e.target.closest('.menu-toggle')) {
-                sidebar.classList.remove('active');
-            }
-        });
-    }
+    // Sidebar toggle is now handled in base.html
+    // Removed to avoid conflicts
     
     // Highlight active menu item
     highlightActiveMenu();

@@ -2,8 +2,8 @@
 {% load static %}
 {# {% load humanize %} <- Remova ou adicione 'django.contrib.humanize' em settings.py #}
 
-{% block title %}Dashboard Geral{% endblock %}
-{% block header %}Dashboard Geral{% endblock %}
+{% block title %}Dashboard{% endblock %}
+{% block header_page_title %}Dashboard{% endblock %}
 
 {% block breadcrumbs %}
 <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
@@ -16,236 +16,268 @@
 {% endblock %}
 
 {% block content %}
-<div class="card shadow-sm mb-4" style="border-left: 4px solid var(--verde-primario);">
-    <div class="card-header text-white" style="background-color: var(--verde-primario);">
-        <i class="fas fa-filter me-2"></i>Filtrar Período
+<!-- Filtros Compactos -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body py-3">
+                <form id="filterForm" class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label for="periodo" class="form-label small text-muted">Período</label>
+                        <select class="form-select form-select-sm" id="periodo" name="periodo">
+                            <option value="mes">Este Mês</option>
+                            <option value="trimestre">Este Trimestre</option>
+                            <option value="ano" selected>Este Ano</option>
+                            <option value="7dias">Últimos 7 dias</option>
+                            <option value="30dias">Últimos 30 dias</option>
+                            <option value="personalizado">Personalizado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="data_inicio" class="form-label small text-muted">Data Inicial</label>
+                        <input type="date" class="form-control form-control-sm" id="data_inicio" name="data_inicio" disabled>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="data_fim" class="form-label small text-muted">Data Final</label>
+                        <input type="date" class="form-control form-control-sm" id="data_fim" name="data_fim" disabled>
+                    </div>
+                    <div class="col-md-3 d-flex gap-2">
+                        <button type="button" class="btn btn-success btn-sm flex-grow-1" id="btnFiltrar">
+                            <i class="fas fa-filter me-1"></i>Filtrar
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnResetarFiltros" title="Limpar">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cards de Métricas Principais -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">CT-es</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="card-total-ctes">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-file-invoice fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">MDF-es</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="card-total-mdfes">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-truck fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Valor Total</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="card-valor-total-fretes">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Ticket Médio</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="card-ticket-medio">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-calculator fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cards CIF/FOB Maiores -->
+<div class="row mb-4">
+    <div class="col-xl-6 col-lg-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-3">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Valores CIF</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="card-valor-cif">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                        <div class="text-xs text-muted mt-2">Custo, Seguro e Frete</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-chart-bar fa-3x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6 col-lg-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-3">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Valores FOB</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="card-valor-fob">
+                            <span class="spinner-border spinner-border-sm" role="status"></span>
+                        </div>
+                        <div class="text-xs text-muted mt-2">Free on Board</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-chart-pie fa-3x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Gráficos -->
+<div class="row mb-4">
+    <div class="col-xl-6 col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Faturamento CIF/FOB</h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-area">
+                    <div style="height: 320px;" id="chart-cif-fob-container">
+                        <canvas id="chartCifFob"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6 col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-success">Desempenho Mensal</h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-area">
+                    <div style="height: 320px;" id="chart-documentos-container">
+                        <canvas id="chartDocumentos"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Últimos Lançamentos -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Últimos Lançamentos</h6>
     </div>
     <div class="card-body">
-        <form id="filterForm" class="row g-3 align-items-end">
-            <div class="col-md-4 col-lg-3">
-                <label for="periodo" class="form-label">Período Pré-definido</label>
-                <select class="form-select form-select-sm" id="periodo" name="periodo">
-                    <option value="mes">Este Mês</option>
-                    <option value="trimestre">Este Trimestre</option>
-                    <option value="ano" selected>Este Ano</option>
-                    <option value="7dias">Últimos 7 dias</option>
-                    <option value="30dias">Últimos 30 dias</option>
-                    <option value="personalizado">Personalizado</option>
-                </select>
-            </div>
-            <div class="col-md-4 col-lg-3">
-                <label for="data_inicio" class="form-label">Data Inicial</label>
-                <input type="date" class="form-control form-control-sm" id="data_inicio" name="data_inicio" disabled>
-            </div>
-            <div class="col-md-4 col-lg-3">
-                <label for="data_fim" class="form-label">Data Final</label>
-                <input type="date" class="form-control form-control-sm" id="data_fim" name="data_fim" disabled>
-            </div>
-            <div class="col-md-12 col-lg-3 d-flex gap-2 mt-3 mt-lg-0">
-                <button type="button" class="btn btn-success btn-sm flex-grow-1" id="btnFiltrar">
-                    <i class="fas fa-filter me-1"></i>Aplicar Filtro
-                </button>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnResetarFiltros" title="Limpar Filtros">
-                    <i class="fas fa-undo"></i>
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div class="row mb-4 g-3">
-    <div class="col-lg col-md-6">
-        <div class="card shadow-sm h-100 border-start border-success border-4">
-            <div class="card-body d-flex flex-column justify-content-between">
-                <div>
-                    <div class="text-xs fw-bold text-success text-uppercase mb-1">Total CT-es (Período)</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-ctes"> {# ID: card-total-ctes #}
-                         <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
-                </div>
-                 <div class="mt-2 text-end">
-                    <i class="fas fa-file-invoice fa-2x text-gray-300"></i>
-                </div>
-            </div>
-             <a href="{% url 'cte_panel' %}" class="card-footer text-success small text-decoration-none">
-                Ver detalhes <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
-    </div>
-
-    <div class="col-lg col-md-6">
-        <div class="card shadow-sm h-100 border-start border-primary border-4">
-            <div class="card-body d-flex flex-column justify-content-between">
-                 <div>
-                    <div class="text-xs fw-bold text-primary text-uppercase mb-1">Total MDF-es (Período)</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-total-mdfes"> {# ID: card-total-mdfes #}
-                         <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
-                </div>
-                 <div class="mt-2 text-end">
-                    <i class="fas fa-truck fa-2x text-gray-300"></i>
-                </div>
-            </div>
-             <a href="{% url 'mdfe_panel' %}" class="card-footer text-primary small text-decoration-none">
-                Ver detalhes <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
-    </div>
-
-    <div class="col-lg col-md-6">
-        <div class="card shadow-sm h-100 border-start border-info border-4">
-             <div class="card-body d-flex flex-column justify-content-between">
-                 <div>
-                    <div class="text-xs fw-bold text-info text-uppercase mb-1">Faturamento Total (R$)</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-valor-total-fretes"> {# ID: card-valor-total-fretes #}
-                         <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
-                </div>
-                 <div class="mt-2 text-end">
-                    <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
-                </div>
-            </div>
-             <a href="{% url 'financeiro' %}" class="card-footer text-info small text-decoration-none">
-                Ver detalhes <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
-    </div>
-
-    <div class="col-lg col-md-6">
-        <div class="card shadow-sm h-100 border-start border-success border-4">
-             <div class="card-body d-flex flex-column justify-content-between">
-                 <div>
-                    <div class="text-xs fw-bold text-success text-uppercase mb-1">Faturamento CIF (R$)</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-valor-cif"> {# ID: card-valor-cif #}
-                         <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
-                </div>
-                 <div class="mt-2 text-end">
-                    <i class="fas fa-hand-holding-usd fa-2x text-gray-300"></i>
-                </div>
-            </div>
-             <a href="{% url 'financeiro' %}" class="card-footer text-success small text-decoration-none">
-                Ver detalhes <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
-    </div>
-
-    <div class="col-lg col-md-12"> {# Ocupa largura total em telas menores se for o último #}
-        <div class="card shadow-sm h-100 border-start border-primary border-4">
-             <div class="card-body d-flex flex-column justify-content-between">
-                 <div>
-                    <div class="text-xs fw-bold text-primary text-uppercase mb-1">Faturamento FOB (R$)</div>
-                    <div class="h4 mb-0 fw-bold text-gray-800" id="card-valor-fob"> {# ID: card-valor-fob #}
-                        <span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>
-                    </div>
-                </div>
-                 <div class="mt-2 text-end">
-                    <i class="fas fa-people-carry fa-2x text-gray-300"></i>
-                </div>
-            </div>
-             <a href="{% url 'financeiro' %}" class="card-footer text-primary small text-decoration-none">
-                Ver detalhes <i class="fas fa-arrow-circle-right"></i>
-            </a>
-        </div>
-    </div>
-</div>
-
-<div class="row mb-4 g-4">
-    <div class="col-lg-7">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-light py-3">
-                <h6 class="m-0 fw-bold text-primary">Evolução Faturamento CIF/FOB</h6>
-            </div>
-            <div class="card-body">
-                <div class="chart-container" style="height: 320px;" id="chart-cif-fob-container"> {# ID: chart-cif-fob-container #}
-                    <canvas id="chartCifFob"></canvas> {# ID: chartCifFob #}
-                     {# Placeholder de carregamento será inserido pelo JS se necessário #}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-5">
-        <div class="card shadow-sm h-100">
-            <div class="card-header bg-light py-3">
-                <h6 class="m-0 fw-bold text-primary">Desempenho vs Meta</h6>
-            </div>
-            <div class="card-body">
-                <div class="chart-container" style="height: 320px;" id="chart-metas-container"> {# ID: chart-metas-container #}
-                    <canvas id="chartMetas"></canvas> {# ID: chartMetas #}
-                     {# Placeholder de carregamento será inserido pelo JS se necessário #}
-                </div>
-                <div id="meta-info" class="text-center small mt-2 text-muted">
-                    {# Informações adicionais sobre a meta podem ser inseridas aqui pelo JS #}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="card shadow-sm mb-4">
-    <div class="card-header bg-light py-3 d-flex flex-row align-items-center justify-content-between">
-        <h6 class="m-0 fw-bold text-primary">Últimos Lançamentos (CT-e / MDF-e)</h6>
-         {# Pode adicionar um link para ver todos os documentos #}
-         {# <a href="#" class="btn btn-sm btn-outline-primary">Ver Todos</a> #}
-    </div>
-    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-striped mb-0" id="table-ultimos-lancamentos">
-                <thead style="background-color: var(--verde-claro);">
+            <table class="table table-bordered" id="table-ultimos-lancamentos" width="100%" cellspacing="0">
+                <thead>
                     <tr>
-                        <th scope="col">Data/Hora</th>
-                        <th scope="col">Tipo</th>
-                        <th scope="col">Número/Chave</th>
-                        <th scope="col">Origem</th>
-                        <th scope="col">Destino</th>
-                        <th scope="col" class="text-end">Valor (R$)</th>
-                        <th scope="col">Ações</th>
+                        <th>Data</th>
+                        <th>Tipo</th>
+                        <th>Documento</th>
+                        <th>Origem</th>
+                        <th>Destino</th>
+                        <th>Valor</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
-                <tbody id="tbody-ultimos-lancamentos"> {# ID: tbody-ultimos-lancamentos #}
+                <tbody id="tbody-ultimos-lancamentos">
                     <tr>
-                        <td colspan="7" class="text-center p-4">
+                        <td colspan="7" class="text-center py-4">
                             <div class="spinner-border spinner-border-sm text-secondary" role="status">
                                 <span class="visually-hidden">Carregando...</span>
                             </div>
-                            <span class="ms-2 text-muted">Carregando lançamentos...</span>
+                            <div class="mt-2 small text-muted">Carregando lançamentos...</div>
                         </td>
                     </tr>
-                     {# Linhas serão preenchidas por dashboard.js #}
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
-<div class="row g-3">
-    <div class="col-md-4">
-        <a href="{% url 'upload' %}" class="card text-decoration-none shadow-hover h-100">
+<!-- Ações Rápidas -->
+<div class="row">
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow h-100">
             <div class="card-body text-center">
-                <i class="fas fa-file-import fa-3x text-success mb-2"></i>
-                <h5 class="card-title mb-0">Importar XML</h5>
-                <p class="card-text small text-muted">CT-e, MDF-e, Eventos</p>
+                <div class="text-success mb-3">
+                    <i class="fas fa-file-import fa-3x"></i>
+                </div>
+                <h5 class="card-title">Importar XML</h5>
+                <p class="card-text">Importe CT-e, MDF-e e Eventos</p>
+                <a href="{% url 'upload' %}" class="btn btn-success">Acessar</a>
             </div>
-        </a>
+        </div>
     </div>
-    <div class="col-md-4">
-        <a href="{% url 'manutencao' %}" class="card text-decoration-none shadow-hover h-100">
+    
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow h-100">
             <div class="card-body text-center">
-                <i class="fas fa-tools fa-3x text-primary mb-2"></i>
-                <h5 class="card-title mb-0">Manutenção</h5>
-                 <p class="card-text small text-muted">Controle de frota</p>
+                <div class="text-primary mb-3">
+                    <i class="fas fa-tools fa-3x"></i>
+                </div>
+                <h5 class="card-title">Manutenção</h5>
+                <p class="card-text">Controle de frota e veículos</p>
+                <a href="{% url 'manutencao' %}" class="btn btn-primary">Acessar</a>
             </div>
-        </a>
+        </div>
     </div>
-     <div class="col-md-4">
-        <a href="{% url 'relatorios_page' %}" class="card text-decoration-none shadow-hover h-100">
+    
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow h-100">
             <div class="card-body text-center">
-                <i class="fas fa-file-export fa-3x text-info mb-2"></i>
-                <h5 class="card-title mb-0">Relatórios</h5>
-                <p class="card-text small text-muted">Gerar relatórios</p>
+                <div class="text-info mb-3">
+                    <i class="fas fa-file-alt fa-3x"></i>
+                </div>
+                <h5 class="card-title">Relatórios</h5>
+                <p class="card-text">Gere relatórios completos</p>
+                <a href="{% url 'relatorios_page' %}" class="btn btn-info">Acessar</a>
             </div>
-        </a>
+        </div>
     </div>
 </div>
 
