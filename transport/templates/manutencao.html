@@ -55,10 +55,10 @@
                 <input type="text" class="form-control" id="search_text" name="search_text" placeholder="Digite aqui para pesquisar...">
             </div>
             <div class="col-md-12 col-lg-6 d-flex gap-2 align-items-end">
-                <button type="button" class="btn btn-success flex-grow-1">
+                <button type="button" class="btn btn-success flex-grow-1" id="btnFiltrar">
                     <i class="fas fa-filter me-2"></i>Filtrar
                 </button>
-                <button type="button" class="btn btn-outline-secondary" title="Reset filters">
+                <button type="button" class="btn btn-outline-secondary" id="btnResetFiltros" title="Reset filters">
                     <i class="fas fa-undo"></i>
                     <span class="visually-hidden">Reset filters</span>
                 </button>
@@ -146,7 +146,7 @@
             <div>
                 <i class="fas fa-tools me-2"></i>Manutenções Registradas
             </div>
-            <button type="button" class="btn btn-sm btn-light">
+            <button type="button" class="btn btn-sm btn-light" id="btnExportar">
                 <i class="fas fa-download me-1"></i>Exportar CSV
             </button>
         </div>
@@ -209,8 +209,6 @@
 
                                 <button class="btn btn-outline-primary" type="button" id="novoVeiculoBtn" title="Novo Veículo"
                                         data-bs-toggle="modal" data-bs-target="#addVeiculoModal">
-
-                                <button class="btn btn-outline-primary" type="button" id="novoVeiculoBtn" data-bs-toggle="modal" data-bs-target="#addVeiculoModal" title="Novo Veículo">
 
                                     <i class="fas fa-plus"></i>
                                 </button>
