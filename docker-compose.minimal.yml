@@ -1,0 +1,52 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:14
+    container_name: cte_mdfe_db
+    restart: always
+    environment:
+      POSTGRES_DB: cte_mdfe_db
+      POSTGRES_USER: cte_mdfe_user
+      POSTGRES_PASSWORD: changeme123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - cte_mdfe_network
+
+  # Django Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cte_mdfe_web
+    restart: always
+    environment:
+      DJANGO_SECRET_KEY: your-very-secret-key-change-in-production
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: cte_mdfe_db
+      DATABASE_USER: cte_mdfe_user
+      DATABASE_PASSWORD: changeme123
+      DJANGO_SUPERUSER_USERNAME: admin
+      DJANGO_SUPERUSER_EMAIL: admin@example.com
+      DJANGO_SUPERUSER_PASSWORD: admin123
+    volumes:
+      - ./media:/app/media
+      - ./logs:/app/logs
+    depends_on:
+      - db
+    networks:
+      - cte_mdfe_network
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:
+
+networks:
+  cte_mdfe_network:
+    driver: bridge

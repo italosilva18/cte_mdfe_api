@@ -3,6 +3,8 @@
 
 {% block title %}Relatórios{% endblock %}
 
+{% block header_page_title %}Relatórios{% endblock %}
+
 {% block breadcrumbs %}
 <li class="breadcrumb-item active">Relatórios</li>
 {% endblock %}
@@ -443,6 +445,37 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-details {
+        transition: all 0.3s ease;
+    }
+    
+    #preview-container {
+        min-height: 200px;
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 300px;
+        margin: 20px 0;
+    }
+    
+    .table-responsive {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .card-body .row .card {
+        transition: transform 0.2s ease;
+    }
+    
+    .card-body .row .card:hover {
+        transform: translateY(-2px);
+    }
+</style>
 {% endblock %}
 
 {% block scripts %}

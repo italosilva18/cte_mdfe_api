@@ -1,0 +1,53 @@
+FROM python:3.11-slim
+
+# Variáveis de ambiente
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV IS_DOCKER=true
+
+# Dependências do sistema
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    postgresql-client \
+    gcc \
+    python3-dev \
+    curl \
+    netcat-traditional \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Diretório de trabalho
+WORKDIR /app
+
+# Copiar e instalar requirements
+COPY requirements-prod.txt /app/
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements-prod.txt
+
+# Copiar todo o código
+COPY . /app/
+
+# Debug: Listar arquivos copiados
+RUN echo "=== Arquivos na raiz do container ===" && \
+    ls -la /app/ && \
+    echo "=== Verificando manage.py ===" && \
+    ls -la /app/manage.py && \
+    echo "=== Verificando core/ ===" && \
+    ls -la /app/core/
+
+# Criar diretórios
+RUN mkdir -p /app/static /app/media /app/logs
+
+# Script de entrada
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# Usuário não-root
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

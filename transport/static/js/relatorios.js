@@ -1,627 +1,1103 @@
 /**
- * scripts.js
- * Funções utilitárias compartilhadas em todo o sistema
+ * relatorios.js
+ * Sistema completo de geração de relatórios
  */
 
-// Inicialização quando o DOM estiver carregado
+// =============== VARIÁVEIS GLOBAIS ===============
+let currentReportData = null;
+let currentReportType = null;
+let previewChart = null;
+
+// =============== INICIALIZAÇÃO ===============
 document.addEventListener('DOMContentLoaded', function() {
-    // Inicializar tooltips do Bootstrap
-    initializeTooltips();
+    console.log('Inicializando sistema de relatórios...');
     
-    // Inicializar popovers do Bootstrap
-    initializePopovers();
+    // Configurar event listeners
+    setupEventListeners();
     
-    // Configurar o tema (claro/escuro) baseado nas preferências do usuário
-    setupThemeToggle();
+    // Configurar datas padrão
+    setDefaultDates();
     
-    // Inicializar máscaras de entrada para campos específicos
-    setupInputMasks();
-    
-    // Configurar comportamento dos painéis colapsáveis
-    setupCollapsibles();
-    
-    // Configurar comportamento de animações de carregamento
-    setupLoadingAnimations();
-    
-    // Detectar se há um token válido e ajustar a UI
-    checkAuthenticationStatus();
+    // Carregar dados auxiliares
+    loadAuxiliaryData();
 });
 
 /**
- * Inicializa todos os tooltips do Bootstrap
+ * Configurar todos os event listeners
  */
-function initializeTooltips() {
-    // Seleciona todos os elementos com atributo data-bs-toggle="tooltip"
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+function setupEventListeners() {
+    // Seletores principais
+    document.getElementById('tipo_relatorio')?.addEventListener('change', onReportTypeChange);
+    document.getElementById('periodo')?.addEventListener('change', onPeriodoChange);
+    document.getElementById('formato')?.addEventListener('change', onFormatoChange);
     
-    // Inicializa tooltips usando a API do Bootstrap
-    tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl, {
-            boundary: document.body, // Evita recortes por overflow
-            placement: tooltipTriggerEl.getAttribute('data-bs-placement') || 'top'
-        });
-    });
+    // Botões principais
+    document.getElementById('btnVisualizarPrevia')?.addEventListener('click', visualizarPrevia);
+    document.getElementById('btnBaixarRelatorio')?.addEventListener('click', baixarRelatorio);
+    document.getElementById('btnGerarRelatorio')?.addEventListener('click', baixarRelatorio);
+    document.getElementById('btnTryAgain')?.addEventListener('click', visualizarPrevia);
+    
+    // Campos de pagamento
+    document.getElementById('tipo_pagamento')?.addEventListener('change', onTipoPagamentoChange);
+    
+    // Auto preview quando filtros mudam (debounced)
+    const debouncedPreview = debounce(autoPreview, 1000);
+    document.getElementById('reportFilterForm')?.addEventListener('change', debouncedPreview);
 }
 
 /**
- * Inicializa todos os popovers do Bootstrap
+ * Configurar datas padrão (mês atual)
  */
-function initializePopovers() {
-    // Seleciona todos os elementos com atributo data-bs-toggle="popover"
-    const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+function setDefaultDates() {
+    const hoje = new Date();
+    const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
     
-    // Inicializa popovers usando a API do Bootstrap
-    popoverTriggerList.map(function (popoverTriggerEl) {
-        return new bootstrap.Popover(popoverTriggerEl, {
-            html: popoverTriggerEl.getAttribute('data-bs-html') === 'true',
-            trigger: popoverTriggerEl.getAttribute('data-bs-trigger') || 'click',
-            placement: popoverTriggerEl.getAttribute('data-bs-placement') || 'top'
-        });
-    });
+    const dataInicio = document.getElementById('data_inicio');
+    const dataFim = document.getElementById('data_fim');
+    
+    if (dataInicio) dataInicio.value = formatDateForInput(primeiroDiaMes);
+    if (dataFim) dataFim.value = formatDateForInput(ultimoDiaMes);
+    
+    // Definir período padrão
+    const periodo = document.getElementById('periodo');
+    if (periodo) periodo.value = 'mes_atual';
 }
 
 /**
- * Configura o alternador de tema (claro/escuro)
+ * Carregar dados auxiliares (veículos, etc.)
  */
-function setupThemeToggle() {
-    const themeToggleBtn = document.getElementById('themeToggle');
-    const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+async function loadAuxiliaryData() {
+    try {
+        // Carregar veículos para os selects
+        await loadVeiculosSelect();
+    } catch (error) {
+        console.error('Erro ao carregar dados auxiliares:', error);
+    }
+}
+
+// =============== EVENT HANDLERS ===============
+
+/**
+ * Mudança no tipo de relatório
+ */
+function onReportTypeChange() {
+    const tipo = document.getElementById('tipo_relatorio').value;
+    currentReportType = tipo;
     
-    // Se não tiver o botão de alternância, não faz nada
-    if (!themeToggleBtn) return;
+    // Ocultar todos os detalhes
+    document.querySelectorAll('.report-details').forEach(el => {
+        el.classList.add('d-none');
+    });
     
-    // Função para aplicar tema
-    const applyTheme = (isDark) => {
-        const html = document.documentElement;
-        
-        if (isDark) {
-            html.setAttribute('data-bs-theme', 'dark');
-            themeToggleBtn.innerHTML = '<i class="fas fa-sun"></i>';
-            themeToggleBtn.setAttribute('title', 'Mudar para Tema Claro');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            html.setAttribute('data-bs-theme', 'light');
-            themeToggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
-            themeToggleBtn.setAttribute('title', 'Mudar para Tema Escuro');
-            localStorage.setItem('theme', 'light');
+    // Mostrar detalhes específicos
+    if (tipo) {
+        const detailsEl = document.getElementById(`details_${tipo}`);
+        if (detailsEl) {
+            detailsEl.classList.remove('d-none');
         }
         
-        // Atualizar tooltip se existir
-        if (bootstrap.Tooltip.getInstance(themeToggleBtn)) {
-            bootstrap.Tooltip.getInstance(themeToggleBtn).dispose();
-            new bootstrap.Tooltip(themeToggleBtn);
-        }
-    };
+        // Configurações específicas por tipo
+        configurarTipoRelatorio(tipo);
+    }
     
-    // Verificar preferência salva ou usar preferência do sistema
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        applyTheme(savedTheme === 'dark');
+    // Limpar preview
+    clearPreview();
+}
+
+/**
+ * Mudança no período predefinido
+ */
+function onPeriodoChange() {
+    const periodo = document.getElementById('periodo').value;
+    const dataInicio = document.getElementById('data_inicio');
+    const dataFim = document.getElementById('data_fim');
+    
+    if (!periodo) return;
+    
+    const hoje = new Date();
+    let inicio, fim;
+    
+    switch (periodo) {
+        case 'hoje':
+            inicio = fim = hoje;
+            break;
+        case 'ontem':
+            inicio = fim = new Date(hoje.getTime() - 24 * 60 * 60 * 1000);
+            break;
+        case '7dias':
+            inicio = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000);
+            fim = hoje;
+            break;
+        case '30dias':
+            inicio = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000);
+            fim = hoje;
+            break;
+        case 'mes_atual':
+            inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+            break;
+        case 'mes_anterior':
+            inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+            fim = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+            break;
+        case 'ano_atual':
+            inicio = new Date(hoje.getFullYear(), 0, 1);
+            fim = new Date(hoje.getFullYear(), 11, 31);
+            break;
+        default:
+            return;
+    }
+    
+    if (dataInicio) dataInicio.value = formatDateForInput(inicio);
+    if (dataFim) dataFim.value = formatDateForInput(fim);
+}
+
+/**
+ * Mudança no formato
+ */
+function onFormatoChange() {
+    const formato = document.getElementById('formato').value;
+    
+    // Mostrar aviso para formatos não implementados
+    if (formato === 'xlsx' || formato === 'pdf') {
+        showNotification(
+            `Formato ${formato.toUpperCase()} ainda não implementado. Será convertido para CSV.`,
+            'warning'
+        );
+    }
+}
+
+/**
+ * Mudança no tipo de pagamento
+ */
+function onTipoPagamentoChange() {
+    const tipo = document.getElementById('tipo_pagamento').value;
+    const agregadoFields = document.getElementById('pagamento_agregado_fields');
+    const proprioFields = document.getElementById('pagamento_proprio_fields');
+    
+    if (tipo === 'proprios') {
+        agregadoFields?.classList.add('d-none');
+        proprioFields?.classList.remove('d-none');
     } else {
-        applyTheme(prefersDarkScheme.matches);
+        agregadoFields?.classList.remove('d-none');
+        proprioFields?.classList.add('d-none');
+    }
+}
+
+/**
+ * Configurar tipo específico de relatório
+ */
+function configurarTipoRelatorio(tipo) {
+    switch (tipo) {
+        case 'faturamento':
+            // Configurações específicas para faturamento
+            break;
+        case 'veiculos':
+            // Configurações específicas para veículos
+            break;
+        case 'ctes':
+            // Configurações específicas para CT-es
+            break;
+        case 'mdfes':
+            // Configurações específicas para MDF-es
+            break;
+        case 'pagamentos':
+            // Configurar campos de pagamento
+            onTipoPagamentoChange();
+            break;
+        case 'km_rodado':
+            // Configurações específicas para KM
+            break;
+        case 'manutencoes':
+            // Configurações específicas para manutenções
+            break;
+    }
+}
+
+// =============== PREVIEW E VISUALIZAÇÃO ===============
+
+/**
+ * Visualizar prévia do relatório
+ */
+async function visualizarPrevia() {
+    const tipo = document.getElementById('tipo_relatorio').value;
+    
+    if (!tipo) {
+        showNotification('Selecione o tipo de relatório', 'warning');
+        return;
     }
     
-    // Adicionar listener para o botão
-    themeToggleBtn.addEventListener('click', () => {
-        const currentTheme = document.documentElement.getAttribute('data-bs-theme');
-        applyTheme(currentTheme !== 'dark');
-    });
-    
-    // Atualizar quando a preferência do sistema mudar
-    prefersDarkScheme.addEventListener('change', (e) => {
-        if (!localStorage.getItem('theme')) {
-            applyTheme(e.matches);
+    try {
+        showPreviewLoading();
+        
+        const filtros = getReportFilters();
+        const queryString = new URLSearchParams(filtros).toString();
+        
+        const response = await Auth.fetchWithAuth(`/api/relatorios/?tipo=${tipo}&formato=json&${queryString}`);
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
         }
-    });
-}
-
-/**
- * Configura máscaras para inputs específicos
- */
-function setupInputMasks() {
-    // Configurar máscara para campos de CPF
-    const cpfInputs = document.querySelectorAll('.cpf-mask');
-    cpfInputs.forEach(input => {
-        input.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length > 11) value = value.substring(0, 11);
-            
-            if (value.length > 9) {
-                value = value.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-            } else if (value.length > 6) {
-                value = value.replace(/^(\d{3})(\d{3})(\d{3})$/, "$1.$2.$3");
-            } else if (value.length > 3) {
-                value = value.replace(/^(\d{3})(\d{3})$/, "$1.$2");
-            }
-            
-            e.target.value = value;
-        });
-    });
-    
-    // Configurar máscara para campos de CNPJ
-    const cnpjInputs = document.querySelectorAll('.cnpj-mask');
-    cnpjInputs.forEach(input => {
-        input.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length > 14) value = value.substring(0, 14);
-            
-            if (value.length > 12) {
-                value = value.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
-            } else if (value.length > 8) {
-                value = value.replace(/^(\d{2})(\d{3})(\d{3})(\d+)$/, "$1.$2.$3/$4");
-            } else if (value.length > 5) {
-                value = value.replace(/^(\d{2})(\d{3})(\d+)$/, "$1.$2.$3");
-            } else if (value.length > 2) {
-                value = value.replace(/^(\d{2})(\d+)$/, "$1.$2");
-            }
-            
-            e.target.value = value;
-        });
-    });
-    
-    // Configurar máscara para campos de placa de veículo (formato Mercosul)
-    const placaInputs = document.querySelectorAll('.placa-mask');
-    placaInputs.forEach(input => {
-        input.addEventListener('input', function(e) {
-            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            if (value.length > 7) value = value.substring(0, 7);
-            
-            if (value.length > 3) {
-                value = value.replace(/^([A-Z]{3})([0-9A-Z]{1})(.+)$/, "$1$2$3");
-            }
-            
-            e.target.value = value;
-        });
-    });
-    
-    // Configurar máscara para campos de valor monetário
-    const moneyInputs = document.querySelectorAll('.money-mask');
-    moneyInputs.forEach(input => {
-        input.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            
-            // Converte para formato decimal
-            value = (parseInt(value) / 100).toFixed(2);
-            
-            // Formata com separadores
-            value = value.replace('.', ',');
-            value = value.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-            
-            e.target.value = value;
-        });
-    });
-}
-
-/**
- * Configura comportamento dos painéis colapsáveis
- */
-function setupCollapsibles() {
-    // Selecionar todos os headers de painéis colapsáveis
-    const collapsibleHeaders = document.querySelectorAll('[data-toggle="collapse"]');
-    
-    collapsibleHeaders.forEach(header => {
-        // Obter o elemento alvo a partir do atributo data-target
-        const targetId = header.getAttribute('data-target') || header.getAttribute('href');
-        if (!targetId) return;
         
-        const target = document.querySelector(targetId);
-        if (!target) return;
+        const data = await response.json();
+        currentReportData = data;
         
-        // Configurar ícone de expansão/colapso
-        const updateIcon = (isOpen) => {
-            const icon = header.querySelector('.collapse-icon');
-            if (icon) {
-                icon.classList.remove('fa-chevron-down', 'fa-chevron-up');
-                icon.classList.add(isOpen ? 'fa-chevron-up' : 'fa-chevron-down');
-            }
-        };
+        renderPreview(data, tipo);
         
-        // Inicializar com o estado correto
-        updateIcon(target.classList.contains('show'));
+    } catch (error) {
+        console.error('Erro ao gerar prévia:', error);
+        showPreviewError(error.message);
         
-        // Adicionar listener para atualizar o ícone quando o painel mudar de estado
-        target.addEventListener('shown.bs.collapse', () => updateIcon(true));
-        target.addEventListener('hidden.bs.collapse', () => updateIcon(false));
-    });
-}
-
-/**
- * Configura comportamento de animações de carregamento
- */
-function setupLoadingAnimations() {
-    // Adiciona listener para todos os formulários que devem mostrar animação de carregamento
-    const forms = document.querySelectorAll('form[data-loading]');
-    
-    forms.forEach(form => {
-        form.addEventListener('submit', function(e) {
-            // Evita animação em validação do cliente
-            if (!form.checkValidity()) return;
-            
-            // Desabilita botão de submit e mostra spinner
-            const submitBtn = form.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                const originalText = submitBtn.innerHTML;
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...`;
-                
-                // Armazenar o texto original para restaurar depois
-                submitBtn.setAttribute('data-original-text', originalText);
-            }
-        });
-    });
-    
-    // Restaurar botões após erros de validação do servidor
-    document.addEventListener('formError', function(e) {
-        const form = e.detail.form;
-        const submitBtn = form.querySelector('button[type="submit"]');
-        
-        if (submitBtn && submitBtn.hasAttribute('data-original-text')) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = submitBtn.getAttribute('data-original-text');
+        // Mostrar modal de erro para não implementados
+        if (error.message.includes('não implementado') || error.message.includes('not implemented')) {
+            showNotImplementedModal(tipo);
         }
-    });
-}
-
-/**
- * Verifica o status de autenticação e ajusta a UI
- */
-function checkAuthenticationStatus() {
-    // Esta função verificará se o token está presente e ajustará elementos da UI
-    // que dependem do estado de autenticação
-    
-    const isAuthenticated = !!localStorage.getItem('authToken');
-    
-    // Ajustar elementos baseado no status de autenticação
-    const authElements = document.querySelectorAll('[data-auth-required]');
-    const guestElements = document.querySelectorAll('[data-guest-only]');
-    
-    // Mostrar/esconder elementos que exigem autenticação
-    authElements.forEach(element => {
-        element.style.display = isAuthenticated ? '' : 'none';
-    });
-    
-    // Mostrar/esconder elementos apenas para visitantes
-    guestElements.forEach(element => {
-        element.style.display = isAuthenticated ? 'none' : '';
-    });
-    
-    // Se estiver autenticado, buscar informações do usuário para exibir na UI
-    if (isAuthenticated && Auth) {
-        const userInfo = Auth.getUserData();
-        updateUserInfoUI(userInfo);
     }
 }
 
 /**
- * Atualiza a UI com informações do usuário
- * @param {Object} userInfo - Dados do usuário
+ * Auto preview (debounced)
  */
-function updateUserInfoUI(userInfo) {
-    if (!userInfo) return;
-    
-    // Atualizar display do nome do usuário
-    const userNameDisplays = document.querySelectorAll('.user-name-display');
-    userNameDisplays.forEach(element => {
-        element.textContent = userInfo.first_name || userInfo.username || 'Usuário';
-    });
-    
-    // Atualizar role/tipo do usuário
-    const userRoleDisplays = document.querySelectorAll('.user-role-display');
-    userRoleDisplays.forEach(element => {
-        let role = 'Usuário';
-        if (userInfo.is_superuser) role = 'Administrador';
-        else if (userInfo.is_staff) role = 'Operador';
-        
-        element.textContent = role;
-    });
+function autoPreview() {
+    const tipo = document.getElementById('tipo_relatorio').value;
+    if (tipo) {
+        visualizarPrevia();
+    }
 }
 
 /**
- * Função global para mostrar notificações toast
- * @param {string} message - Mensagem a ser exibida
- * @param {string} type - Tipo de notificação (success, error, warning, info)
- * @param {number} duration - Duração em milissegundos
+ * Mostrar loading na preview
  */
-function showNotification(message, type = 'success', duration = 5000) {
-    // Define cores baseadas no tipo
-    const typeClasses = {
-        success: 'bg-success text-white',
-        error: 'bg-danger text-white',
-        warning: 'bg-warning text-dark',
-        info: 'bg-info text-dark'
-    };
-    
-    // Obter ou criar container de toasts
-    let toastContainer = document.querySelector('.toast-container');
-    
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-        toastContainer.style.zIndex = '1080';
-        document.body.appendChild(toastContainer);
-    }
-    
-    // Criar elemento toast
-    const toastID = 'toast-' + Date.now();
-    const toastHTML = `
-    <div id="${toastID}" class="toast ${typeClasses[type] || typeClasses.info}" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-            <div class="toast-body">
-                ${message}
+function showPreviewLoading() {
+    const container = document.getElementById('preview-container');
+    if (container) {
+        container.innerHTML = `
+            <div class="d-flex justify-content-center align-items-center py-5">
+                <div class="text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <p class="text-muted">Gerando prévia do relatório...</p>
+                </div>
             </div>
-            <button type="button" class="btn-close ${type === 'success' || type === 'error' ? 'btn-close-white' : ''} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        `;
+    }
+}
+
+/**
+ * Mostrar erro na preview
+ */
+function showPreviewError(mensagem) {
+    const container = document.getElementById('preview-container');
+    if (container) {
+        container.innerHTML = `
+            <div class="d-flex justify-content-center align-items-center py-5">
+                <div class="text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <h5 class="text-danger">Erro ao gerar prévia</h5>
+                    <p class="text-muted">${mensagem}</p>
+                    <button class="btn btn-outline-primary" onclick="visualizarPrevia()">
+                        <i class="fas fa-redo me-1"></i>Tentar Novamente
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Limpar preview
+ */
+function clearPreview() {
+    const container = document.getElementById('preview-container');
+    if (container) {
+        container.innerHTML = `
+            <div class="d-flex justify-content-center align-items-center py-5">
+                <div class="text-center">
+                    <i class="fas fa-file-alt fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Selecione os filtros acima e clique em "Visualizar" para gerar uma prévia do relatório.</p>
+                </div>
+            </div>
+        `;
+    }
+    currentReportData = null;
+}
+
+/**
+ * Renderizar preview baseado no tipo e dados
+ */
+function renderPreview(data, tipo) {
+    const container = document.getElementById('preview-container');
+    if (!container) return;
+    
+    // Destruir gráfico anterior se existir
+    if (previewChart) {
+        previewChart.destroy();
+        previewChart = null;
+    }
+    
+    switch (tipo) {
+        case 'faturamento':
+            renderFaturamentoPreview(data, container);
+            break;
+        case 'veiculos':
+            renderVeiculosPreview(data, container);
+            break;
+        case 'manutencoes':
+            renderManutencoesPreview(data, container);
+            break;
+        default:
+            renderGenericPreview(data, container);
+            break;
+    }
+}
+
+/**
+ * Preview para relatório de faturamento
+ */
+function renderFaturamentoPreview(data, container) {
+    if (!Array.isArray(data) || data.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info m-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Nenhum dado de faturamento encontrado para o período selecionado.
+            </div>
+        `;
+        return;
+    }
+    
+    // Calcular totais
+    const total = data.reduce((sum, item) => sum + (item.valor || 0), 0);
+    const meses = data.length;
+    const media = total / meses;
+    
+    container.innerHTML = `
+        <div class="p-3">
+            <!-- Resumo -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card border-primary">
+                        <div class="card-body text-center">
+                            <i class="fas fa-chart-line fa-2x text-primary mb-2"></i>
+                            <h5 class="card-title">Total</h5>
+                            <h3 class="text-primary">${formatCurrency(total)}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-success">
+                        <div class="card-body text-center">
+                            <i class="fas fa-calendar fa-2x text-success mb-2"></i>
+                            <h5 class="card-title">Períodos</h5>
+                            <h3 class="text-success">${meses}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-info">
+                        <div class="card-body text-center">
+                            <i class="fas fa-calculator fa-2x text-info mb-2"></i>
+                            <h5 class="card-title">Média</h5>
+                            <h3 class="text-info">${formatCurrency(media)}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Gráfico -->
+            <div class="mb-4">
+                <canvas id="previewChart" style="max-height: 300px;"></canvas>
+            </div>
+            
+            <!-- Tabela -->
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Período</th>
+                            <th class="text-end">Valor</th>
+                            <th class="text-end">% do Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(item => `
+                            <tr>
+                                <td><strong>${item.mes || 'N/A'}</strong></td>
+                                <td class="text-end">${formatCurrency(item.valor || 0)}</td>
+                                <td class="text-end">${((item.valor || 0) / total * 100).toFixed(1)}%</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                    <tfoot class="table-dark">
+                        <tr>
+                            <th>Total</th>
+                            <th class="text-end">${formatCurrency(total)}</th>
+                            <th class="text-end">100.0%</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
         </div>
-    </div>
     `;
     
-    // Adicionar toast ao container
-    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    // Renderizar gráfico
+    setTimeout(() => renderFaturamentoChart(data), 100);
+}
+
+/**
+ * Preview para relatório de veículos
+ */
+function renderVeiculosPreview(data, container) {
+    if (!Array.isArray(data) || data.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info m-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Nenhum veículo encontrado com os filtros selecionados.
+            </div>
+        `;
+        return;
+    }
     
-    // Inicializar e mostrar toast
-    const toastElement = document.getElementById(toastID);
-    const toast = new bootstrap.Toast(toastElement, {
-        delay: duration
+    // Estatísticas
+    const total = data.length;
+    const ativos = data.filter(v => v.ativo === true).length;
+    const inativos = total - ativos;
+    const tipos = {};
+    
+    data.forEach(v => {
+        const tipo = getTipoProprietarioName(v.tipo_proprietario);
+        tipos[tipo] = (tipos[tipo] || 0) + 1;
     });
     
-    toast.show();
+    container.innerHTML = `
+        <div class="p-3">
+            <!-- Resumo -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card border-primary">
+                        <div class="card-body text-center">
+                            <i class="fas fa-truck fa-2x text-primary mb-2"></i>
+                            <h5 class="card-title">Total</h5>
+                            <h3 class="text-primary">${total}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-success">
+                        <div class="card-body text-center">
+                            <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                            <h5 class="card-title">Ativos</h5>
+                            <h3 class="text-success">${ativos}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-danger">
+                        <div class="card-body text-center">
+                            <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
+                            <h5 class="card-title">Inativos</h5>
+                            <h3 class="text-danger">${inativos}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-info">
+                        <div class="card-body text-center">
+                            <i class="fas fa-percentage fa-2x text-info mb-2"></i>
+                            <h5 class="card-title">% Ativos</h5>
+                            <h3 class="text-info">${((ativos/total)*100).toFixed(1)}%</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Distribuição por tipo -->
+            <div class="mb-4">
+                <h5>Distribuição por Tipo de Proprietário</h5>
+                <div class="row">
+                    ${Object.entries(tipos).map(([tipo, count]) => `
+                        <div class="col-md-4 mb-2">
+                            <div class="bg-light p-2 rounded">
+                                <strong>${tipo}:</strong> ${count} veículo(s)
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <!-- Tabela (primeiros 10) -->
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Placa</th>
+                            <th>Proprietário</th>
+                            <th>Tipo</th>
+                            <th>Marca/Modelo</th>
+                            <th>Capacidade</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.slice(0, 10).map(veiculo => `
+                            <tr>
+                                <td><span class="badge bg-secondary">${veiculo.placa || 'N/A'}</span></td>
+                                <td>${veiculo.proprietario_nome || 'N/A'}</td>
+                                <td>${getTipoProprietarioName(veiculo.tipo_proprietario)}</td>
+                                <td>${veiculo.marca || 'N/A'} ${veiculo.modelo || ''}</td>
+                                <td>${formatNumber(veiculo.capacidade_kg || 0)} kg</td>
+                                <td>
+                                    <span class="badge bg-${veiculo.ativo ? 'success' : 'danger'}">
+                                        ${veiculo.ativo ? 'Ativo' : 'Inativo'}
+                                    </span>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ${data.length > 10 ? `
+                    <div class="text-center">
+                        <small class="text-muted">Mostrando 10 de ${data.length} veículos. Baixe o relatório completo para ver todos.</small>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Preview para relatório de manutenções
+ */
+function renderManutencoesPreview(data, container) {
+    if (!Array.isArray(data) || data.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info m-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Nenhuma manutenção encontrada para o período selecionado.
+            </div>
+        `;
+        return;
+    }
     
-    // Remover elemento toast quando escondido
-    toastElement.addEventListener('hidden.bs.toast', function() {
-        this.remove();
+    // Estatísticas
+    const total = data.length;
+    const valorTotal = data.reduce((sum, item) => sum + (parseFloat(item.valor_total) || 0), 0);
+    const media = valorTotal / total;
+    
+    const status = {};
+    data.forEach(m => {
+        const st = m.status || 'N/A';
+        status[st] = (status[st] || 0) + 1;
+    });
+    
+    container.innerHTML = `
+        <div class="p-3">
+            <!-- Resumo -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card border-primary">
+                        <div class="card-body text-center">
+                            <i class="fas fa-tools fa-2x text-primary mb-2"></i>
+                            <h5 class="card-title">Total</h5>
+                            <h3 class="text-primary">${total}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-success">
+                        <div class="card-body text-center">
+                            <i class="fas fa-dollar-sign fa-2x text-success mb-2"></i>
+                            <h5 class="card-title">Valor Total</h5>
+                            <h3 class="text-success">${formatCurrency(valorTotal)}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-info">
+                        <div class="card-body text-center">
+                            <i class="fas fa-calculator fa-2x text-info mb-2"></i>
+                            <h5 class="card-title">Valor Médio</h5>
+                            <h3 class="text-info">${formatCurrency(media)}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-warning">
+                        <div class="card-body text-center">
+                            <i class="fas fa-wrench fa-2x text-warning mb-2"></i>
+                            <h5 class="card-title">Tipos</h5>
+                            <h3 class="text-warning">${Object.keys(status).length}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Distribuição por status -->
+            <div class="mb-4">
+                <h5>Distribuição por Status</h5>
+                <div class="row">
+                    ${Object.entries(status).map(([st, count]) => `
+                        <div class="col-md-3 mb-2">
+                            <div class="bg-light p-2 rounded">
+                                <strong>${st}:</strong> ${count} manutenção(ões)
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <!-- Tabela (primeiros 10) -->
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Data</th>
+                            <th>Veículo</th>
+                            <th>Descrição</th>
+                            <th>Status</th>
+                            <th class="text-end">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.slice(0, 10).map(manutencao => `
+                            <tr>
+                                <td>${formatDate(manutencao.data_servico)}</td>
+                                <td><span class="badge bg-secondary">${manutencao.veiculo_placa || 'N/A'}</span></td>
+                                <td>${manutencao.descricao ? manutencao.descricao.substring(0, 50) + '...' : 'N/A'}</td>
+                                <td>
+                                    <span class="badge bg-${getStatusColor(manutencao.status)}">
+                                        ${manutencao.status || 'N/A'}
+                                    </span>
+                                </td>
+                                <td class="text-end">${formatCurrency(manutencao.valor_total || 0)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                    <tfoot class="table-dark">
+                        <tr>
+                            <th colspan="4">Total</th>
+                            <th class="text-end">${formatCurrency(valorTotal)}</th>
+                        </tr>
+                    </tfoot>
+                </table>
+                ${data.length > 10 ? `
+                    <div class="text-center">
+                        <small class="text-muted">Mostrando 10 de ${data.length} manutenções. Baixe o relatório completo para ver todas.</small>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Preview genérico para relatórios não implementados
+ */
+function renderGenericPreview(data, container) {
+    if (data.message) {
+        container.innerHTML = `
+            <div class="alert alert-warning m-3">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Relatório não implementado:</strong> ${data.message}
+            </div>
+        `;
+        return;
+    }
+    
+    // Tentar renderizar dados JSON genéricos
+    container.innerHTML = `
+        <div class="p-3">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Preview genérico - dados disponíveis para download
+            </div>
+            <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;">
+${JSON.stringify(data, null, 2)}
+            </pre>
+        </div>
+    `;
+}
+
+// =============== DOWNLOAD E GERAÇÃO ===============
+
+/**
+ * Baixar relatório
+ */
+async function baixarRelatorio() {
+    const tipo = document.getElementById('tipo_relatorio').value;
+    const formato = document.getElementById('formato').value;
+    
+    if (!tipo) {
+        showNotification('Selecione o tipo de relatório', 'warning');
+        return;
+    }
+    
+    try {
+        const filtros = getReportFilters();
+        let finalFormato = formato;
         
-        // Remover container se vazio
-        if (toastContainer.children.length === 0) {
-            toastContainer.remove();
+        // Converter formatos não implementados para CSV
+        if (formato === 'xlsx' || formato === 'pdf') {
+            finalFormato = 'csv';
+            showNotification(
+                `Formato ${formato.toUpperCase()} convertido para CSV automaticamente`,
+                'info'
+            );
+        }
+        
+        const queryString = new URLSearchParams({
+            ...filtros,
+            tipo: tipo,
+            formato: finalFormato
+        }).toString();
+        
+        const response = await Auth.fetchWithAuth(`/api/relatorios/?${queryString}`);
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+        }
+        
+        // Para JSON, mostrar no preview
+        if (finalFormato === 'json') {
+            const data = await response.json();
+            renderPreview(data, tipo);
+            showNotification('Dados do relatório carregados na prévia', 'success');
+            return;
+        }
+        
+        // Para outros formatos, fazer download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `relatorio_${tipo}_${new Date().toISOString().split('T')[0]}.${finalFormato}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showNotification('Relatório baixado com sucesso!', 'success');
+        
+    } catch (error) {
+        console.error('Erro ao baixar relatório:', error);
+        
+        // Mostrar modal de erro
+        document.getElementById('error-message').textContent = error.message;
+        const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+        errorModal.show();
+        
+        showNotification(`Erro ao gerar relatório: ${error.message}`, 'error');
+    }
+}
+
+// =============== HELPERS E UTILITÁRIOS ===============
+
+/**
+ * Obter filtros do formulário
+ */
+function getReportFilters() {
+    const filtros = {};
+    
+    // Filtros básicos
+    const dataInicio = document.getElementById('data_inicio')?.value;
+    const dataFim = document.getElementById('data_fim')?.value;
+    
+    if (dataInicio) filtros.data_inicio = dataInicio;
+    if (dataFim) filtros.data_fim = dataFim;
+    
+    // Filtros específicos por tipo
+    const tipo = document.getElementById('tipo_relatorio').value;
+    
+    switch (tipo) {
+        case 'veiculos':
+            addIfValue(filtros, 'ativo', document.querySelector('input[name="ativo"]:checked')?.value);
+            addIfValue(filtros, 'tipo_proprietario', document.getElementById('tipo_proprietario')?.value);
+            addIfValue(filtros, 'ordenacao', document.getElementById('ordenacao')?.value);
+            break;
+            
+        case 'ctes':
+            addIfValue(filtros, 'status', document.getElementById('status_cte')?.value);
+            addIfValue(filtros, 'modalidade', document.getElementById('modalidade_cte')?.value);
+            addIfValue(filtros, 'cliente_cnpj', document.getElementById('cliente_cnpj')?.value);
+            addIfValue(filtros, 'tipo_cliente', document.getElementById('tipo_cliente_cte')?.value);
+            break;
+            
+        case 'mdfes':
+            addIfValue(filtros, 'status', document.getElementById('status_mdfe')?.value);
+            addIfValue(filtros, 'placa', document.getElementById('placa_mdfe')?.value);
+            break;
+            
+        case 'pagamentos':
+            const tipoPagamento = document.getElementById('tipo_pagamento')?.value;
+            addIfValue(filtros, 'tipo', tipoPagamento);
+            addIfValue(filtros, 'status', document.getElementById('status_pagamento')?.value);
+            
+            if (tipoPagamento === 'agregados') {
+                addIfValue(filtros, 'placa', document.getElementById('placa_agregado')?.value);
+                addIfValue(filtros, 'condutor_cpf', document.getElementById('cpf_condutor')?.value);
+            } else if (tipoPagamento === 'proprios') {
+                addIfValue(filtros, 'veiculo_id', document.getElementById('veiculo_id')?.value);
+                addIfValue(filtros, 'periodo', document.getElementById('periodo_pagamento')?.value);
+            }
+            break;
+            
+        case 'km_rodado':
+            addIfValue(filtros, 'placa', document.getElementById('placa_km')?.value);
+            addIfValue(filtros, 'agrupamento', document.getElementById('agrupamento_km')?.value);
+            break;
+            
+        case 'manutencoes':
+            addIfValue(filtros, 'placa', document.getElementById('placa_manutencao')?.value);
+            addIfValue(filtros, 'status', document.getElementById('status_manutencao')?.value);
+            addIfValue(filtros, 'ordenacao', document.getElementById('ordenacao_manutencao')?.value);
+            break;
+            
+        case 'faturamento':
+            addIfValue(filtros, 'agrupamento', document.querySelector('input[name="agrupamento"]:checked')?.value);
+            addIfValue(filtros, 'tipo_cliente', document.getElementById('tipo_cliente')?.value);
+            addIfValue(filtros, 'modalidade', document.getElementById('modalidade')?.value);
+            break;
+    }
+    
+    return filtros;
+}
+
+/**
+ * Adicionar valor ao objeto se não estiver vazio
+ */
+function addIfValue(obj, key, value) {
+    if (value && value.trim() !== '') {
+        obj[key] = value;
+    }
+}
+
+/**
+ * Carregar veículos para selects
+ */
+async function loadVeiculosSelect() {
+    try {
+        const response = await Auth.fetchWithAuth('/api/veiculos/?ativo=true');
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        const veiculos = data.results || data;
+        
+        const select = document.getElementById('veiculo_id');
+        if (select) {
+            select.innerHTML = '<option value="">Todos</option>';
+            veiculos.forEach(veiculo => {
+                const option = document.createElement('option');
+                option.value = veiculo.id;
+                option.textContent = `${veiculo.placa} - ${veiculo.proprietario_nome || 'Sem proprietário'}`;
+                select.appendChild(option);
+            });
+        }
+        
+    } catch (error) {
+        console.error('Erro ao carregar veículos:', error);
+    }
+}
+
+/**
+ * Mostrar modal para relatórios não implementados
+ */
+function showNotImplementedModal(tipo) {
+    const modal = document.getElementById('errorModal');
+    if (modal) {
+        document.getElementById('errorModalLabel').textContent = 'Relatório Não Implementado';
+        document.getElementById('error-message').innerHTML = `
+            O relatório de <strong>${getTipoRelatorioName(tipo)}</strong> ainda não foi implementado.<br>
+            <small class="text-muted">Entre em contato com o suporte para mais informações.</small>
+        `;
+        
+        const tryAgainBtn = document.getElementById('btnTryAgain');
+        if (tryAgainBtn) {
+            tryAgainBtn.style.display = 'none';
+        }
+        
+        const errorModal = new bootstrap.Modal(modal);
+        errorModal.show();
+    }
+}
+
+/**
+ * Renderizar gráfico de faturamento
+ */
+function renderFaturamentoChart(data) {
+    const canvas = document.getElementById('previewChart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    previewChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(item => item.mes || 'N/A'),
+            datasets: [{
+                label: 'Faturamento',
+                data: data.map(item => item.valor || 0),
+                backgroundColor: 'rgba(40, 167, 69, 0.8)',
+                borderColor: 'rgba(40, 167, 69, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrency(value);
+                        }
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Faturamento: ${formatCurrency(context.parsed.y)}`;
+                        }
+                    }
+                }
+            }
         }
     });
 }
 
 /**
- * Formata valor monetário 
- * @param {number} value - Valor a ser formatado
- * @returns {string} - String formatada
+ * Obter nome do tipo de relatório
+ */
+function getTipoRelatorioName(tipo) {
+    const nomes = {
+        'faturamento': 'Faturamento',
+        'veiculos': 'Veículos',
+        'ctes': 'CT-es',
+        'mdfes': 'MDF-es',
+        'pagamentos': 'Pagamentos',
+        'km_rodado': 'Quilometragem Rodada',
+        'manutencoes': 'Manutenções'
+    };
+    return nomes[tipo] || tipo;
+}
+
+/**
+ * Obter nome do tipo de proprietário
+ */
+function getTipoProprietarioName(tipo) {
+    const tipos = {
+        '00': 'Próprio',
+        '01': 'Terceiro',
+        '02': 'Agregado'
+    };
+    return tipos[tipo] || 'N/A';
+}
+
+/**
+ * Obter cor do status
+ */
+function getStatusColor(status) {
+    const cores = {
+        'PENDENTE': 'warning',
+        'AGENDADO': 'info',
+        'PAGO': 'success',
+        'CANCELADO': 'danger'
+    };
+    return cores[status] || 'secondary';
+}
+
+// =============== FORMATAÇÃO ===============
+
+/**
+ * Formatar data para input
+ */
+function formatDateForInput(date) {
+    return date.toISOString().split('T')[0];
+}
+
+/**
+ * Formatar data brasileira
+ */
+function formatDate(dateString) {
+    if (!dateString) return '--';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('pt-BR');
+    } catch (e) {
+        return dateString;
+    }
+}
+
+/**
+ * Formatar moeda
  */
 function formatCurrency(value) {
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-    }).format(value || 0);
+    if (value === null || value === undefined) return 'R$ 0,00';
+    const numericValue = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
+    if (isNaN(numericValue)) return 'R$ 0,00';
+    return numericValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 /**
- * Formata número com separador de milhares
- * @param {number} value - Valor a ser formatado
- * @returns {string} - String formatada
+ * Formatar número
  */
 function formatNumber(value) {
-    return new Intl.NumberFormat('pt-BR').format(value || 0);
+    if (value === null || value === undefined) return '0';
+    const numericValue = Number(value);
+    if (isNaN(numericValue)) return '0';
+    return numericValue.toLocaleString('pt-BR');
 }
 
 /**
- * Formata valor percentual
- * @param {number} value - Valor a ser formatado (ex: 25.5 para 25,5%)
- * @returns {string} - String formatada
+ * Debounce function
  */
-function formatPercent(value) {
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'percent',
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1
-    }).format(value / 100 || 0);
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
 
 /**
- * Formata data
- * @param {string|Date} date - Data a ser formatada
- * @returns {string} - String formatada
+ * Mostrar notificação
  */
-function formatDate(date) {
-    if (!date) return '--';
-    
-    try {
-        return new Date(date).toLocaleDateString('pt-BR');
-    } catch (e) {
-        return '--';
-    }
-}
-
-/**
- * Formata data e hora
- * @param {string|Date} date - Data a ser formatada
- * @returns {string} - String formatada
- */
-function formatDateTime(date) {
-    if (!date) return '--';
-    
-    try {
-        return new Date(date).toLocaleString('pt-BR');
-    } catch (e) {
-        return '--';
-    }
-}
-
-/**
- * Trunca texto com reticências
- * @param {string} text - Texto a ser truncado
- * @param {number} maxLength - Comprimento máximo
- * @returns {string} - Texto truncado
- */
-function truncateText(text, maxLength) {
-    if (!text) return '--';
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-}
-
-/**
- * Verifica se uma string é um CPF válido
- * @param {string} cpf - CPF a ser validado
- * @returns {boolean} - true se for válido
- */
-function validateCPF(cpf) {
-    cpf = cpf.replace(/[^\d]/g, '');
-    
-    if (cpf.length !== 11) return false;
-    
-    // Elimina CPFs inválidos conhecidos
-    if (/^(\d)\1+$/.test(cpf)) return false;
-    
-    // Valida 1º dígito
-    let add = 0;
-    for (let i = 0; i < 9; i++) {
-        add += parseInt(cpf.charAt(i)) * (10 - i);
-    }
-    let rev = 11 - (add % 11);
-    if (rev === 10 || rev === 11) rev = 0;
-    if (rev !== parseInt(cpf.charAt(9))) return false;
-    
-    // Valida 2º dígito
-    add = 0;
-    for (let i = 0; i < 10; i++) {
-        add += parseInt(cpf.charAt(i)) * (11 - i);
-    }
-    rev = 11 - (add % 11);
-    if (rev === 10 || rev === 11) rev = 0;
-    if (rev !== parseInt(cpf.charAt(10))) return false;
-    
-    return true;
-}
-
-/**
- * Verifica se uma string é um CNPJ válido
- * @param {string} cnpj - CNPJ a ser validado
- * @returns {boolean} - true se for válido
- */
-function validateCNPJ(cnpj) {
-    cnpj = cnpj.replace(/[^\d]/g, '');
-    
-    if (cnpj.length !== 14) return false;
-    
-    // Elimina CNPJs inválidos conhecidos
-    if (/^(\d)\1+$/.test(cnpj)) return false;
-    
-    // Valida DVs
-    let tamanho = cnpj.length - 2;
-    let numeros = cnpj.substring(0, tamanho);
-    const digitos = cnpj.substring(tamanho);
-    let soma = 0;
-    let pos = tamanho - 7;
-    
-    for (let i = tamanho; i >= 1; i--) {
-        soma += numeros.charAt(tamanho - i) * pos--;
-        if (pos < 2) pos = 9;
-    }
-    let resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
-    if (resultado !== parseInt(digitos.charAt(0))) return false;
-    
-    tamanho = tamanho + 1;
-    numeros = cnpj.substring(0, tamanho);
-    soma = 0;
-    pos = tamanho - 7;
-    
-    for (let i = tamanho; i >= 1; i--) {
-        soma += numeros.charAt(tamanho - i) * pos--;
-        if (pos < 2) pos = 9;
-    }
-    resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
-    if (resultado !== parseInt(digitos.charAt(1))) return false;
-    
-    return true;
-}
-
-/**
- * Exporta uma tabela HTML para CSV
- * @param {string} tableId - ID da tabela
- * @param {string} filename - Nome do arquivo
- */
-function exportTableToCSV(tableId, filename) {
-    const table = document.getElementById(tableId);
-    if (!table) return;
-    
-    const rows = table.querySelectorAll('tr');
-    const csvContent = [];
-    
-    // Extrair linha de cabeçalho
-    const headerRow = [];
-    const headers = rows[0].querySelectorAll('th');
-    headers.forEach(header => {
-        headerRow.push(header.textContent.trim());
-    });
-    csvContent.push(headerRow.join(','));
-    
-    // Extrair linhas de dados (pular primeira linha que é o cabeçalho)
-    for (let i = 1; i < rows.length; i++) {
-        const row = [];
-        const cells = rows[i].querySelectorAll('td');
-        
-        cells.forEach((cell, index) => {
-            // Pular a última coluna se contiver botões
-            if (index === cells.length - 1 && cell.querySelector('button')) {
-                return;
-            }
-            
-            // Remover símbolos de moeda e formatação para números
-            let content = cell.textContent.trim();
-            if (content.includes('R$')) {
-                content = content.replace('R$', '').replace(/\./g, '').replace(/,/g, '.');
-            }
-            
-            row.push(content);
-        });
-        
-        csvContent.push(row.join(','));
-    }
-    
-    // Criar e acionar download
-    const csv = csvContent.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', filename);
-    link.style.display = 'none';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-/**
- * Copia texto para a área de transferência
- * @param {string} text - Texto a ser copiado
- * @returns {Promise} - Promise com resultado da operação
- */
-function copyToClipboard(text) {
-    // Usar a API de área de transferência moderna se disponível
-    if (navigator.clipboard && window.isSecureContext) {
-        return navigator.clipboard.writeText(text)
-            .then(() => {
-                showNotification('Texto copiado para a área de transferência!', 'success');
-                return true;
-            })
-            .catch(err => {
-                console.error('Erro ao copiar texto:', err);
-                return false;
-            });
+function showNotification(message, type = 'success', duration = 5000) {
+    // Usar a função global se disponível
+    if (typeof window.showNotification === 'function' && window.showNotification !== showNotification) {
+        window.showNotification(message, type, duration);
     } else {
-        // Fallback para método alternativo
-        try {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed';
-            textArea.style.opacity = '0';
-            document.body.appendChild(textArea);
-            textArea.select();
-            const successful = document.execCommand('copy');
-            document.body.removeChild(textArea);
-            
-            if (successful) {
-                showNotification('Texto copiado para a área de transferência!', 'success');
-                return Promise.resolve(true);
-            } else {
-                return Promise.resolve(false);
+        // Fallback simples
+        console.log(`[${type.toUpperCase()}] ${message}`);
+        
+        // Criar notificação simples no topo da página
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Remover após o tempo especificado
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
             }
-        } catch (err) {
-            console.error('Erro ao copiar texto:', err);
-            return Promise.resolve(false);
-        }
+        }, duration);
     }
 }
+
+// Expor funções globais se necessário
+window.visualizarPrevia = visualizarPrevia;
+window.baixarRelatorio = baixarRelatorio;

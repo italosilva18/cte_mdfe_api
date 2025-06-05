@@ -1,0 +1,177 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15
+    container_name: cte_mdfe_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cte_mdfe_db}
+      POSTGRES_USER: ${POSTGRES_USER:-cte_mdfe_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - cte_mdfe_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cte_mdfe_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: cte_mdfe_redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - cte_mdfe_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Django Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cte_mdfe_web
+    restart: always
+    environment:
+      # Django
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-your-secret-key-here}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-False}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      # Database
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB:-cte_mdfe_db}
+      DATABASE_USER: ${POSTGRES_USER:-cte_mdfe_user}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Superuser
+      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME:-admin}
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:-admin@example.com}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-admin123}
+    volumes:
+      - ./media:/app/media
+      - ./logs:/app/logs
+      - static_volume:/app/static
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cte_mdfe_network
+    expose:
+      - "8000"
+
+  # Nginx Web Server
+  nginx:
+    image: nginx:alpine
+    container_name: cte_mdfe_nginx
+    restart: always
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_volume:/app/static:ro
+      - ./media:/app/media:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - web
+    networks:
+      - cte_mdfe_network
+
+  # Celery Worker (para tarefas assíncronas)
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cte_mdfe_celery
+    restart: always
+    command: celery -A core worker -l info
+    environment:
+      # Mesmas variáveis do web
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-your-secret-key-here}
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB:-cte_mdfe_db}
+      DATABASE_USER: ${POSTGRES_USER:-cte_mdfe_user}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./media:/app/media
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - cte_mdfe_network
+
+  # Celery Beat (agendador de tarefas)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cte_mdfe_celery_beat
+    restart: always
+    command: celery -A core beat -l info
+    environment:
+      # Mesmas variáveis do web
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-your-secret-key-here}
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB:-cte_mdfe_db}
+      DATABASE_USER: ${POSTGRES_USER:-cte_mdfe_user}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - db
+      - redis
+    networks:
+      - cte_mdfe_network
+
+  # Backup Service (executado periodicamente)
+  backup:
+    image: postgres:15
+    container_name: cte_mdfe_backup
+    restart: always
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-cte_mdfe_db}
+      PGUSER: ${POSTGRES_USER:-cte_mdfe_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    command: /bin/sh -c "while true; do /backup.sh; sleep 86400; done"
+    depends_on:
+      - db
+    networks:
+      - cte_mdfe_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+
+networks:
+  cte_mdfe_network:
+    driver: bridge

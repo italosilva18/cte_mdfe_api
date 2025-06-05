@@ -23,6 +23,7 @@ from django.db import transaction
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404
+from django.core.exceptions import ValidationError
 
 # Imports Django REST Framework
 from rest_framework import viewsets, status
@@ -40,12 +41,20 @@ from ..serializers.config_serializers import ( # Use .. para voltar um nível
     # Adicionar serializers de relatórios se/quando criados
 )
 from ..serializers.vehicle_serializers import VeiculoSerializer, ManutencaoVeiculoSerializer
+from ..serializers.payment_serializers import PagamentoAgregadoSerializer, PagamentoProprioSerializer
 from ..models import (
     ParametroSistema,
     ConfiguracaoEmpresa,
     RegistroBackup,
     Veiculo,
     CTePrestacaoServico,
+    CTeDocumento,
+    CTeIdentificacao,
+    MDFeDocumento,
+    MDFeIdentificacao,
+    PagamentoAgregado,
+    PagamentoProprio,
+    ManutencaoVeiculo,
 )
 
 # ===============================================================
@@ -504,7 +513,14 @@ class RelatorioAPIView(APIView):
                 dados = self._gerar_relatorio_faturamento(data_inicio, data_fim, filtros)
             elif tipo == 'veiculos':
                 dados = self._gerar_relatorio_veiculos(filtros)
-            # ... adicionar outros tipos ...
+            elif tipo == 'ctes':
+                dados = self._gerar_relatorio_ctes(data_inicio, data_fim, filtros)
+            elif tipo == 'mdfes':
+                dados = self._gerar_relatorio_mdfes(data_inicio, data_fim, filtros)
+            elif tipo == 'pagamentos':
+                dados = self._gerar_relatorio_pagamentos(data_inicio, data_fim, filtros)
+            elif tipo == 'km_rodado':
+                dados = self._gerar_relatorio_km_rodado(data_inicio, data_fim, filtros)
             elif tipo == 'manutencoes':
                 dados = self._gerar_relatorio_manutencoes(data_inicio, data_fim, filtros)
             else:
@@ -561,27 +577,323 @@ class RelatorioAPIView(APIView):
         return serializer.data
 
     def _gerar_relatorio_ctes(self, data_inicio, data_fim, filtros):
-        """(NÃO IMPLEMENTADO) Gera dados para o relatório de CT-es."""
+        """Gera dados para o relatório de CT-es."""
         logger.info("INFO: Gerando relatório de CT-es com filtros: %s", filtros)
-        return {"message": "Relatório de CT-es ainda não implementado.", "filtros": filtros}
+        
+        # Busca CT-es com dados básicos
+        qs = CTeDocumento.objects.select_related(
+            'identificacao', 'emitente', 'remetente', 'destinatario', 'prestacao'
+        ).prefetch_related('modal_rodoviario__veiculos')
+        
+        # Filtros por data
+        if data_inicio:
+            qs = qs.filter(identificacao__data_emissao__date__gte=data_inicio)
+        if data_fim:
+            qs = qs.filter(identificacao__data_emissao__date__lte=data_fim)
+            
+        # Filtros específicos
+        if 'chave' in filtros and filtros['chave']:
+            qs = qs.filter(chave__icontains=filtros['chave'])
+        if 'numero' in filtros and filtros['numero']:
+            qs = qs.filter(identificacao__numero=filtros['numero'])
+        if 'emitente' in filtros and filtros['emitente']:
+            qs = qs.filter(emitente__razao_social__icontains=filtros['emitente'])
+        if 'modalidade' in filtros and filtros['modalidade']:
+            qs = qs.filter(modalidade=filtros['modalidade'])
+        if 'processado' in filtros:
+            qs = qs.filter(processado=bool(filtros['processado']))
+            
+        # Limita quantidade para performance
+        qs = qs.order_by('-identificacao__data_emissao')[:1000]
+        
+        dados = []
+        for cte in qs:
+            # Pega placa do primeiro veículo se existir
+            placa = None
+            if hasattr(cte, 'modal_rodoviario') and cte.modal_rodoviario:
+                veiculos = cte.modal_rodoviario.veiculos.first()
+                if veiculos:
+                    placa = veiculos.placa
+                    
+            dados.append({
+                'chave': cte.chave,
+                'numero': cte.identificacao.numero if hasattr(cte, 'identificacao') else None,
+                'data_emissao': cte.identificacao.data_emissao.strftime('%Y-%m-%d %H:%M') if hasattr(cte, 'identificacao') and cte.identificacao.data_emissao else None,
+                'emitente': cte.emitente.razao_social if hasattr(cte, 'emitente') else None,
+                'remetente': cte.remetente.razao_social if hasattr(cte, 'remetente') else None,
+                'destinatario': cte.destinatario.razao_social if hasattr(cte, 'destinatario') else None,
+                'valor_total': float(cte.prestacao.valor_total_prestado) if hasattr(cte, 'prestacao') and cte.prestacao.valor_total_prestado else 0,
+                'modalidade': cte.modalidade or 'N/A',
+                'processado': cte.processado,
+                'placa': placa,
+                'km_distancia': cte.identificacao.dist_km if hasattr(cte, 'identificacao') else None,
+            })
+            
+        return dados
 
     def _gerar_relatorio_mdfes(self, data_inicio, data_fim, filtros):
-        """(NÃO IMPLEMENTADO) Gera dados para o relatório de MDF-es."""
+        """Gera dados para o relatório de MDF-es."""
         logger.info("INFO: Gerando relatório de MDF-es com filtros: %s", filtros)
-        return {"message": "Relatório de MDF-es ainda não implementado.", "filtros": filtros}
+        
+        # Busca MDF-es com dados básicos
+        qs = MDFeDocumento.objects.select_related(
+            'identificacao', 'emitente', 'totais'
+        ).prefetch_related(
+            'modal_rodoviario__veiculo_tracao',
+            'condutores',
+            'docs_vinculados_mdfe'
+        )
+        
+        # Filtros por data
+        if data_inicio:
+            qs = qs.filter(identificacao__dh_emi__date__gte=data_inicio)
+        if data_fim:
+            qs = qs.filter(identificacao__dh_emi__date__lte=data_fim)
+            
+        # Filtros específicos
+        if 'chave' in filtros and filtros['chave']:
+            qs = qs.filter(chave__icontains=filtros['chave'])
+        if 'numero' in filtros and filtros['numero']:
+            qs = qs.filter(identificacao__n_mdf=filtros['numero'])
+        if 'emitente' in filtros and filtros['emitente']:
+            qs = qs.filter(emitente__razao_social__icontains=filtros['emitente'])
+        if 'encerrado' in filtros:
+            qs = qs.filter(encerrado=bool(filtros['encerrado']))
+        if 'processado' in filtros:
+            qs = qs.filter(processado=bool(filtros['processado']))
+            
+        # Limita quantidade para performance
+        qs = qs.order_by('-identificacao__dh_emi')[:1000]
+        
+        dados = []
+        for mdfe in qs:
+            # Pega placa do veículo de tração
+            placa_tracao = None
+            if hasattr(mdfe, 'modal_rodoviario') and mdfe.modal_rodoviario and hasattr(mdfe.modal_rodoviario, 'veiculo_tracao'):
+                placa_tracao = mdfe.modal_rodoviario.veiculo_tracao.placa
+                
+            # Conta CT-es vinculados
+            qtd_ctes = mdfe.docs_vinculados_mdfe.count()
+            
+            # Pega primeiro condutor
+            condutor = mdfe.condutores.first()
+            condutor_nome = condutor.nome if condutor else None
+            
+            dados.append({
+                'chave': mdfe.chave,
+                'numero': mdfe.identificacao.n_mdf if hasattr(mdfe, 'identificacao') else None,
+                'data_emissao': mdfe.identificacao.dh_emi.strftime('%Y-%m-%d %H:%M') if hasattr(mdfe, 'identificacao') and mdfe.identificacao.dh_emi else None,
+                'emitente': mdfe.emitente.razao_social if hasattr(mdfe, 'emitente') else None,
+                'uf_inicio': mdfe.identificacao.uf_ini if hasattr(mdfe, 'identificacao') else None,
+                'uf_fim': mdfe.identificacao.uf_fim if hasattr(mdfe, 'identificacao') else None,
+                'placa_tracao': placa_tracao,
+                'condutor': condutor_nome,
+                'qtd_ctes': qtd_ctes,
+                'valor_carga': float(mdfe.totais.v_carga) if hasattr(mdfe, 'totais') and mdfe.totais.v_carga else 0,
+                'peso_carga': float(mdfe.totais.q_carga) if hasattr(mdfe, 'totais') and mdfe.totais.q_carga else 0,
+                'encerrado': mdfe.encerrado,
+                'data_encerramento': mdfe.data_encerramento.strftime('%Y-%m-%d') if mdfe.data_encerramento else None,
+                'processado': mdfe.processado,
+            })
+            
+        return dados
 
     def _gerar_relatorio_pagamentos(self, data_inicio, data_fim, filtros):
-        """(NÃO IMPLEMENTADO) Gera dados para o relatório de pagamentos."""
+        """Gera dados para o relatório de pagamentos (agregados e próprios)."""
         logger.info("INFO: Gerando relatório de pagamentos com filtros: %s", filtros)
-        return {"message": "Relatório de pagamentos ainda não implementado.", "filtros": filtros}
+        
+        dados = []
+        tipo_pagamento = filtros.get('tipo', 'todos')  # 'agregado', 'proprio' ou 'todos'
+        
+        # Pagamentos Agregados
+        if tipo_pagamento in ['agregado', 'todos']:
+            qs_agregados = PagamentoAgregado.objects.select_related('cte__identificacao')
+            
+            # Filtros por data (usando data_prevista)
+            if data_inicio:
+                qs_agregados = qs_agregados.filter(data_prevista__gte=data_inicio)
+            if data_fim:
+                qs_agregados = qs_agregados.filter(data_prevista__lte=data_fim)
+                
+            # Filtros específicos
+            if 'status' in filtros and filtros['status']:
+                qs_agregados = qs_agregados.filter(status=filtros['status'])
+            if 'placa' in filtros and filtros['placa']:
+                qs_agregados = qs_agregados.filter(placa__icontains=filtros['placa'])
+            if 'condutor' in filtros and filtros['condutor']:
+                qs_agregados = qs_agregados.filter(condutor_nome__icontains=filtros['condutor'])
+                
+            # Limita quantidade
+            qs_agregados = qs_agregados.order_by('-data_prevista')[:500]
+            
+            for pag in qs_agregados:
+                dados.append({
+                    'tipo': 'Agregado',
+                    'id': pag.id,
+                    'cte_numero': pag.cte.identificacao.numero if hasattr(pag.cte, 'identificacao') else None,
+                    'placa': pag.placa,
+                    'condutor': pag.condutor_nome,
+                    'cpf_condutor': pag.condutor_cpf,
+                    'valor_frete': float(pag.valor_frete_total),
+                    'percentual_repasse': float(pag.percentual_repasse),
+                    'valor_repassado': float(pag.valor_repassado),
+                    'status': pag.status,
+                    'data_prevista': pag.data_prevista.strftime('%Y-%m-%d'),
+                    'data_pagamento': pag.data_pagamento.strftime('%Y-%m-%d') if pag.data_pagamento else None,
+                    'observacoes': pag.obs or '',
+                })
+        
+        # Pagamentos Próprios
+        if tipo_pagamento in ['proprio', 'todos']:
+            qs_proprios = PagamentoProprio.objects.select_related('veiculo')
+            
+            # Filtros por data (usando periodo - mais complexo)
+            if data_inicio or data_fim:
+                periodo_filters = []
+                if data_inicio:
+                    periodo_inicio = data_inicio.strftime('%Y-%m')
+                    periodo_filters.append(('periodo__gte', periodo_inicio))
+                if data_fim:
+                    periodo_fim = data_fim.strftime('%Y-%m')
+                    periodo_filters.append(('periodo__lte', periodo_fim))
+                for field, value in periodo_filters:
+                    qs_proprios = qs_proprios.filter(**{field: value})
+                    
+            # Filtros específicos
+            if 'status' in filtros and filtros['status']:
+                qs_proprios = qs_proprios.filter(status=filtros['status'])
+            if 'placa' in filtros and filtros['placa']:
+                qs_proprios = qs_proprios.filter(veiculo__placa__icontains=filtros['placa'])
+                
+            # Limita quantidade
+            qs_proprios = qs_proprios.order_by('-periodo')[:500]
+            
+            for pag in qs_proprios:
+                dados.append({
+                    'tipo': 'Próprio',
+                    'id': pag.id,
+                    'cte_numero': None,  # Não se aplica a pagamentos próprios
+                    'placa': pag.veiculo.placa,
+                    'condutor': 'Condutor Próprio',
+                    'cpf_condutor': None,
+                    'valor_frete': None,  # Não se aplica
+                    'percentual_repasse': None,  # Não se aplica
+                    'valor_repassado': float(pag.valor_total_pagar),
+                    'status': pag.status,
+                    'data_prevista': None,  # Pagamentos próprios usam período
+                    'data_pagamento': pag.data_pagamento.strftime('%Y-%m-%d') if pag.data_pagamento else None,
+                    'observacoes': pag.obs or '',
+                    'periodo': pag.periodo,
+                    'km_total': pag.km_total_periodo,
+                    'valor_base_faixa': float(pag.valor_base_faixa) if pag.valor_base_faixa else 0,
+                    'ajustes': float(pag.ajustes),
+                })
+            
+        return dados
 
     def _gerar_relatorio_km_rodado(self, data_inicio, data_fim, filtros):
-        """(NÃO IMPLEMENTADO) Gera dados para o relatório de KM rodado."""
+        """Gera dados para o relatório de KM rodado baseado em CT-es e manutenções."""
         logger.info("INFO: Gerando relatório de KM rodado com filtros: %s", filtros)
-        return {"message": "Relatório de KM rodado ainda não implementado.", "filtros": filtros}
+        
+        dados = []
+        
+        # Agrupa dados por placa para calcular KM total
+        km_por_placa = {}
+        
+        # KM dos CT-es (campo dist_km)
+        qs_ctes = CTeDocumento.objects.select_related('identificacao').prefetch_related('modal_rodoviario__veiculos')
+        
+        # Filtros por data
+        if data_inicio:
+            qs_ctes = qs_ctes.filter(identificacao__data_emissao__date__gte=data_inicio)
+        if data_fim:
+            qs_ctes = qs_ctes.filter(identificacao__data_emissao__date__lte=data_fim)
+            
+        # Filtro por placa se especificado
+        if 'placa' in filtros and filtros['placa']:
+            qs_ctes = qs_ctes.filter(modal_rodoviario__veiculos__placa__icontains=filtros['placa'])
+            
+        # Processa CT-es para somar KM
+        for cte in qs_ctes:
+            if hasattr(cte, 'modal_rodoviario') and cte.modal_rodoviario:
+                for veiculo in cte.modal_rodoviario.veiculos.all():
+                    placa = veiculo.placa
+                    km = cte.identificacao.dist_km if hasattr(cte, 'identificacao') and cte.identificacao.dist_km else 0
+                    
+                    if placa not in km_por_placa:
+                        km_por_placa[placa] = {
+                            'placa': placa,
+                            'km_ctes': 0,
+                            'km_manutencoes': 0,
+                            'qtd_ctes': 0,
+                            'qtd_manutencoes': 0,
+                            'ultima_manutencao': None,
+                            'km_total_estimado': 0
+                        }
+                    
+                    km_por_placa[placa]['km_ctes'] += km
+                    km_por_placa[placa]['qtd_ctes'] += 1
+        
+        # KM das manutenções (quilometragem registrada)
+        qs_manutencoes = ManutencaoVeiculo.objects.select_related('veiculo')
+        
+        # Filtros por data
+        if data_inicio:
+            qs_manutencoes = qs_manutencoes.filter(data_servico__gte=data_inicio)
+        if data_fim:
+            qs_manutencoes = qs_manutencoes.filter(data_servico__lte=data_fim)
+            
+        # Filtro por placa se especificado
+        if 'placa' in filtros and filtros['placa']:
+            qs_manutencoes = qs_manutencoes.filter(veiculo__placa__icontains=filtros['placa'])
+            
+        # Processa manutenções
+        for manutencao in qs_manutencoes:
+            placa = manutencao.veiculo.placa
+            km = manutencao.quilometragem or 0
+            
+            if placa not in km_por_placa:
+                km_por_placa[placa] = {
+                    'placa': placa,
+                    'km_ctes': 0,
+                    'km_manutencoes': 0,
+                    'qtd_ctes': 0,
+                    'qtd_manutencoes': 0,
+                    'ultima_manutencao': None,
+                    'km_total_estimado': 0
+                }
+            
+            # Para manutenções, usa a maior quilometragem como referência
+            if km > km_por_placa[placa]['km_manutencoes']:
+                km_por_placa[placa]['km_manutencoes'] = km
+                km_por_placa[placa]['ultima_manutencao'] = manutencao.data_servico.strftime('%Y-%m-%d')
+            
+            km_por_placa[placa]['qtd_manutencoes'] += 1
+        
+        # Converte para lista e calcula estimativas
+        for placa_data in km_por_placa.values():
+            # Estimativa simples: maior valor entre KM das manutenções e soma dos CT-es
+            km_estimado = max(placa_data['km_manutencoes'], placa_data['km_ctes'])
+            placa_data['km_total_estimado'] = km_estimado
+            
+            # Informações do veículo
+            try:
+                veiculo = Veiculo.objects.get(placa=placa_data['placa'])
+                placa_data['veiculo_ativo'] = veiculo.ativo
+                placa_data['proprietario'] = veiculo.proprietario_nome or 'Não informado'
+            except Veiculo.DoesNotExist:
+                placa_data['veiculo_ativo'] = False
+                placa_data['proprietario'] = 'Veículo não cadastrado'
+            
+            dados.append(placa_data)
+        
+        # Ordena por KM total estimado (maior primeiro)
+        dados.sort(key=lambda x: x['km_total_estimado'], reverse=True)
+        
+        return dados
 
     def _gerar_relatorio_manutencoes(self, data_inicio, data_fim, filtros):
-        """(NÃO IMPLEMENTADO) Gera dados para o relatório de manutenções."""
+        """Gera dados para o relatório de manutenções."""
         logger.info("INFO: Gerando relatório de manutenções com filtros: %s", filtros)
         # Exemplo básico de busca (sem filtros específicos da API, apenas data)
         qs = ManutencaoVeiculo.objects.all()
@@ -594,10 +906,23 @@ class RelatorioAPIView(APIView):
     # --- Método Auxiliar para Gerar CSV ---
     def _gerar_csv(self, dados, nome_arquivo):
         """Função auxiliar para gerar arquivos CSV a partir de uma lista de dicts."""
-        if not dados or not isinstance(dados, list) or not isinstance(dados[0], dict):
-            # Se dados não for uma lista de dicionários, retorna erro ou mensagem
+        if not dados or not isinstance(dados, list):
+            # Se dados não for uma lista, retorna erro ou mensagem
             if isinstance(dados, dict) and 'message' in dados:
                 return Response(dados, status=status.HTTP_501_NOT_IMPLEMENTED) # Retorna msg de não implementado
+            return Response({"error": "Formato de dados inválido para gerar CSV."},
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Se a lista estiver vazia, retorna CSV vazio com mensagem
+        if len(dados) == 0:
+            output = StringIO()
+            output.write("Nenhum dado encontrado para os filtros especificados.\n")
+            response = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
+            response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+            return response
+            
+        # Verifica se o primeiro item é um dicionário
+        if not isinstance(dados[0], dict):
             return Response({"error": "Formato de dados inválido para gerar CSV."},
                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

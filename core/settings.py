@@ -22,6 +22,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables from .env file
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
+# Docker-specific environment detection
+IS_DOCKER = os.getenv('IS_DOCKER', 'false').lower() == 'true'
+
 # --- Environment Variable Handling (Recommended) ---
 # Consider using a library like `python-decouple` or `django-environ`
 # to manage settings from environment variables or .env files.
@@ -107,20 +110,30 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Docker/Production PostgreSQL configuration
+if IS_DOCKER or os.getenv('DATABASE_HOST'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DATABASE_NAME', 'cte_mdfe_db'),
+            'USER': os.getenv('DATABASE_USER', 'cte_mdfe_user'),
+            'PASSWORD': os.getenv('DATABASE_PASSWORD', ''),
+            'HOST': os.getenv('DATABASE_HOST', 'db'),
+            'PORT': os.getenv('DATABASE_PORT', '5432'),
+            'OPTIONS': {
+                'connect_timeout': 60,
+            },
+            'CONN_MAX_AGE': 600,
+        }
     }
-}
-
-# Example for PostgreSQL using environment variables (recommended for production)
-# import dj_database_url
-# DATABASE_URL = os.environ.get('DATABASE_URL')
-# if DATABASE_URL:
-#     DATABASES['default'] = dj_database_url.config(conn_max_age=600, ssl_require=os.environ.get('DJANGO_DB_SSL', 'False') == 'True')
-# else:
-#     print("DATABASE_URL not found, using SQLite as default.")
+else:
+    # Fallback to SQLite for local development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -161,8 +174,15 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = '/static/'
-# Directory where `collectstatic` will gather static files for deployment.
-STATIC_ROOT = BASE_DIR / 'staticfiles_collected'
+
+# Docker/Production static files configuration
+if IS_DOCKER:
+    STATIC_ROOT = '/app/static'
+    MEDIA_ROOT = '/app/media'
+else:
+    # Local development
+    STATIC_ROOT = BASE_DIR / 'staticfiles_collected'
+    MEDIA_ROOT = BASE_DIR / 'mediafiles'
 
 # Directories where Django will look for static files in addition to app's 'static' directories.
 STATICFILES_DIRS = [
@@ -173,7 +193,40 @@ STATICFILES_DIRS = [
 # Media files (User-uploaded content)
 # https://docs.djangoproject.com/en/5.2/topics/files/
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'mediafiles' # Renamed for clarity, was 'media'
+
+# Cache Configuration (Redis for Docker, dummy for local)
+if IS_DOCKER or os.getenv('REDIS_HOST'):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': f"redis://{os.getenv('REDIS_HOST', 'redis')}:{os.getenv('REDIS_PORT', '6379')}/0",
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            },
+            'KEY_PREFIX': 'cte_mdfe',
+            'TIMEOUT': 300,
+        }
+    }
+    
+    # Session storage em Redis
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    SESSION_CACHE_ALIAS = 'default'
+else:
+    # Local development - sem cache
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
+        }
+    }
+
+# Celery Configuration (para tarefas assíncronas)
+if IS_DOCKER or os.getenv('CELERY_BROKER_URL'):
+    CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', f"redis://{os.getenv('REDIS_HOST', 'redis')}:6379/0")
+    CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', f"redis://{os.getenv('REDIS_HOST', 'redis')}:6379/0")
+    CELERY_ACCEPT_CONTENT = ['json']
+    CELERY_TASK_SERIALIZER = 'json'
+    CELERY_RESULT_SERIALIZER = 'json'
+    CELERY_TIMEZONE = TIME_ZONE
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
