@@ -63,9 +63,9 @@ class CTeDocumento(models.Model):
         verbose_name = "CT-e (Documento)"
         verbose_name_plural = "CT-e (Documentos)"
         ordering = ['-identificacao__data_emissao']
-        index_together = [ # NOVO ÍNDICE
-            ('modalidade', 'data_upload'),
-            ('processado', 'data_upload'), # Exemplo de outro índice útil
+        indexes = [
+            models.Index(fields=['modalidade', 'data_upload']),
+            models.Index(fields=['processado', 'data_upload']),
         ]
 
     def __str__(self):

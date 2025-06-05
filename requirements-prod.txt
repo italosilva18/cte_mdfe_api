@@ -17,10 +17,13 @@ psycopg2-binary  # PostgreSQL
 # XML Processing
 lxml
 defusedxml
+xmltodict
 
 # PDF Generation
 reportlab
 Pillow
+qrcode[pil]
+python-barcode
 
 # Production Server
 gunicorn
