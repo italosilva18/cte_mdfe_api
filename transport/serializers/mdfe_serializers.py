@@ -236,11 +236,14 @@ class MDFeDocumentoListSerializer(serializers.ModelSerializer):
 
     def get_documentos_count(self, obj):
         """ Retorna a contagem de documentos vinculados (otimizado se pré-carregado). """
-        # Se você pré-carregar a contagem na view (com annotate), pode acessar aqui
-        if hasattr(obj, 'docs_count_annotation'):
-             return obj.docs_count_annotation
-        # Senão, faz a contagem (menos eficiente para listas grandes)
-        return obj.docs_vinculados_mdfe.count()
+        try:
+            # Se você pré-carregar a contagem na view (com annotate), pode acessar aqui
+            if hasattr(obj, 'docs_count_annotation'):
+                 return obj.docs_count_annotation
+            # Senão, faz a contagem (menos eficiente para listas grandes)
+            return obj.docs_vinculados_mdfe.count()
+        except Exception:
+            return 0
 
 class MDFeDocumentoDetailSerializer(serializers.ModelSerializer):
     """ Serializer para a visualização detalhada de um MDF-e processado. """
@@ -283,26 +286,43 @@ class MDFeDocumentoDetailSerializer(serializers.ModelSerializer):
         read_only_fields = fields # Garante que a visualização detalhada seja apenas leitura
 
     def get_status_geral(self, obj):
-        """ Reutiliza a lógica de status do serializer de lista. """
-        return MDFeDocumentoListSerializer().get_status(obj)
+        """ Determina o status consolidado do MDF-e. """
+        try:
+            if hasattr(obj, 'cancelamento') and obj.cancelamento and obj.cancelamento.c_stat == 135:
+                return "Cancelado"
+            if obj.encerrado: # Checa o campo 'encerrado' do modelo
+                 # Verifica se o encerramento foi cancelado
+                 if hasattr(obj, 'cancelamento_encerramento') and obj.cancelamento_encerramento and obj.cancelamento_encerramento.c_stat == 135:
+                     return "Enc. Cancelado"
+                 return "Encerrado"
+            if hasattr(obj, 'protocolo') and obj.protocolo:
+                return "Autorizado" if obj.protocolo.codigo_status == 100 else f"Rejeitado ({obj.protocolo.codigo_status})"
+            if obj.processado:
+                return "Processado (s/ Prot.)"
+            return "Pendente"
+        except Exception:
+            return "Desconhecido"
 
     def get_encerramento_info(self, obj):
         """ Retorna informações formatadas sobre o encerramento do MDF-e. """
-        if obj.encerrado:
-            # Verifica se o encerramento foi cancelado
-            if hasattr(obj, 'cancelamento_encerramento') and obj.cancelamento_encerramento and obj.cancelamento_encerramento.c_stat == 135:
-                 return {
-                     'status': 'Encerramento Cancelado',
-                     'data_cancelamento': obj.cancelamento_encerramento.dh_reg_evento.strftime('%d/%m/%Y %H:%M') if obj.cancelamento_encerramento.dh_reg_evento else None,
-                     'protocolo_cancelamento': obj.cancelamento_encerramento.n_prot_retorno,
-                     'justificativa_cancelamento': obj.cancelamento_encerramento.x_just
-                 }
-            else:
-                 return {
-                     'status': 'Encerrado',
-                     'data': obj.data_encerramento.strftime('%d/%m/%Y') if obj.data_encerramento else None,
-                     'municipio': obj.municipio_encerramento_cod,
-                     'uf': obj.uf_encerramento,
-                     'protocolo': obj.protocolo_encerramento
-                 }
-        return None # Retorna None se não estiver encerrado
+        try:
+            if obj.encerrado:
+                # Verifica se o encerramento foi cancelado
+                if hasattr(obj, 'cancelamento_encerramento') and obj.cancelamento_encerramento and obj.cancelamento_encerramento.c_stat == 135:
+                     return {
+                         'status': 'Encerramento Cancelado',
+                         'data_cancelamento': obj.cancelamento_encerramento.dh_reg_evento.strftime('%d/%m/%Y %H:%M') if obj.cancelamento_encerramento.dh_reg_evento else None,
+                         'protocolo_cancelamento': obj.cancelamento_encerramento.n_prot_retorno,
+                         'justificativa_cancelamento': obj.cancelamento_encerramento.x_just
+                     }
+                else:
+                     return {
+                         'status': 'Encerrado',
+                         'data': obj.data_encerramento.strftime('%d/%m/%Y') if obj.data_encerramento else None,
+                         'municipio': obj.municipio_encerramento_cod,
+                         'uf': obj.uf_encerramento,
+                         'protocolo': obj.protocolo_encerramento
+                     }
+        except Exception:
+            pass
+        return None # Retorna None se não estiver encerrado ou ocorrer erro

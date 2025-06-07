@@ -57,8 +57,50 @@ class MDFeDocumentoViewSet(viewsets.ReadOnlyModelViewSet):
         return MDFeDocumentoListSerializer
 
     def get_queryset(self):
-        """Permite filtrar os MDF-es por diversos parâmetros."""
-        queryset = MDFeDocumento.objects.all().order_by('-data_upload')
+        """
+        Permite filtrar os MDF-es por diversos parâmetros.
+        
+        Otimizações incluídas:
+        - select_related para relações 1-1
+        - prefetch_related para relações 1-N
+        - distinct() para evitar duplicatas
+        """
+        # Base queryset com otimizações para evitar N+1 queries
+        queryset = MDFeDocumento.objects.select_related(
+            'identificacao',
+            'emitente', 
+            'modal_rodoviario',
+            'modal_rodoviario__veiculo_tracao',
+            'prod_pred',
+            'totais',
+            'adicional',
+            'resp_tecnico',
+            'protocolo',
+            'suplementar',
+            'cancelamento',
+            'cancelamento_encerramento'
+        ).prefetch_related(
+            'identificacao__municipios_carregamento',
+            'identificacao__percurso', 
+            'municipios_descarga',
+            'municipios_descarga__docs_vinculados_municipio',
+            'municipios_descarga__docs_vinculados_municipio__cte_relacionado__identificacao',
+            'municipios_descarga__docs_vinculados_municipio__cte_relacionado__emitente',
+            'municipios_descarga__docs_vinculados_municipio__cte_relacionado__remetente',
+            'municipios_descarga__docs_vinculados_municipio__cte_relacionado__destinatario',
+            'municipios_descarga__docs_vinculados_municipio__cte_relacionado__prestacao',
+            'municipios_descarga__docs_vinculados_municipio__produtos_perigosos',
+            'condutores',
+            'modal_rodoviario__veiculos_reboque',
+            'modal_rodoviario__ciots',
+            'modal_rodoviario__vales_pedagio',
+            'modal_rodoviario__contratantes',
+            'seguros_carga',
+            'seguros_carga__averbacoes',
+            'lacres_rodoviarios',
+            'autorizados_xml'
+        ).order_by('-data_upload')
+        
         params = self.request.query_params
 
         # Filtro por período (data_emissao dh_emi)

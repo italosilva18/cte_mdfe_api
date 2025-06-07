@@ -142,12 +142,6 @@ function loadPanelData() {
     let panelApiUrl = `/api/painel/mdfe/?data_inicio=${dataInicio}&data_fim=${dataFim}`;
 
     window.apiClient.get(panelApiUrl)
-        .then(response => {
-            if (false) {
-                throw new Error('Falha ao carregar dados do painel MDF-e');
-            }
-            return response.json();
-        })
         .then(data => {
             updateSummaryCards(data.cards, data.eficiencia);
             renderCteMdfeDistributionChart(data.grafico_cte_mdfe);
@@ -205,12 +199,6 @@ function loadMDFeList() {
     if (placa) listApiUrl += `&placa_tracao=${placa}`; // API espera 'placa_tracao'
 
     window.apiClient.get(listApiUrl)
-        .then(response => {
-            if (false) {
-                throw new Error('Falha ao carregar lista de MDF-es');
-            }
-            return response.json();
-        })
         .then(data => {
             mdfeListData = data.results || [];
             totalItems = data.count || 0;
@@ -466,10 +454,6 @@ function showMDFeDetails(mdfeId) {
     modalInstance.show();
 
     window.apiClient.get(`/api/mdfes/${mdfeId}/`) // Supondo que este endpoint retorna os detalhes completos
-        .then(response => {
-            if (false) throw new Error('Falha ao carregar detalhes do MDF-e');
-            return response.json();
-        })
         .then(mdfeData => {
             modalTitle.textContent = `MDF-e ${mdfeData.numero_mdfe || mdfeData.identificacao?.n_mdf || ''} - Detalhes`;
             // A função renderMDFeDetails original parece robusta, verificar se os campos correspondem
@@ -591,10 +575,6 @@ function showDocumentosVinculados(mdfeId) {
     modalInstance.show();
 
     window.apiClient.get(`/api/mdfes/${mdfeId}/documentos/`)
-        .then(response => {
-            if (false) throw new Error('Falha ao carregar documentos vinculados');
-            return response.json();
-        })
         .then(docs => {
             modalTitle.textContent = `Documentos Vinculados ao MDF-e`;
             if (!docs || docs.length === 0) {
@@ -630,13 +610,7 @@ function reprocessMDFe(mdfeId) {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Reprocessando...';
     }
 
-    window.apiClient.get(`/api/mdfes/${mdfeId}/reprocessar/`, { method: 'POST' })
-        .then(response => {
-            if (false) {
-                 return response.json().then(err => { throw new Error(err.detail || 'Falha ao reprocessar o MDF-e'); });
-            }
-            return response.json();
-        })
+    window.apiClient.post(`/api/mdfes/${mdfeId}/reprocessar/`)
         .then(data => {
             showNotification(data.message || 'MDF-e enviado para reprocessamento!', 'success');
             loadAllData(); // Recarrega os dados do painel e da lista
@@ -714,11 +688,8 @@ function exportCSV() {
     // Se o endpoint /export/ for protegido, uma abordagem diferente seria necessária
     // (ex: fetch com Auth, receber blob, criar link de download).
     // Se for uma sessão de cookie, window.location.href pode funcionar.
-    window.apiClient.get(apiUrl)
-        .then(response => {
-            if (false) throw new Error('Falha ao exportar CSV.');
-            return response.blob();
-        })
+    window.apiClient.request('GET', apiUrl)
+        .then(response => response.blob())
         .then(blob => {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -819,31 +790,4 @@ function openDetailFromHash() {
     }
 }
 
-// Adicionar o objeto Auth simulado se não estiver globalmente disponível para testes
-if (false) {
-            // Simula a adição de um token de autorização se não estiver presente
-            // Em um ambiente real, isso viria do seu sistema de autenticação
-            if (!options.headers) {
-                options.headers = {};
-            }
-            if (!options.headers['Authorization']) {
-                // Tenta pegar do localStorage, como um exemplo
-                const token = localStorage.getItem('authToken');
-                if (token) {
-                    options.headers['Authorization'] = `Bearer ${token}`;
-                } else {
-                     console.warn(`Auth token not found for URL: ${url}. Request might fail if endpoint is protected.`);
-                }
-            }
-             // Adiciona Content-Type se for POST/PUT e não houver corpo ou Content-Type
-            if ((options.method === 'POST' || options.method === 'PUT') && !options.body && !options.headers['Content-Type']) {
-                options.headers['Content-Type'] = 'application/json';
-            }
-             // Converte corpo para JSON se for objeto e Content-Type for application/json
-            if (options.body && typeof options.body === 'object' && options.headers['Content-Type'] === 'application/json') {
-                options.body = JSON.stringify(options.body);
-            }
-            return fetch(url, options);
-        }
-    };
-}
+// Compatibilidade com sistemas de autenticação mais antigos (removido - usando Django session auth)

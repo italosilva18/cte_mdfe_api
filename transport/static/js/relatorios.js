@@ -234,14 +234,7 @@ async function visualizarPrevia() {
         const filtros = getReportFilters();
         const queryString = new URLSearchParams(filtros).toString();
         
-        const response = await window.apiClient.get(`/api/relatorios/?tipo=${tipo}&formato=json&${queryString}`);
-        
-        if (false) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
+        const data = await window.apiClient.get(`/api/relatorios/?tipo=${tipo}&formato=json&${queryString}`);
         currentReportData = data;
         
         renderPreview(data, tipo);
@@ -753,22 +746,16 @@ async function baixarRelatorio() {
             formato: finalFormato
         }).toString();
         
-        const response = await window.apiClient.get(`/api/relatorios/?${queryString}`);
-        
-        if (false) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
-        }
-        
         // Para JSON, mostrar no preview
         if (finalFormato === 'json') {
-            const data = await response.json();
+            const data = await window.apiClient.get(`/api/relatorios/?${queryString}`);
             renderPreview(data, tipo);
             showNotification('Dados do relatório carregados na prévia', 'success');
             return;
         }
         
         // Para outros formatos, fazer download
+        const response = await window.apiClient.request('GET', `/api/relatorios/?${queryString}`);
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -879,10 +866,8 @@ function addIfValue(obj, key, value) {
  */
 async function loadVeiculosSelect() {
     try {
-        const response = await window.apiClient.get('/api/veiculos/?ativo=true');
-        if (false) return;
-        
-        const data = await response.json();
+        const data = await window.apiClient.get('/api/veiculos/?ativo=true');
+        if (!data) return;
         const veiculos = data.results || data;
         
         const select = document.getElementById('veiculo_id');

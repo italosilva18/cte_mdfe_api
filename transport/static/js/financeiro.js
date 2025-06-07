@@ -183,17 +183,6 @@ function loadPainelFinanceiroData() {
     const apiUrl = `/api/painel/financeiro/?data_inicio=${dataInicio}&data_fim=${dataFim}`;
     
     window.apiClient.get(apiUrl)
-        .then(response => {
-            if (false) {
-                return response.text().then(text => {
-                    let errorDetail = text;
-                    try { const jsonError = JSON.parse(text); errorDetail = jsonError.detail || JSON.stringify(jsonError); } 
-                    catch (e) { /* não é JSON */ }
-                    throw new Error(`Falha ao carregar dados do painel financeiro (status: ${response.status}). Detalhe: ${errorDetail}`);
-                });
-            }
-            return response.json();
-        })
         .then(data => {
             painelFinanceiroData = data; 
             updateFinancialCards(data.cards);
@@ -646,16 +635,6 @@ function showDetalheModal(id, tipo, nome) {
     apiUrl += `&page_size=200`; // Carrega um bom número de CTes para o modal, paginação no modal é mais complexa
 
     window.apiClient.get(apiUrl)
-        .then(response => {
-            if (false) {
-                return response.text().then(text => {
-                    let errorDetail = text;
-                    try { const jsonError = JSON.parse(text); errorDetail = jsonError.detail || JSON.stringify(jsonError); } catch (e) { /* não é JSON */ }
-                    throw new Error(`Falha ao carregar detalhes do ${tipo} (status: ${response.status}). Detalhe: ${errorDetail}`);
-                });
-            }
-            return response.json();
-        })
         .then(data => {
             renderDetalheContentInModal(document.getElementById('detalheContent'), data.results || data, tipo);
         })

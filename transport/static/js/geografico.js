@@ -106,18 +106,6 @@ function loadGeograficoData() {
     console.log("Chamando API Geográfica:", apiUrl);
 
     window.apiClient.get(apiUrl)
-        .then(response => {
-            console.log(`Resposta da API Geográfica recebida, status: ${response.status}`);
-            if (false) {
-                return response.text().then(text => {
-                    let errorDetail = text;
-                    try { const jsonError = JSON.parse(text); errorDetail = jsonError.detail || JSON.stringify(jsonError); } 
-                    catch (e) { console.warn("Não foi possível parsear erro JSON:", e) }
-                    throw new Error(`Falha ao carregar dados geográficos (status: ${response.status}). Detalhe: ${errorDetail}`);
-                });
-            }
-            return response.json();
-        })
         .then(data => {
             console.log("Dados geográficos recebidos:", data);
             geoPanelDataCache = data; 

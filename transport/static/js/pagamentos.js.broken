@@ -408,7 +408,6 @@ async function updateSummaryAgregados() {
         const queryString = new URLSearchParams(params).toString();
         
         const data = await window.apiClient.get(`/api/pagamentos/agregados/?${queryString}&page_size=1000`);
-        if (!data) return;
         const pagamentos = data.results || [];
         
         let totalPendente = 0;
@@ -469,6 +468,8 @@ async function loadPagamentosProprios() {
         
         const queryString = new URLSearchParams(params).toString();
         const data = await window.apiClient.get(`/api/pagamentos/proprios/?${queryString}`);
+        }
+        
         renderTabelaProprios(data.results || []);
         renderPaginacaoProprios(data);
         await updateSummaryProprios();
@@ -668,7 +669,6 @@ async function updateSummaryProprios() {
         const queryString = new URLSearchParams(params).toString();
         
         const data = await window.apiClient.get(`/api/pagamentos/proprios/?${queryString}&page_size=1000`);
-        if (!data) return;
         const pagamentos = data.results || [];
         
         let totalPendente = 0;
@@ -725,6 +725,8 @@ async function updateSummaryProprios() {
 async function loadFaixasKM() {
     try {
         const data = await window.apiClient.get('/api/faixas-km/');
+        }
+        
         renderTabelaFaixas(data.results || data);
         
     } catch (error) {
@@ -814,7 +816,6 @@ async function calcularValorFaixa() {
     try {
         // Buscar faixas para calcular
         const data = await window.apiClient.get('/api/faixas-km/');
-        if (!data) return;
         const faixas = data.results || data;
         
         // Encontrar faixa aplicável
@@ -870,7 +871,12 @@ async function confirmarGerarAgregados() {
             data_prevista: dataPrevista
         };
         
-        const result = await window.apiClient.post('/api/pagamentos/agregados/gerar/', payload);
+            body: JSON.stringify(payload)
+        });
+        
+        }
+        
+        const result = await response.json();
         
         // Fechar modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('modalGerarAgregados'));
@@ -924,7 +930,15 @@ async function confirmarGerarProprios() {
             veiculos: veiculos
         };
         
-        const result = await window.apiClient.post('/api/pagamentos/proprios/gerar/', payload);
+        const response = await window.apiClient.get('/api/pagamentos/proprios/gerar/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        
+        }
+        
+        const result = await response.json();
         
         // Fechar modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('modalGerarProprios'));
@@ -984,10 +998,12 @@ async function salvarFaixa() {
         const url = isEdit ? `/api/faixas-km/${id}/` : '/api/faixas-km/';
         const method = isEdit ? 'PUT' : 'POST';
         
-        if (method === 'POST') {
-            await window.apiClient.post(url, payload);
-        } else {
-            await window.apiClient.put(url, payload);
+        const response = await window.apiClient.get(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        
         }
         
         // Fechar modal
@@ -1057,7 +1073,10 @@ async function exportarAgregados() {
         const params = getFiltersAgregados();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await window.apiClient.request('GET', `/api/pagamentos/agregados/export/?${queryString}`);
+        const data = await window.apiClient.get(`/api/pagamentos/agregados/export/?${queryString}`);
+        
+        }
+        
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -1084,7 +1103,10 @@ async function exportarProprios() {
         const params = getFiltersProprios();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await window.apiClient.request('GET', `/api/pagamentos/proprios/export/?${queryString}`);
+        const data = await window.apiClient.get(`/api/pagamentos/proprios/export/?${queryString}`);
+        
+        }
+        
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -1135,7 +1157,11 @@ function handleDynamicButtons(event) {
 async function editarPagamento(id, tipo) {
     try {
         const endpoint = tipo === 'agregado' ? 'agregados' : 'proprios';
-        const pagamento = await window.apiClient.get(`/api/pagamentos/${endpoint}/${id}/`);
+        const data = await window.apiClient.get(`/api/pagamentos/${endpoint}/${id}/`);
+        
+        }
+        
+        const pagamento = await response.json();
         
         // Preencher modal
         document.getElementById('idPagamentoEditar').value = id;
@@ -1197,7 +1223,13 @@ async function salvarEdicaoPagamento() {
         }
         
         const endpoint = tipo === 'agregado' ? 'agregados' : 'proprios';
-        await window.apiClient.patch(`/api/pagamentos/${endpoint}/${id}/`, payload);
+        const response = await window.apiClient.get(`/api/pagamentos/${endpoint}/${id}/`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        
+        }
         
         // Fechar modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarPagamento'));
@@ -1228,7 +1260,9 @@ async function excluirPagamento(id, tipo) {
     
     try {
         const endpoint = tipo === 'agregado' ? 'agregados' : 'proprios';
-        await window.apiClient.delete(`/api/pagamentos/${endpoint}/${id}/`);
+        const response = await window.apiClient.delete(`/api/pagamentos/${endpoint}/${id}/`);
+        
+        }
         
         showNotification('Pagamento excluído com sucesso!', 'success');
         
@@ -1250,7 +1284,11 @@ async function excluirPagamento(id, tipo) {
  */
 async function editarFaixa(id) {
     try {
-        const faixa = await window.apiClient.get(`/api/faixas-km/${id}/`);
+        const data = await window.apiClient.get(`/api/faixas-km/${id}/`);
+        
+        }
+        
+        const faixa = await response.json();
         
         // Preencher modal
         document.getElementById('idFaixa').value = id;
@@ -1277,7 +1315,9 @@ async function excluirFaixa(id) {
     }
     
     try {
-        await window.apiClient.delete(`/api/faixas-km/${id}/`);
+        const response = await window.apiClient.delete(`/api/faixas-km/${id}/`);
+        
+        }
         
         showNotification('Faixa excluída com sucesso!', 'success');
         loadFaixasKM();
@@ -1294,7 +1334,6 @@ async function excluirFaixa(id) {
 async function loadVeiculosSelect() {
     try {
         const data = await window.apiClient.get('/api/veiculos/?ativo=true&tipo_proprietario=00');
-        if (!data) return;
         const veiculos = data.results || data;
         
         const select = document.getElementById('veiculoProprios');
@@ -1319,7 +1358,6 @@ async function loadVeiculosSelect() {
 async function loadVeiculosSelectGerar() {
     try {
         const data = await window.apiClient.get('/api/veiculos/?ativo=true&tipo_proprietario=00');
-        if (!data) return;
         const veiculos = data.results || data;
         
         const select = document.getElementById('veiculosGerarProprios');
@@ -1434,7 +1472,6 @@ async function renderChartsAgregados() {
         const queryString = new URLSearchParams(params).toString();
         
         const data = await window.apiClient.get(`/api/pagamentos/agregados/?${queryString}&page_size=1000`);
-        if (!data) return;
         const pagamentos = data.results || [];
         
         // Gráfico de status
@@ -1623,7 +1660,6 @@ async function renderChartsProprios() {
         const queryString = new URLSearchParams(params).toString();
         
         const data = await window.apiClient.get(`/api/pagamentos/proprios/?${queryString}&page_size=1000`);
-        if (!data) return;
         const pagamentos = data.results || [];
         
         // Gráfico de KM por veículo

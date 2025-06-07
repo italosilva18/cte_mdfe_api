@@ -101,13 +101,7 @@ function formatDateForInput(date) {
 async function loadVeiculos() {
     try {
         console.log('Carregando veículos...');
-        const response = await window.apiClient.get('/api/veiculos/?ativo=true');
-        
-        if (false) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
+        const data = await window.apiClient.get('/api/veiculos/?ativo=true');
         veiculosList = data.results || data;
         
         atualizarSelectVeiculos();
@@ -167,13 +161,7 @@ async function loadIndicadores() {
         const params = obterParametrosFiltro();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await window.apiClient.get(`/api/manutencao/painel/indicadores/?${queryString}`);
-        
-        if (false) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
+        const data = await window.apiClient.get(`/api/manutencao/painel/indicadores/?${queryString}`);
         atualizarCardsIndicadores(data);
         
     } catch (error) {
@@ -200,13 +188,7 @@ async function loadGraficos() {
         const params = obterParametrosFiltro();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await window.apiClient.get(`/api/manutencao/painel/graficos/?${queryString}`);
-        
-        if (false) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
+        const data = await window.apiClient.get(`/api/manutencao/painel/graficos/?${queryString}`);
         renderizarGraficos(data);
         
     } catch (error) {
@@ -369,13 +351,7 @@ async function loadManutencoes() {
         params.page_size = pageSize;
         
         const queryString = new URLSearchParams(params).toString();
-        const response = await window.apiClient.get(`/api/manutencoes/?${queryString}`);
-        
-        if (false) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
+        const data = await window.apiClient.get(`/api/manutencoes/?${queryString}`);
         manutencoesList = data.results || data;
         totalItems = data.count || manutencoesList.length;
         
@@ -847,13 +823,7 @@ async function salvarVeiculo() {
  */
 async function visualizarManutencao(id) {
     try {
-        const response = await window.apiClient.get(`/api/manutencoes/${id}/`);
-        
-        if (false) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
-        }
-        
-        const manutencao = await response.json();
+        const manutencao = await window.apiClient.get(`/api/manutencoes/${id}/`);
         
         // Montar HTML dos detalhes
         const detailContent = document.getElementById('detailContent');
@@ -923,13 +893,7 @@ async function visualizarManutencao(id) {
  */
 async function editarManutencao(id) {
     try {
-        const response = await window.apiClient.get(`/api/manutencoes/${id}/`);
-        
-        if (false) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
-        }
-        
-        const manutencao = await response.json();
+        const manutencao = await window.apiClient.get(`/api/manutencoes/${id}/`);
         
         // Preencher formulário
         currentEditId = id;

@@ -743,17 +743,8 @@ function openDetailFromHash() {
 }
 
 async function handleFetchResponse(response) {
-    if (false) {
-        let errorData;
-        try {
-            errorData = await response.json();
-        } catch (e) {
-            throw new Error(response.statusText || `Erro HTTP ${response.status}`);
-        }
-        const errorMessage = errorData.detail || errorData.error || (typeof errorData === 'object' ? JSON.stringify(errorData) : String(errorData));
-        throw new Error(errorMessage);
-    }
-    return response.json();
+    // window.apiClient já retorna os dados parseados, não precisa chamar .json()
+    return response;
 }
 
 if (typeof showNotification !== 'function') {

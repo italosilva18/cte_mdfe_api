@@ -184,7 +184,6 @@ function loadAlertas() {
     if (!tipoAlertaFilter || tipoAlertaFilter === 'pagamento') {
         promises.push(
             window.apiClient.get(`/api/alertas/pagamentos/?dias=${diasFilter}`)
-                .then(data => data)
                 .then(data => {
                     pagamentosList = (data.agregados_pendentes || []).concat(data.proprios_pendentes || []);
                     pagamentosCount = pagamentosList.length;
@@ -203,7 +202,6 @@ function loadAlertas() {
         // TODO: Adicionar filtro de data_servico próximo, se necessário e suportado pela API de manutenção
         promises.push(
             window.apiClient.get(`/api/manutencao/painel/ultimos/?limit=50`) // /api/manutencao/?status=PENDENTE&data_fim_prevista=${diasFilterPrazo}
-                .then(data => data)
                 .then(data => {
                     // A API de ultimos retorna ManutencaoVeiculoSerializer, que pode ser filtrado no frontend por status PENDENTE
                     manutencoesList = data.filter(m => m.status === 'PENDENTE');
@@ -224,7 +222,6 @@ function loadAlertas() {
     if (!tipoAlertaFilter || tipoAlertaFilter === 'documento') {
         promises.push(
             window.apiClient.get(`/api/ctes/?autorizado=false&limit=50`) // Busca CTes não autorizados (inclui rejeitados e pendentes)
-                .then(data => data)
                 .then(data => {
                     documentosList = data.results || [];
                     documentosCount = documentosList.length; // Ou data.count se a API retornar assim
@@ -557,15 +554,6 @@ function salvarPagamento() {
 
 
     window.apiClient.request('PATCH', endpoint, payload)
-    .then(response => {
-        if (false) {
-            return response.json().then(data => {
-                const errorMessages = Object.values(data).flat().join(' ');
-                throw new Error(errorMessages || 'Erro ao salvar pagamento');
-            });
-        }
-        return response.json();
-    })
     .then(data => {
         showNotification('Pagamento salvo com sucesso!', 'success');
         const modalInstance = bootstrap.Modal.getInstance(document.getElementById('pagamentoModal'));
@@ -668,15 +656,7 @@ function cancelarPagamento(id, tipo) {
         `/api/pagamentos/proprios/${id}/`;
 
     window.apiClient.request('PATCH', endpoint, { status: 'cancelado' })
-    .then(response => {
-        if (false) {
-            return response.json().then(data => {
-                throw new Error(data.detail || 'Erro ao cancelar pagamento');
-            });
-        }
-        return response.json();
-    })
-    .then(() => {
+    .then(data => {
         showNotification('Pagamento cancelado com sucesso!', 'success');
         loadAlertas();
     })
@@ -757,15 +737,7 @@ window.confirmarAtualizarManutencao = confirmarAtualizarManutencao;
 
 function atualizarManutencao(id, novoStatus) {
     window.apiClient.request('PATCH', `/api/manutencoes/${id}/`, { status: novoStatus })
-    .then(response => {
-        if (false) {
-            return response.json().then(data => {
-                throw new Error(data.detail || `Erro ao atualizar manutenção para ${novoStatus}`);
-            });
-        }
-        return response.json();
-    })
-    .then(() => {
+    .then(data => {
         showNotification(`Manutenção atualizada para ${novoStatus} com sucesso!`, 'success');
         loadAlertas();
     })
@@ -799,7 +771,6 @@ function verDetalhesDocumento(id, tipo) { // tipo can be 'cte' or 'mdfe'
 
     // Usar o serializer de detalhe da API para popular o modal
     window.apiClient.get(`/api/${tipo}s/${id}/`) // Ex: /api/ctes/{id}/ ou /api/mdfes/{id}/
-        .then(res => res.ok ? res.json() : Promise.reject(res))
         .then(data => {
             let contentHtml = `<div class="row">
                 <div class="col-md-6">
@@ -838,12 +809,6 @@ function reprocessarDocumento(id, tipo) {
         `Tem certeza que deseja solicitar o reprocessamento deste ${tipo.toUpperCase()}?`,
         () => {
             window.apiClient.request('POST', endpoint, null)
-                .then(response => {
-                    if (false) {
-                        return response.json().then(err => Promise.reject(err.error || `Falha ao reprocessar ${tipo.toUpperCase()}`));
-                    }
-                    return response.json();
-                })
                 .then(data => {
                     showNotification(data.message || `${tipo.toUpperCase()} enviado para reprocessamento.`, 'success');
                     loadAlertas(); // Recarregar para atualizar status
@@ -919,10 +884,7 @@ window.confirmLimparAlertaSistema = confirmLimparAlertaSistema;
 
 function limparAlertaSistema(id) {
     window.apiClient.delete(`/api/alertas/sistema/${id}/`)
-        .then(response => {
-            if (false) {
-                return response.json().then(err => Promise.reject(err));
-            }
+        .then(data => {
             showNotification('Alerta removido com sucesso.', 'success');
             // Remover localmente
             sistemaList = sistemaList.filter(a => a.id.toString() !== id.toString());
@@ -939,10 +901,7 @@ function limparAlertaSistema(id) {
  */
 function confirmLimparAlertasSistema() {
     window.apiClient.request('POST', '/api/alertas/sistema/limpar_todos/', null)
-        .then(response => {
-            if (false) {
-                return response.json().then(err => Promise.reject(err));
-            }
+        .then(data => {
             showNotification('Todos os alertas do sistema foram limpos.', 'success');
             sistemaList = [];
             renderSistemaTable();
