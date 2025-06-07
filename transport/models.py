@@ -10,7 +10,7 @@ from django.db.models import JSONField
 class Endereco(models.Model):
     """Endereço genérico usado por emitente, remetente, destinatário, etc."""
     logradouro = models.CharField(max_length=60, null=True, blank=True)
-    numero = models.CharField(max_length=10, null=True, blank=True)
+    numero = models.CharField(max_length=20, null=True, blank=True)
     complemento = models.CharField(max_length=60, null=True, blank=True)
     bairro = models.CharField(max_length=60, null=True, blank=True)
     codigo_municipio = models.CharField(max_length=7, null=True, blank=True)

@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Sistema de Gestão de Transporte{% endblock %} - Destack Transportes</title>
 
     <link rel="icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon">
@@ -33,67 +34,67 @@
             
             <ul class="nav flex-column mt-3">
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="dashboard" href="{% url 'dashboard' %}">
+                    <a class="nav-link" data-page-name="dashboard" href="/app/dashboard/">
                         <i class="fas fa-tachometer-alt fa-fw"></i>
                         <span class="nav-text">Dashboard</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="cte_panel" href="{% url 'cte_panel' %}">
+                    <a class="nav-link" data-page-name="cte_panel" href="/app/cte/">
                         <i class="fas fa-file-invoice fa-fw"></i>
                         <span class="nav-text">CT-e</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="mdfe_panel" href="{% url 'mdfe_panel' %}">
+                    <a class="nav-link" data-page-name="mdfe_panel" href="/app/mdfe/">
                         <i class="fas fa-truck fa-fw"></i>
                         <span class="nav-text">MDF-e</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="upload" href="{% url 'upload' %}">
+                    <a class="nav-link" data-page-name="upload" href="/app/upload/">
                         <i class="fas fa-file-import fa-fw"></i>
                         <span class="nav-text">Importar XML</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="financeiro" href="{% url 'financeiro' %}">
+                    <a class="nav-link" data-page-name="financeiro" href="/app/financeiro/">
                         <i class="fas fa-chart-line fa-fw"></i>
                         <span class="nav-text">Financeiro</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="pagamentos" href="{% url 'pagamentos_page' %}">
+                    <a class="nav-link" data-page-name="pagamentos" href="/app/pagamentos/">
                         <i class="fas fa-dollar-sign fa-fw"></i>
                         <span class="nav-text">Pagamentos</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="geografico" href="{% url 'geografico' %}">
+                    <a class="nav-link" data-page-name="geografico" href="/app/geografico/">
                         <i class="fas fa-map-marked-alt fa-fw"></i>
                         <span class="nav-text">Geográfico</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="manutencao" href="{% url 'manutencao' %}">
+                    <a class="nav-link" data-page-name="manutencao" href="/app/manutencao/">
                         <i class="fas fa-tools fa-fw"></i>
                         <span class="nav-text">Manutenção</span>
                     </a>
                 </li>
                  <li class="nav-item">
-                    <a class="nav-link" data-page-name="alertas" href="{% url 'alertas_page' %}">
+                    <a class="nav-link" data-page-name="alertas" href="/app/alertas/">
                         <i class="fas fa-bell fa-fw"></i>
                         <span class="nav-text">Alertas</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="relatorios" href="{% url 'relatorios_page' %}">
+                    <a class="nav-link" data-page-name="relatorios" href="/app/relatorios/">
                         <i class="fas fa-file-alt fa-fw"></i>
                         <span class="nav-text">Relatórios</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-page-name="configuracoes" href="{% url 'configuracoes' %}">
+                    <a class="nav-link" data-page-name="configuracoes" href="/app/configuracoes/">
                         <i class="fas fa-cog fa-fw"></i>
                         <span class="nav-text">Configurações</span>
                     </a>
@@ -143,7 +144,7 @@
                         <h1 class="page-title h4 mb-0">{% block header_page_title %}Visão Geral{% endblock %}</h1>
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb small mb-0">
-                                <li class="breadcrumb-item"><a href="{% url 'home' %}">Início</a></li>
+                                <li class="breadcrumb-item"><a href="/app/">Início</a></li>
                                 {% block breadcrumbs %}{% endblock %}
                             </ol>
                         </nav>
@@ -174,7 +175,8 @@
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js" integrity="sha256-ErZ09KkZnzjpqcane4SCyyHsKAXMvID9/xwbl/Aq1pc=" crossorigin="anonymous"></script>
     
-    <script src="{% static 'js/auth.js' %}"></script>
+    <!-- Scripts principais -->
+    <script src="{% static 'js/api-client.js' %}"></script>
     <script src="{% static 'js/scripts.js' %}"></script>
     
     {% block scripts %}{% endblock %}

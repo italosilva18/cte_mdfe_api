@@ -4,7 +4,7 @@
  * Versão: 1.3.0 (Melhorias no drag-and-drop e feedback)
  */
 
-// Assumindo que 'Auth' está definido globalmente (em auth.js)
+// Usando window.apiClient para autenticação Django
 // Assumindo que funções como showNotification, formatDateTime, formatChave, getStatusBadgeHTML estão em scripts.js
 
 let selectedFilePrincipal = null;
@@ -149,9 +149,8 @@ function uploadSingleXML() {
         }
     }, 200);
 
-    Auth.fetchWithAuth('/api/upload/', {
-        method: 'POST',
-        body: formData,
+    window.apiClient.uploadFile('/api/upload/', formData, (progress) => {
+        updateProgress(Math.round(progress));
     })
     .then(response => {
         clearInterval(progressInterval);
@@ -161,14 +160,10 @@ function uploadSingleXML() {
             progressBar.setAttribute('aria-valuenow', 100);
             progressBar.classList.remove('progress-bar-animated');
         }
-        // Devolve a resposta e o status para tratamento unificado
-        return response.json().then(data => ({ ok: response.ok, status: response.status, data }));
-    })
-    .then(({ ok, status, data }) => {
-        if (!ok) {
-            // Se a API retornou um erro (4xx, 5xx), lança para o catch
-            throw { ...data, statusCode: status }; // Adiciona statusCode ao objeto de erro
-        }
+        // O uploadFile já retorna a resposta parseada
+        const data = response;
+        const ok = true; // Se chegou aqui, foi sucesso
+        const status = 200; // uploadFile não retorna status, assume sucesso
 
         // Sucesso (200, 201, 202)
         let mensagem = data.message || 'Arquivo processado.';
@@ -278,20 +273,20 @@ function loadUploadHistory() {
     // A API /api/upload/history/ não existe, então buscamos os 5 últimos CTes e 5 últimos MDFes
     // ordenados por data_upload e combinamos.
     Promise.all([
-        Auth.fetchWithAuth('/api/ctes/?ordering=-data_upload&limit=5&page_size=5'),
-        Auth.fetchWithAuth('/api/mdfes/?ordering=-data_upload&limit=5&page_size=5')
+        window.apiClient.get('/api/ctes/?ordering=-data_upload&limit=5&page_size=5'),
+        window.apiClient.get('/api/mdfes/?ordering=-data_upload&limit=5&page_size=5')
     ])
-    .then(async ([ctesResponse, mdfesResponse]) => {
+    .then(([ctesData, mdfesData]) => {
         let combined = [];
-        if (ctesResponse.ok) {
-            const ctesData = await ctesResponse.json();
-            combined.push(...(ctesData.results || []).map(item => mapToHistoryItem(item, 'CT-e')));
-        } else { console.error("Erro ao buscar CT-es para histórico:", ctesResponse.status); }
+        
+        // apiClient já retorna dados parseados
+        if (ctesData && (ctesData.results || Array.isArray(ctesData))) {
+            combined.push(...(ctesData.results || ctesData).map(item => mapToHistoryItem(item, 'CT-e')));
+        }
 
-        if (mdfesResponse.ok) {
-            const mdfesData = await mdfesResponse.json();
-            combined.push(...(mdfesData.results || []).map(item => mapToHistoryItem(item, 'MDF-e')));
-        } else { console.error("Erro ao buscar MDF-es para histórico:", mdfesResponse.status); }
+        if (mdfesData && (mdfesData.results || Array.isArray(mdfesData))) {
+            combined.push(...(mdfesData.results || mdfesData).map(item => mapToHistoryItem(item, 'MDF-e')));
+        }
 
         combined.sort((a, b) => new Date(b.data_upload_raw) - new Date(a.data_upload_raw));
         return combined.slice(0, 10); // Pega os 10 mais recentes no geral

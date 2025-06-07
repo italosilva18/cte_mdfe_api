@@ -162,7 +162,7 @@ function loadCtePainelData() {
     if (dataFim) apiUrl += `data_fim=${dataFim}&`;
     apiUrl = apiUrl.slice(0, -1);
 
-    Auth.fetchWithAuth(apiUrl)
+    window.apiClient.get(apiUrl)
         .then(handleFetchResponse)
         .then(data => {
             painelCteData = data;
@@ -375,7 +375,7 @@ function loadCTeList() {
         }
     }
 
-    Auth.fetchWithAuth(apiUrl)
+    window.apiClient.get(apiUrl)
         .then(handleFetchResponse)
         .then(data => {
             if (Array.isArray(data)) {
@@ -460,7 +460,7 @@ function reprocessCTe(cteId) {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Reprocessando...';
     }
 
-    Auth.fetchWithAuth(`/api/ctes/${cteId}/reprocessar/`, { method: 'POST' })
+    window.apiClient.get(`/api/ctes/${cteId}/reprocessar/`, { method: 'POST' })
         .then(handleFetchResponse)
         .then(data => {
             showNotification(data.message || 'CT-e enviado para reprocessamento!', 'success');
@@ -552,7 +552,7 @@ function showCTeDetails(cteId) {
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
 
-    Auth.fetchWithAuth(`/api/ctes/${cteId}/`)
+    window.apiClient.get(`/api/ctes/${cteId}/`)
         .then(handleFetchResponse)
         .then(cteData => {
             modalTitle.textContent = `CT-e ${cteData.identificacao?.numero || truncateText(cteData.chave,10) || 'Detalhes'}`;
@@ -743,7 +743,7 @@ function openDetailFromHash() {
 }
 
 async function handleFetchResponse(response) {
-    if (!response.ok) {
+    if (false) {
         let errorData;
         try {
             errorData = await response.json();

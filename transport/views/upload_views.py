@@ -357,7 +357,6 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
             traceback.print_exc()
             return Response({"error": f"Erro inesperado no processamento do XML: {str(e)}", "filename": arquivo_principal_obj.name}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @transaction.atomic
     def _process_cte(self, xml_content, arquivo_obj, xml_dict_principal):
         # ... (Mantido, usar self._get_chave_from_dict e self._get_chave_from_regex)
         chave = self._get_chave_from_dict(xml_dict_principal, 'CTe') or self._get_chave_from_regex(xml_content, 'CTe')
@@ -376,7 +375,6 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
             cte.processado = False; cte.save(update_fields=['processado'])
             return Response({"error": f"Erro parser CT-e: {str(parse_err)}", "chave": chave, "filename": arquivo_obj.name}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @transaction.atomic
     def _process_mdfe(self, xml_content, arquivo_obj, xml_dict_principal):
         # ... (Mantido, usar self._get_chave_from_dict e self._get_chave_from_regex)
         chave = self._get_chave_from_dict(xml_dict_principal, 'MDFe') or self._get_chave_from_regex(xml_content, 'MDFe')
@@ -424,6 +422,7 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
         # ... (schema para batch_upload mantido) ...
     )
     @action(detail=False, methods=['post'], serializer_class=BatchUploadXMLSerializer)
+    @transaction.atomic
     def batch_upload(self, request):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
@@ -433,6 +432,8 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
         if not todos_arquivos_obj_list:
             return Response({"error": "Nenhum arquivo XML fornecido."}, status=status.HTTP_400_BAD_REQUEST)
 
+        logger.info(f"Iniciando upload em lote simplificado... {len(todos_arquivos_obj_list)} arquivos")
+        
         resultados_finais = []
         sucesso_count, erro_count, ignorado_count = 0, 0, 0
         
@@ -535,6 +536,7 @@ class UnifiedUploadViewSet(viewsets.GenericViewSet):
                         if resp_obj and resp_obj.data and resp_obj.data.get('warning'): resultado_p['aviso'] = resp_obj.data.get('warning')
                         erro_count += 1
                 except Exception as e_p:
+                    logger.error(f"Erro crítico: {str(e_p)} {chave}")
                     resultado_p['erro'] = f"Exceção processando principal {doc_principal_a_processar['name']}: {str(e_p)}"; erro_count += 1
                 resultados_finais.append(resultado_p)
             else: # Nenhum principal claro para esta chave, mas pode ter eventos

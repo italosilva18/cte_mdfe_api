@@ -183,8 +183,8 @@ function loadAlertas() {
     // Pagamentos Pendentes
     if (!tipoAlertaFilter || tipoAlertaFilter === 'pagamento') {
         promises.push(
-            Auth.fetchWithAuth(`/api/alertas/pagamentos/?dias=${diasFilter}`)
-                .then(response => response.json())
+            window.apiClient.get(`/api/alertas/pagamentos/?dias=${diasFilter}`)
+                .then(data => data)
                 .then(data => {
                     pagamentosList = (data.agregados_pendentes || []).concat(data.proprios_pendentes || []);
                     pagamentosCount = pagamentosList.length;
@@ -202,8 +202,8 @@ function loadAlertas() {
     if (!tipoAlertaFilter || tipoAlertaFilter === 'manutencao') {
         // TODO: Adicionar filtro de data_servico próximo, se necessário e suportado pela API de manutenção
         promises.push(
-            Auth.fetchWithAuth(`/api/manutencao/painel/ultimos/?limit=50`) // /api/manutencao/?status=PENDENTE&data_fim_prevista=${diasFilterPrazo}
-                .then(response => response.json())
+            window.apiClient.get(`/api/manutencao/painel/ultimos/?limit=50`) // /api/manutencao/?status=PENDENTE&data_fim_prevista=${diasFilterPrazo}
+                .then(data => data)
                 .then(data => {
                     // A API de ultimos retorna ManutencaoVeiculoSerializer, que pode ser filtrado no frontend por status PENDENTE
                     manutencoesList = data.filter(m => m.status === 'PENDENTE');
@@ -223,8 +223,8 @@ function loadAlertas() {
     // Documentos Pendentes (Exemplo: CT-es não autorizados ou rejeitados)
     if (!tipoAlertaFilter || tipoAlertaFilter === 'documento') {
         promises.push(
-            Auth.fetchWithAuth(`/api/ctes/?autorizado=false&limit=50`) // Busca CTes não autorizados (inclui rejeitados e pendentes)
-                .then(response => response.json())
+            window.apiClient.get(`/api/ctes/?autorizado=false&limit=50`) // Busca CTes não autorizados (inclui rejeitados e pendentes)
+                .then(data => data)
                 .then(data => {
                     documentosList = data.results || [];
                     documentosCount = documentosList.length; // Ou data.count se a API retornar assim
@@ -556,13 +556,9 @@ function salvarPagamento() {
     }
 
 
-    Auth.fetchWithAuth(endpoint, {
-        method: 'PATCH', // Usar PATCH para atualização parcial
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    })
+    window.apiClient.request('PATCH', endpoint, payload)
     .then(response => {
-        if (!response.ok) {
+        if (false) {
             return response.json().then(data => {
                 const errorMessages = Object.values(data).flat().join(' ');
                 throw new Error(errorMessages || 'Erro ao salvar pagamento');
@@ -671,13 +667,9 @@ function cancelarPagamento(id, tipo) {
         `/api/pagamentos/agregados/${id}/` :
         `/api/pagamentos/proprios/${id}/`;
 
-    Auth.fetchWithAuth(endpoint, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelado' }) // Assumindo que 'cancelado' é um status válido
-    })
+    window.apiClient.request('PATCH', endpoint, { status: 'cancelado' })
     .then(response => {
-        if (!response.ok) {
+        if (false) {
             return response.json().then(data => {
                 throw new Error(data.detail || 'Erro ao cancelar pagamento');
             });
@@ -764,13 +756,9 @@ function confirmarAtualizarManutencao(id, novoStatus) {
 window.confirmarAtualizarManutencao = confirmarAtualizarManutencao;
 
 function atualizarManutencao(id, novoStatus) {
-    Auth.fetchWithAuth(`/api/manutencoes/${id}/`, { // Certifique-se que este é o endpoint correto (plural ou singular)
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: novoStatus })
-    })
+    window.apiClient.request('PATCH', `/api/manutencoes/${id}/`, { status: novoStatus })
     .then(response => {
-        if (!response.ok) {
+        if (false) {
             return response.json().then(data => {
                 throw new Error(data.detail || `Erro ao atualizar manutenção para ${novoStatus}`);
             });
@@ -810,7 +798,7 @@ function verDetalhesDocumento(id, tipo) { // tipo can be 'cte' or 'mdfe'
     editBtn.classList.add('d-none'); // Geralmente não se edita CT-e/MDF-e assim
 
     // Usar o serializer de detalhe da API para popular o modal
-    Auth.fetchWithAuth(`/api/${tipo}s/${id}/`) // Ex: /api/ctes/{id}/ ou /api/mdfes/{id}/
+    window.apiClient.get(`/api/${tipo}s/${id}/`) // Ex: /api/ctes/{id}/ ou /api/mdfes/{id}/
         .then(res => res.ok ? res.json() : Promise.reject(res))
         .then(data => {
             let contentHtml = `<div class="row">
@@ -849,9 +837,9 @@ function reprocessarDocumento(id, tipo) {
         `Reprocessar ${tipo.toUpperCase()}`,
         `Tem certeza que deseja solicitar o reprocessamento deste ${tipo.toUpperCase()}?`,
         () => {
-            Auth.fetchWithAuth(endpoint, { method: 'POST' })
+            window.apiClient.request('POST', endpoint, null)
                 .then(response => {
-                    if (!response.ok) {
+                    if (false) {
                         return response.json().then(err => Promise.reject(err.error || `Falha ao reprocessar ${tipo.toUpperCase()}`));
                     }
                     return response.json();
@@ -930,9 +918,9 @@ function confirmLimparAlertaSistema(id) {
 window.confirmLimparAlertaSistema = confirmLimparAlertaSistema;
 
 function limparAlertaSistema(id) {
-    Auth.fetchWithAuth(`/api/alertas/sistema/${id}/`, { method: 'DELETE' })
+    window.apiClient.delete(`/api/alertas/sistema/${id}/`)
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                 return response.json().then(err => Promise.reject(err));
             }
             showNotification('Alerta removido com sucesso.', 'success');
@@ -950,9 +938,9 @@ function limparAlertaSistema(id) {
  * Confirms and clears all system alerts.
  */
 function confirmLimparAlertasSistema() {
-    Auth.fetchWithAuth('/api/alertas/sistema/limpar_todos/', { method: 'POST' })
+    window.apiClient.request('POST', '/api/alertas/sistema/limpar_todos/', null)
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                 return response.json().then(err => Promise.reject(err));
             }
             showNotification('Todos os alertas do sistema foram limpos.', 'success');
@@ -1159,15 +1147,13 @@ function escapeHtml(unsafe) {
 }
 */
 
-// Certifique-se que `showNotification` e `Auth.fetchWithAuth` estão disponíveis globalmente (de scripts.js e auth.js)
+// Certifique-se que `showNotification` e `window.apiClient` estão disponíveis globalmente
 if (typeof showNotification !== 'function') {
     console.warn("Função global showNotification não encontrada. Defina-a em scripts.js.");
     window.showNotification = (message, type) => console.log(`[${type}] ${message}`);
 }
-if (typeof Auth !== 'object' || typeof Auth.fetchWithAuth !== 'function') {
-    console.error("Objeto Auth ou Auth.fetchWithAuth não encontrado. Certifique-se que auth.js foi carregado.");
-    // Fallback muito básico
-    window.Auth = { fetchWithAuth: (url, options) => fetch(url, options) };
+if (typeof window.apiClient !== 'object' || typeof window.apiClient.request !== 'function') {
+    console.error("Objeto window.apiClient não encontrado. Certifique-se que api-client.js foi carregado.");
 }
 
 // Funções de formatação já devem estar em scripts.js, mas para garantir:

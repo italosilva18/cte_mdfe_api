@@ -152,11 +152,10 @@ async function submitBatchUploadSimplified() {
 
     try {
         // O endpoint e a action no backend permanecem os mesmos
-        const response = await Auth.fetchWithAuth('/api/upload/batch_upload/', {
-            method: 'POST',
-            body: formData,
+        const response = await window.apiClient.uploadFile('/api/upload/batch_upload/', formData, (progress) => {
+            updateBatchProgress(Math.round(progress));
         });
-
+        
         clearInterval(progressInterval);
         if (progressBar) {
             progressBar.style.width = '100%';
@@ -164,12 +163,8 @@ async function submitBatchUploadSimplified() {
             progressBar.classList.remove('progress-bar-animated');
         }
 
-        const data = await response.json();
-
-        if (!response.ok && response.status !== 207) { // 207 é Multi-Status, pode ter erros parciais
-            logBatch(`Falha na requisição: ${response.status} - ${data.error || data.detail || JSON.stringify(data)}`, 'error');
-            throw data;
-        }
+        // uploadFile já retorna dados parseados
+        const data = response;
         
         logBatch("Resposta da API recebida. Processando resultados...");
         const { sucesso, erros, ignorados, resultados_detalhados } = data;

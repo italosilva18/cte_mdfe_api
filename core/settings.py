@@ -22,33 +22,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables from .env file
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
-# Docker-specific environment detection
-IS_DOCKER = os.getenv('IS_DOCKER', 'false').lower() == 'true'
-
-# --- Environment Variable Handling (Recommended) ---
-# Consider using a library like `python-decouple` or `django-environ`
-# to manage settings from environment variables or .env files.
-# Example (conceptual, not adding a new dependency here):
-# from decouple import config
-# SECRET_KEY = config('SECRET_KEY')
-# DEBUG = config('DEBUG', default=False, cast=bool)
-# ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=lambda v: [s.strip() for s in v.split(',')])
-# DATABASE_URL = config('DATABASE_URL')
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# These settings now **require** their environment variables to be set.
-SECRET_KEY = os.environ['DJANGO_SECRET_KEY']
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# `DJANGO_DEBUG` must be explicitly provided.
-DEBUG = os.environ['DJANGO_DEBUG'].lower() == 'true'
+DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() == 'true'
 
 # Configure allowed hosts. Be specific in production.
 # Example: ALLOWED_HOSTS = ['www.meudominio.com', 'api.meudominio.com']
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',')
 if DEBUG:
     ALLOWED_HOSTS.extend(['.localhost', '127.0.0.1', '[::1]']) # For Docker and local dev
 
@@ -82,6 +67,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'transport.middleware.APIAuthenticationMiddleware',  # Custom API auth middleware
+    'transport.middleware.SessionSecurityMiddleware',    # Custom session security
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -97,6 +84,7 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
+                'django.template.context_processors.csrf',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
@@ -110,15 +98,16 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Docker/Production PostgreSQL configuration
-if IS_DOCKER or os.getenv('DATABASE_HOST'):
+# Database configuration
+if os.getenv('DATABASE_HOST'):
+    # PostgreSQL configuration
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.getenv('DATABASE_NAME', 'cte_mdfe_db'),
             'USER': os.getenv('DATABASE_USER', 'cte_mdfe_user'),
             'PASSWORD': os.getenv('DATABASE_PASSWORD', ''),
-            'HOST': os.getenv('DATABASE_HOST', 'db'),
+            'HOST': os.getenv('DATABASE_HOST', 'localhost'),
             'PORT': os.getenv('DATABASE_PORT', '5432'),
             'OPTIONS': {
                 'connect_timeout': 60,
@@ -127,7 +116,7 @@ if IS_DOCKER or os.getenv('DATABASE_HOST'):
         }
     }
 else:
-    # Fallback to SQLite for local development
+    # SQLite for local development
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -175,10 +164,10 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-# Docker/Production static files configuration
-if IS_DOCKER:
-    STATIC_ROOT = '/app/static'
-    MEDIA_ROOT = '/app/media'
+# Static and media files configuration
+if os.getenv('STATIC_ROOT'):
+    STATIC_ROOT = os.getenv('STATIC_ROOT')
+    MEDIA_ROOT = os.getenv('MEDIA_ROOT', BASE_DIR / 'media')
 else:
     # Local development
     STATIC_ROOT = BASE_DIR / 'staticfiles_collected'
@@ -194,12 +183,12 @@ STATICFILES_DIRS = [
 # https://docs.djangoproject.com/en/5.2/topics/files/
 MEDIA_URL = '/media/'
 
-# Cache Configuration (Redis for Docker, dummy for local)
-if IS_DOCKER or os.getenv('REDIS_HOST'):
+# Cache Configuration
+if os.getenv('REDIS_HOST'):
     CACHES = {
         'default': {
-            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-            'LOCATION': f"redis://{os.getenv('REDIS_HOST', 'redis')}:{os.getenv('REDIS_PORT', '6379')}/0",
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', '6379')}/0",
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             },
@@ -220,9 +209,9 @@ else:
     }
 
 # Celery Configuration (para tarefas assíncronas)
-if IS_DOCKER or os.getenv('CELERY_BROKER_URL'):
-    CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', f"redis://{os.getenv('REDIS_HOST', 'redis')}:6379/0")
-    CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', f"redis://{os.getenv('REDIS_HOST', 'redis')}:6379/0")
+if os.getenv('CELERY_BROKER_URL') or os.getenv('REDIS_HOST'):
+    CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', f"redis://{os.getenv('REDIS_HOST', 'localhost')}:6379/0")
+    CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', f"redis://{os.getenv('REDIS_HOST', 'localhost')}:6379/0")
     CELERY_ACCEPT_CONTENT = ['json']
     CELERY_TASK_SERIALIZER = 'json'
     CELERY_RESULT_SERIALIZER = 'json'
@@ -233,18 +222,34 @@ if IS_DOCKER or os.getenv('CELERY_BROKER_URL'):
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Login/Logout URLs
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/app/'
+LOGOUT_REDIRECT_URL = '/'
+
+# Session Security Settings
+SESSION_COOKIE_AGE = 3600 * 8  # 8 hours
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG  # True in production
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# CSRF Security Settings
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = not DEBUG  # True in production
+CSRF_COOKIE_SAMESITE = 'Lax'
+
 # Django REST Framework Settings
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        # Use JWT authentication for all API endpoints. SessionAuthentication is
-        # disabled to avoid mixing session based auth with token auth.
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
     ),
     "DEFAULT_PERMISSION_CLASSES": (
-        # By default, require authentication for all API views.
-        # Specific views can override this with `permission_classes = [AllowAny]` etc.
         'rest_framework.permissions.IsAuthenticated',
     ),
+    # Ensure CSRF protection for API calls from web interface
+    'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
     "DEFAULT_RENDERER_CLASSES": (
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer", # Useful for development
@@ -304,10 +309,7 @@ SIMPLE_JWT = {
     # "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
 }
 
-# Login and Logout URLs
-LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/dashboard/' # Redirect after successful login if not specified otherwise
-LOGOUT_REDIRECT_URL = '/login/' # Redirect after logout
+# These are duplicate settings - removing to avoid conflicts
 
 # DRF-YASG (Swagger) Settings
 SWAGGER_SETTINGS = {
@@ -425,3 +427,36 @@ DATA_UPLOAD_MAX_NUMBER_FILES = 9000 # Aumentar conforme necessidade
 
 # (Optional) WhiteNoise for serving static files in production if not using Nginx/Apache for it
 # STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# =============================================================================
+# CONFIGURAÇÕES PARA RESOLVER PROBLEMAS DE CACHE
+# =============================================================================
+
+# Configurações de Sessão para evitar problemas de cache
+SESSION_COOKIE_AGE = 3600  # 1 hora (em segundos)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Sessão expira ao fechar navegador
+SESSION_SAVE_EVERY_REQUEST = True  # Salva sessão a cada request (renova tempo)
+SESSION_COOKIE_NAME = 'cte_mdfe_sessionid'  # Nome único para o cookie de sessão
+SESSION_COOKIE_HTTPONLY = True  # Previne acesso via JavaScript
+SESSION_COOKIE_SAMESITE = 'Lax'  # Proteção CSRF
+
+# Configurações CSRF para evitar problemas de cache
+CSRF_COOKIE_AGE = 3600  # 1 hora (em segundos)
+CSRF_COOKIE_NAME = 'cte_mdfe_csrftoken'  # Nome único para o cookie CSRF
+CSRF_COOKIE_HTTPONLY = False  # JavaScript precisa acessar para enviar token
+CSRF_COOKIE_SAMESITE = 'Lax'  # Proteção CSRF
+CSRF_USE_SESSIONS = False  # Usar cookie ao invés de sessão para CSRF
+CSRF_FAILURE_VIEW = 'django.views.csrf.csrf_failure'  # View padrão para falha CSRF
+
+# Em produção (quando não for DEBUG), usar cookies seguros
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True  # Apenas HTTPS
+    CSRF_COOKIE_SECURE = True     # Apenas HTTPS
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Headers de cache específicos para Django (complementam o Nginx)
+CACHE_MIDDLEWARE_SECONDS = 0  # Desabilita cache middleware
+CACHE_MIDDLEWARE_KEY_PREFIX = 'cte_mdfe'

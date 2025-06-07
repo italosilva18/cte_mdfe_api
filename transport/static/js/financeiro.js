@@ -182,9 +182,9 @@ function loadPainelFinanceiroData() {
 
     const apiUrl = `/api/painel/financeiro/?data_inicio=${dataInicio}&data_fim=${dataFim}`;
     
-    Auth.fetchWithAuth(apiUrl)
+    window.apiClient.get(apiUrl)
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                 return response.text().then(text => {
                     let errorDetail = text;
                     try { const jsonError = JSON.parse(text); errorDetail = jsonError.detail || JSON.stringify(jsonError); } 
@@ -227,8 +227,8 @@ function loadAgrupamentoData(dataInicio, dataFim, tipoAgrupamento) {
 
     const detailApiUrl = `/api/financeiro/detalhe/?data_inicio=${dataInicio}&data_fim=${dataFim}&tipo=${tipoAgrupamento}`;
 
-    return Auth.fetchWithAuth(detailApiUrl)
-        .then(response => response.json())
+    return window.apiClient.get(detailApiUrl)
+        .then(data => data)
         .then(data => {
             // Armazena dados completos para tabela de agrupamento e renderiza a primeira página
             agrupamentoTableData.allData = data || [];
@@ -645,9 +645,9 @@ function showDetalheModal(id, tipo, nome) {
     if (dataFim) apiUrl += `&data_emissao_lte=${dataFim}`;
     apiUrl += `&page_size=200`; // Carrega um bom número de CTes para o modal, paginação no modal é mais complexa
 
-    Auth.fetchWithAuth(apiUrl)
+    window.apiClient.get(apiUrl)
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                 return response.text().then(text => {
                     let errorDetail = text;
                     try { const jsonError = JSON.parse(text); errorDetail = jsonError.detail || JSON.stringify(jsonError); } catch (e) { /* não é JSON */ }

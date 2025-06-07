@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block page_title %}Painel Geográfico{% endblock %}
+{% block title %}Geográfico{% endblock %}
+{% block header_page_title %}Painel Geográfico{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -32,9 +33,7 @@
 {% endblock %}
 
 {% block breadcrumbs %}
-<ul>
-    <li class="breadcrumb-item active">Painel Geográfico</li>
-</ul>
+<li class="breadcrumb-item active" aria-current="page">Painel Geográfico</li>
 {% endblock %}
 
 {% block content %}

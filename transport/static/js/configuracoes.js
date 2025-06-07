@@ -183,9 +183,9 @@ function loadCTeList() {
     if (searchText) apiUrl += `&q=${encodeURIComponent(searchText)}`;
     
     // Fetch data with authentication
-    Auth.fetchWithAuth(apiUrl)
+    window.apiClient.get(apiUrl)
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                 throw new Error('Falha ao carregar lista de CT-es');
             }
             return response.json();
@@ -385,9 +385,9 @@ function showCTeDetails(cteId) {
     modalInstance.show();
     
     // Fetch CT-e details from API
-    Auth.fetchWithAuth(`/api/ctes/${cteId}/`)
+    window.apiClient.get(`/api/ctes/${cteId}/`)
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                 throw new Error('Falha ao carregar detalhes do CT-e');
             }
             return response.json();
@@ -811,11 +811,11 @@ function reprocessCTe(cteId) {
     }
     
     // Send reprocess request to API
-    Auth.fetchWithAuth(`/api/ctes/${cteId}/reprocessar/`, {
+    window.apiClient.get(`/api/ctes/${cteId}/reprocessar/`, {
         method: 'POST',
     })
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                 throw new Error('Falha ao reprocessar o CT-e');
             }
             return response.json();

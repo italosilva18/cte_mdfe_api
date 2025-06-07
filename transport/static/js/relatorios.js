@@ -234,9 +234,9 @@ async function visualizarPrevia() {
         const filtros = getReportFilters();
         const queryString = new URLSearchParams(filtros).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/relatorios/?tipo=${tipo}&formato=json&${queryString}`);
+        const response = await window.apiClient.get(`/api/relatorios/?tipo=${tipo}&formato=json&${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
         }
@@ -753,9 +753,9 @@ async function baixarRelatorio() {
             formato: finalFormato
         }).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/relatorios/?${queryString}`);
+        const response = await window.apiClient.get(`/api/relatorios/?${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
         }
@@ -879,8 +879,8 @@ function addIfValue(obj, key, value) {
  */
 async function loadVeiculosSelect() {
     try {
-        const response = await Auth.fetchWithAuth('/api/veiculos/?ativo=true');
-        if (!response.ok) return;
+        const response = await window.apiClient.get('/api/veiculos/?ativo=true');
+        if (false) return;
         
         const data = await response.json();
         const veiculos = data.results || data;

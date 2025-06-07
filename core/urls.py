@@ -17,28 +17,22 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import TemplateView
-
-# Endpoints JWT (djangorestframework-simplejwt)
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from transport.views.simple_auth import simple_login, simple_logout
 
 urlpatterns = [
     # Django Admin
     path("admin/", admin.site.urls),
 
-    # JWT – usado pelo auth.js
-    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    # Landing page pública (página principal)
+    path("", TemplateView.as_view(template_name="index.html"), name="index"),
 
-    # Demais URLs da aplicação
-    path("", include("transport.urls")),
+    # Autenticação simples
+    path("login/", simple_login, name="login"),
+    path("logout/", simple_logout, name="logout"),
 
-    # Landing page pública (index)
-    path(
-        "index/",
-        TemplateView.as_view(template_name="index.html"),
-        name="index",
-    ),
+    # APIs diretamente em /api/
+    path("api/", include("transport.api_urls")),
+    
+    # Sistema interno (dashboard e outras páginas)
+    path("app/", include("transport.html_urls")),
 ]

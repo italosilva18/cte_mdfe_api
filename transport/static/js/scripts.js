@@ -39,11 +39,12 @@ function initUIComponents() {
  */
 function setupGlobalEventListeners() {
     // Setup logout button
-    const logoutLink = document.querySelector('a[href="/logout/"]');
+    const logoutLink = document.querySelector('a[href="/logout/"], #logoutBtn');
     if (logoutLink) {
         logoutLink.addEventListener('click', function(e) {
             e.preventDefault();
-            Auth.logout();
+            // Use Django's native logout
+            window.location.href = '/logout/';
         });
     }
     

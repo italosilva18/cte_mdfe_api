@@ -1,7 +1,8 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block page_title %}Painel CT-e{% endblock %}
+{% block title %}CT-e{% endblock %}
+{% block header_page_title %}Painel CT-e{% endblock %}
 
 {% block breadcrumbs %}
 <li class="breadcrumb-item active" aria-current="page">Painel CT-e</li>
@@ -255,6 +256,6 @@
 {% endblock %}
 
 {% block scripts %}
-{# Chart.js e auth.js devem estar em base.html ou scripts.js global #}
+{# Chart.js e api-client.js devem estar em base.html ou scripts.js global #}
 <script src="{% static 'js/cte_panel.js' %}"></script>
 {% endblock %}

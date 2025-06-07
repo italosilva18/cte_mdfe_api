@@ -101,9 +101,9 @@ function formatDateForInput(date) {
 async function loadVeiculos() {
     try {
         console.log('Carregando veículos...');
-        const response = await Auth.fetchWithAuth('/api/veiculos/?ativo=true');
+        const response = await window.apiClient.get('/api/veiculos/?ativo=true');
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -167,9 +167,9 @@ async function loadIndicadores() {
         const params = obterParametrosFiltro();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/manutencao/painel/indicadores/?${queryString}`);
+        const response = await window.apiClient.get(`/api/manutencao/painel/indicadores/?${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -200,9 +200,9 @@ async function loadGraficos() {
         const params = obterParametrosFiltro();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/manutencao/painel/graficos/?${queryString}`);
+        const response = await window.apiClient.get(`/api/manutencao/painel/graficos/?${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -369,9 +369,9 @@ async function loadManutencoes() {
         params.page_size = pageSize;
         
         const queryString = new URLSearchParams(params).toString();
-        const response = await Auth.fetchWithAuth(`/api/manutencoes/?${queryString}`);
+        const response = await window.apiClient.get(`/api/manutencoes/?${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -602,9 +602,9 @@ async function exportarCSV() {
         const params = obterParametrosFiltro();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/manutencoes/export/?${queryString}`);
+        const response = await window.apiClient.get(`/api/manutencoes/export/?${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -757,7 +757,7 @@ async function salvarManutencao() {
         const method = isEdit ? 'PUT' : 'POST';
         const url = isEdit ? `/api/manutencoes/${currentEditId}/` : '/api/manutencoes/';
         
-        const response = await Auth.fetchWithAuth(url, {
+        const response = await window.apiClient.get(url, {
             method: method,
             headers: {
                 'Content-Type': 'application/json',
@@ -765,7 +765,7 @@ async function salvarManutencao() {
             body: JSON.stringify(data)
         });
         
-        if (!response.ok) {
+        if (false) {
             const errorData = await response.json();
             throw new Error(errorData.detail || `Erro ${response.status}`);
         }
@@ -814,7 +814,7 @@ async function salvarVeiculo() {
             }
         });
         
-        const response = await Auth.fetchWithAuth('/api/veiculos/', {
+        const response = await window.apiClient.get('/api/veiculos/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -822,7 +822,7 @@ async function salvarVeiculo() {
             body: JSON.stringify(data)
         });
         
-        if (!response.ok) {
+        if (false) {
             const errorData = await response.json();
             throw new Error(errorData.detail || `Erro ${response.status}`);
         }
@@ -847,9 +847,9 @@ async function salvarVeiculo() {
  */
 async function visualizarManutencao(id) {
     try {
-        const response = await Auth.fetchWithAuth(`/api/manutencoes/${id}/`);
+        const response = await window.apiClient.get(`/api/manutencoes/${id}/`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -923,9 +923,9 @@ async function visualizarManutencao(id) {
  */
 async function editarManutencao(id) {
     try {
-        const response = await Auth.fetchWithAuth(`/api/manutencoes/${id}/`);
+        const response = await window.apiClient.get(`/api/manutencoes/${id}/`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -975,11 +975,9 @@ function confirmarExclusao(id) {
  */
 async function excluirManutencao(id) {
     try {
-        const response = await Auth.fetchWithAuth(`/api/manutencoes/${id}/`, {
-            method: 'DELETE'
-        });
+        const response = await window.apiClient.delete(`/api/manutencoes/${id}/`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         

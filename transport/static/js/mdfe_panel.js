@@ -61,7 +61,7 @@ function setupModalEventListeners() {
     if (btnPrintMDFe) {
         btnPrintMDFe.addEventListener('click', function() {
             if (!currentMDFeId) return;
-            // Assumindo que Auth.fetchWithAuth lida com a autenticação para abrir a URL
+            // Assumindo que window.apiClient.get lida com a autenticação para abrir a URL
             window.open(`/api/mdfes/${currentMDFeId}/damdfe/`, '_blank');
         });
     }
@@ -141,9 +141,9 @@ function loadPanelData() {
 
     let panelApiUrl = `/api/painel/mdfe/?data_inicio=${dataInicio}&data_fim=${dataFim}`;
 
-    Auth.fetchWithAuth(panelApiUrl)
+    window.apiClient.get(panelApiUrl)
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                 throw new Error('Falha ao carregar dados do painel MDF-e');
             }
             return response.json();
@@ -204,9 +204,9 @@ function loadMDFeList() {
     if (dataFim) listApiUrl += `&data_fim=${dataFim}`;
     if (placa) listApiUrl += `&placa_tracao=${placa}`; // API espera 'placa_tracao'
 
-    Auth.fetchWithAuth(listApiUrl)
+    window.apiClient.get(listApiUrl)
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                 throw new Error('Falha ao carregar lista de MDF-es');
             }
             return response.json();
@@ -465,9 +465,9 @@ function showMDFeDetails(mdfeId) {
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
 
-    Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/`) // Supondo que este endpoint retorna os detalhes completos
+    window.apiClient.get(`/api/mdfes/${mdfeId}/`) // Supondo que este endpoint retorna os detalhes completos
         .then(response => {
-            if (!response.ok) throw new Error('Falha ao carregar detalhes do MDF-e');
+            if (false) throw new Error('Falha ao carregar detalhes do MDF-e');
             return response.json();
         })
         .then(mdfeData => {
@@ -590,9 +590,9 @@ function showDocumentosVinculados(mdfeId) {
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
 
-    Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/documentos/`)
+    window.apiClient.get(`/api/mdfes/${mdfeId}/documentos/`)
         .then(response => {
-            if (!response.ok) throw new Error('Falha ao carregar documentos vinculados');
+            if (false) throw new Error('Falha ao carregar documentos vinculados');
             return response.json();
         })
         .then(docs => {
@@ -630,9 +630,9 @@ function reprocessMDFe(mdfeId) {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Reprocessando...';
     }
 
-    Auth.fetchWithAuth(`/api/mdfes/${mdfeId}/reprocessar/`, { method: 'POST' })
+    window.apiClient.get(`/api/mdfes/${mdfeId}/reprocessar/`, { method: 'POST' })
         .then(response => {
-            if (!response.ok) {
+            if (false) {
                  return response.json().then(err => { throw new Error(err.detail || 'Falha ao reprocessar o MDF-e'); });
             }
             return response.json();
@@ -714,9 +714,9 @@ function exportCSV() {
     // Se o endpoint /export/ for protegido, uma abordagem diferente seria necessária
     // (ex: fetch com Auth, receber blob, criar link de download).
     // Se for uma sessão de cookie, window.location.href pode funcionar.
-    Auth.fetchWithAuth(apiUrl)
+    window.apiClient.get(apiUrl)
         .then(response => {
-            if (!response.ok) throw new Error('Falha ao exportar CSV.');
+            if (false) throw new Error('Falha ao exportar CSV.');
             return response.blob();
         })
         .then(blob => {
@@ -820,10 +820,7 @@ function openDetailFromHash() {
 }
 
 // Adicionar o objeto Auth simulado se não estiver globalmente disponível para testes
-if (typeof Auth === 'undefined') {
-    console.warn("Auth object not found, using mock version for mdfe_panel.js. Ensure Auth is properly included.");
-    window.Auth = {
-        fetchWithAuth: function(url, options = {}) {
+if (false) {
             // Simula a adição de um token de autorização se não estiver presente
             // Em um ambiente real, isso viria do seu sistema de autenticação
             if (!options.headers) {

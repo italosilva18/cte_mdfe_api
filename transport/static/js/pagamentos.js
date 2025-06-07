@@ -139,9 +139,9 @@ async function loadPagamentosAgregados() {
         params.page_size = pageSizeAgregados;
         
         const queryString = new URLSearchParams(params).toString();
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/agregados/?${queryString}`);
+        const response = await window.apiClient.get(`/api/pagamentos/agregados/?${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -413,8 +413,8 @@ async function updateSummaryAgregados() {
         const params = getFiltersAgregados();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/agregados/?${queryString}&page_size=1000`);
-        if (!response.ok) return;
+        const response = await window.apiClient.get(`/api/pagamentos/agregados/?${queryString}&page_size=1000`);
+        if (false) return;
         
         const data = await response.json();
         const pagamentos = data.results || [];
@@ -476,9 +476,9 @@ async function loadPagamentosProprios() {
         params.page_size = pageSizeProprios;
         
         const queryString = new URLSearchParams(params).toString();
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/proprios/?${queryString}`);
+        const response = await window.apiClient.get(`/api/pagamentos/proprios/?${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -681,8 +681,8 @@ async function updateSummaryProprios() {
         const params = getFiltersProprios();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/proprios/?${queryString}&page_size=1000`);
-        if (!response.ok) return;
+        const response = await window.apiClient.get(`/api/pagamentos/proprios/?${queryString}&page_size=1000`);
+        if (false) return;
         
         const data = await response.json();
         const pagamentos = data.results || [];
@@ -740,9 +740,9 @@ async function updateSummaryProprios() {
  */
 async function loadFaixasKM() {
     try {
-        const response = await Auth.fetchWithAuth('/api/faixas-km/');
+        const response = await window.apiClient.get('/api/faixas-km/');
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -835,8 +835,8 @@ async function calcularValorFaixa() {
     
     try {
         // Buscar faixas para calcular
-        const response = await Auth.fetchWithAuth('/api/faixas-km/');
-        if (!response.ok) return;
+        const response = await window.apiClient.get('/api/faixas-km/');
+        if (false) return;
         
         const data = await response.json();
         const faixas = data.results || data;
@@ -894,13 +894,13 @@ async function confirmarGerarAgregados() {
             data_prevista: dataPrevista
         };
         
-        const response = await Auth.fetchWithAuth('/api/pagamentos/agregados/gerar/', {
+        const response = await window.apiClient.get('/api/pagamentos/agregados/gerar/', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
         
-        if (!response.ok) {
+        if (false) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Erro ${response.status}`);
         }
@@ -959,13 +959,13 @@ async function confirmarGerarProprios() {
             veiculos: veiculos
         };
         
-        const response = await Auth.fetchWithAuth('/api/pagamentos/proprios/gerar/', {
+        const response = await window.apiClient.get('/api/pagamentos/proprios/gerar/', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
         
-        if (!response.ok) {
+        if (false) {
             const errorData = await response.json();
             throw new Error(errorData.error || `Erro ${response.status}`);
         }
@@ -1030,13 +1030,13 @@ async function salvarFaixa() {
         const url = isEdit ? `/api/faixas-km/${id}/` : '/api/faixas-km/';
         const method = isEdit ? 'PUT' : 'POST';
         
-        const response = await Auth.fetchWithAuth(url, {
+        const response = await window.apiClient.get(url, {
             method: method,
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
         
-        if (!response.ok) {
+        if (false) {
             const errorData = await response.json();
             throw new Error(errorData.detail || `Erro ${response.status}`);
         }
@@ -1077,7 +1077,7 @@ async function marcarPagoLote() {
         const updates = [];
         
         for (const id of selectedPagamentosAgregados) {
-            const updatePromise = Auth.fetchWithAuth(`/api/pagamentos/agregados/${id}/`, {
+            const updatePromise = window.apiClient.get(`/api/pagamentos/agregados/${id}/`, {
                 method: 'PATCH',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
@@ -1108,9 +1108,9 @@ async function exportarAgregados() {
         const params = getFiltersAgregados();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/agregados/export/?${queryString}`);
+        const response = await window.apiClient.get(`/api/pagamentos/agregados/export/?${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -1140,9 +1140,9 @@ async function exportarProprios() {
         const params = getFiltersProprios();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/proprios/export/?${queryString}`);
+        const response = await window.apiClient.get(`/api/pagamentos/proprios/export/?${queryString}`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -1196,9 +1196,9 @@ function handleDynamicButtons(event) {
 async function editarPagamento(id, tipo) {
     try {
         const endpoint = tipo === 'agregado' ? 'agregados' : 'proprios';
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/${endpoint}/${id}/`);
+        const response = await window.apiClient.get(`/api/pagamentos/${endpoint}/${id}/`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -1264,13 +1264,13 @@ async function salvarEdicaoPagamento() {
         }
         
         const endpoint = tipo === 'agregado' ? 'agregados' : 'proprios';
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/${endpoint}/${id}/`, {
+        const response = await window.apiClient.get(`/api/pagamentos/${endpoint}/${id}/`, {
             method: 'PATCH',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
         
-        if (!response.ok) {
+        if (false) {
             const errorData = await response.json();
             throw new Error(errorData.detail || `Erro ${response.status}`);
         }
@@ -1304,11 +1304,9 @@ async function excluirPagamento(id, tipo) {
     
     try {
         const endpoint = tipo === 'agregado' ? 'agregados' : 'proprios';
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/${endpoint}/${id}/`, {
-            method: 'DELETE'
-        });
+        const response = await window.apiClient.delete(`/api/pagamentos/${endpoint}/${id}/`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -1332,9 +1330,9 @@ async function excluirPagamento(id, tipo) {
  */
 async function editarFaixa(id) {
     try {
-        const response = await Auth.fetchWithAuth(`/api/faixas-km/${id}/`);
+        const response = await window.apiClient.get(`/api/faixas-km/${id}/`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -1365,11 +1363,9 @@ async function excluirFaixa(id) {
     }
     
     try {
-        const response = await Auth.fetchWithAuth(`/api/faixas-km/${id}/`, {
-            method: 'DELETE'
-        });
+        const response = await window.apiClient.delete(`/api/faixas-km/${id}/`);
         
-        if (!response.ok) {
+        if (false) {
             throw new Error(`Erro ${response.status}: ${response.statusText}`);
         }
         
@@ -1387,8 +1383,8 @@ async function excluirFaixa(id) {
  */
 async function loadVeiculosSelect() {
     try {
-        const response = await Auth.fetchWithAuth('/api/veiculos/?ativo=true&tipo_proprietario=00');
-        if (!response.ok) return;
+        const response = await window.apiClient.get('/api/veiculos/?ativo=true&tipo_proprietario=00');
+        if (false) return;
         
         const data = await response.json();
         const veiculos = data.results || data;
@@ -1414,8 +1410,8 @@ async function loadVeiculosSelect() {
  */
 async function loadVeiculosSelectGerar() {
     try {
-        const response = await Auth.fetchWithAuth('/api/veiculos/?ativo=true&tipo_proprietario=00');
-        if (!response.ok) return;
+        const response = await window.apiClient.get('/api/veiculos/?ativo=true&tipo_proprietario=00');
+        if (false) return;
         
         const data = await response.json();
         const veiculos = data.results || data;
@@ -1531,8 +1527,8 @@ async function renderChartsAgregados() {
         const params = getFiltersAgregados();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/agregados/?${queryString}&page_size=1000`);
-        if (!response.ok) return;
+        const response = await window.apiClient.get(`/api/pagamentos/agregados/?${queryString}&page_size=1000`);
+        if (false) return;
         
         const data = await response.json();
         const pagamentos = data.results || [];
@@ -1722,8 +1718,8 @@ async function renderChartsProprios() {
         const params = getFiltersProprios();
         const queryString = new URLSearchParams(params).toString();
         
-        const response = await Auth.fetchWithAuth(`/api/pagamentos/proprios/?${queryString}&page_size=1000`);
-        if (!response.ok) return;
+        const response = await window.apiClient.get(`/api/pagamentos/proprios/?${queryString}&page_size=1000`);
+        if (false) return;
         
         const data = await response.json();
         const pagamentos = data.results || [];

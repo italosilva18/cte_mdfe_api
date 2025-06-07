@@ -15,6 +15,12 @@ let dashboardData = {};
  * Initializes dashboard when page loads
  */
 document.addEventListener('DOMContentLoaded', function() {
+    // Wait for API client to be available
+    if (typeof window.apiClient === 'undefined') {
+        console.error('API Client not loaded. Dashboard functionality may be limited.');
+        return;
+    }
+
     // Define período padrão inicial (ex: 'ano')
     const periodoSelect = document.getElementById('periodo');
     if (periodoSelect) {
@@ -213,29 +219,27 @@ function loadDashboardData() {
     const periodo = document.getElementById('periodo')?.value;
 
     // Monta a URL da API
-    let apiUrl = `/api/dashboard/?`;
+    let apiUrl = `/api/dashboard/`;
+    const params = new URLSearchParams();
+    
     if (periodo === 'personalizado') {
         // Usa as datas apenas se for personalizado
-        if (dataInicio) apiUrl += `data_inicio=${dataInicio}&`;
-        if (dataFim) apiUrl += `data_fim=${dataFim}&`;
+        if (dataInicio) params.append('data_inicio', dataInicio);
+        if (dataFim) params.append('data_fim', dataFim);
     } else if (periodo) {
         // Envia o nome do período para a view calcular
-        apiUrl += `periodo=${periodo}&`;
+        params.append('periodo', periodo);
     }
-    apiUrl = apiUrl.replace(/&$/, ""); // Remove '&' final
+    
+    if (params.toString()) {
+        apiUrl += `?${params.toString()}`;
+    }
 
     console.log("Fetching dashboard data from:", apiUrl);
 
-    Auth.fetchWithAuth(apiUrl)
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(errData => {
-                    throw new Error(errData.detail || `Erro ${response.status}`);
-                }).catch(() => {
-                     throw new Error(`Erro ${response.status} ao buscar dados.`);
-                });
-            }
-            return response.json();
+    window.apiClient.get(apiUrl)
+        .then(data => {
+            return data;
         })
         .then(data => {
             console.log("Dashboard data received:", data);
@@ -925,8 +929,8 @@ function loadChartDataForPeriod(period) {
     
     // Exemplo de implementação:
     // const apiUrl = `/api/dashboard/chart/?period=${period}`;
-    // Auth.fetchWithAuth(apiUrl)
-    //     .then(response => response.json())
+    // window.apiClient.get(apiUrl)
+    //     .then(data => data)
     //     .then(data => {
     //         renderCifFobChart(data.grafico_cif_fob || []);
     //     })

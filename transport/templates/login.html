@@ -8,68 +8,147 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="{% static 'css/styles.css' %}" rel="stylesheet">
-
     <style>
-        html, body { height: 100%; }
+        :root {
+            --primary-color: #2A5C6B;
+            --secondary-color: #FF6B35;
+            --overlay-color: rgba(42, 92, 107, 0.85);
+        }
+
+        html, body { 
+            height: 100%; 
+            font-family: 'Open Sans', sans-serif;
+        }
+
         body {
-            background-color: var(--cinza-claro);
+            background: linear-gradient(135deg, var(--primary-color), #2d6a7a);
             display: flex;
             align-items: center;
             justify-content: center;
-            padding-top: 40px;
-            padding-bottom: 40px;
+            padding: 20px;
         }
+
         .login-card {
             width: 100%;
             max-width: 420px;
-            box-shadow: var(--sombra-padrao);
-            border-radius: var(--borda-raio);
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            border-radius: 25px;
             overflow: hidden;
-            background-color: var(--branco);
-        }
-        .login-header {
-            background-color: var(--verde-primario);
-            padding: 25px;
-            text-align: center;
-            color: var(--branco);
-        }
-        .login-logo { max-width: 160px; margin-bottom: 15px; }
-        .login-header h4 { font-weight: 300; margin: 0; font-size: 1.3rem; }
-        .login-body { padding: 30px 40px; }
-        .login-footer {
-            text-align: center;
-            padding: 15px;
-            background-color: var(--verde-claro);
-            color: var(--verde-primario);
-            font-size: 0.85rem;
-        }
-        .input-group-text {
-            background-color: transparent;
-            border-right: none; /* Remove a borda direita do ícone */
-            border-left: 1px solid #ced4da; /* Adiciona borda esquerda consistente */
-            border-top: 1px solid #ced4da;
-            border-bottom: 1px solid #ced4da;
-            color: #6c757d;
-        }
-        .form-control-login { /* Classe customizada para o input */
-            border-left: none; /* Remove a borda esquerda do input para "juntar" com o ícone */
-        }
-        .form-control-login:focus {
-            box-shadow: none; /* Remove o box-shadow padrão do bootstrap no foco */
-            border-color: #ced4da; /* Mantém a cor da borda do input group */
-        }
-        /* Ajuste para quando o input-group tem foco (simula foco no grupo todo) */
-        .input-group:focus-within {
-            border-color: var(--verde-secundario);
-            box-shadow: 0 0 0 0.2rem rgba(76, 175, 80, 0.25);
-            border-radius: .375rem; /* Bootstrap's default border-radius */
-        }
-         .input-group:focus-within .input-group-text,
-         .input-group:focus-within .form-control-login {
-            border-color: var(--verde-secundario) !important; /* Força a cor da borda no foco */
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
+        .login-header {
+            background: linear-gradient(135deg, var(--primary-color), #3A7C8B);
+            padding: 35px 25px;
+            text-align: center;
+            color: white;
+        }
+
+        .login-logo { 
+            max-width: 180px; 
+            margin-bottom: 15px;
+            filter: brightness(1.2);
+        }
+
+        .login-header h4 { 
+            font-weight: 400; 
+            margin: 0; 
+            font-size: 1.4rem;
+            opacity: 0.9;
+        }
+
+        .login-body { 
+            padding: 40px;
+        }
+
+        .login-footer {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            color: var(--primary-color);
+            font-size: 0.85rem;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-group-text {
+            background: linear-gradient(135deg, var(--primary-color), #3A7C8B);
+            border: none;
+            color: white;
+            width: 50px;
+            justify-content: center;
+        }
+
+        .form-control-login {
+            border: none;
+            padding: 15px 20px;
+            font-size: 1rem;
+            background: white;
+        }
+
+        .form-control-login:focus {
+            box-shadow: none;
+            border: none;
+            background: white;
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, var(--secondary-color), #ff8555);
+            border: none;
+            padding: 15px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(255, 107, 53, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(255, 107, 53, 0.4);
+            background: linear-gradient(135deg, #ff8555, var(--secondary-color));
+        }
+
+        .alert-danger {
+            border-radius: 15px;
+            border: none;
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border-left: 4px solid #dc3545;
+        }
+
+        .forgot-password {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .forgot-password:hover {
+            color: var(--secondary-color);
+            text-decoration: underline;
+        }
+
+        @media (max-width: 576px) {
+            .login-card {
+                margin: 10px;
+            }
+            
+            .login-body {
+                padding: 30px 25px;
+            }
+            
+            .login-header {
+                padding: 25px 20px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -87,28 +166,36 @@
                 <span id="loginAlertMessage"></span>
             </div>
 
-            <form id="loginForm" novalidate>
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-danger mb-4" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post">
                 {% csrf_token %}
                 <div class="input-group mb-3">
                      <span class="input-group-text"><i class="fas fa-user fa-fw"></i></span>
-                     <input type="text" class="form-control form-control-login" id="username" name="username" placeholder="Usuário" required autofocus autocomplete="username">
+                     <input type="text" class="form-control form-control-login" name="username" placeholder="Usuário" required autofocus autocomplete="username" value="{{ form.username.value|default:'' }}">
                 </div>
 
                 <div class="input-group mb-4">
                     <span class="input-group-text"><i class="fas fa-lock fa-fw"></i></span>
-                    <input type="password" class="form-control form-control-login" id="password" name="password" placeholder="Senha" required autocomplete="current-password">
+                    <input type="password" class="form-control form-control-login" name="password" placeholder="Senha" required autocomplete="current-password">
                  </div>
 
                 <div class="d-grid mb-3">
-                    <button type="submit" class="btn btn-success btn-lg" id="btnLogin">
-                        <span class="button-text"><i class="fas fa-sign-in-alt me-2"></i>Entrar</span>
-                        <span class="spinner-border spinner-border-sm d-none ms-2" role="status" aria-hidden="true"></span>
+                    <button type="submit" class="btn btn-login btn-lg text-white">
+                        <i class="fas fa-sign-in-alt me-2"></i>Entrar
                     </button>
                 </div>
             </form>
 
             <div class="text-center">
-                <a href="#" class="text-muted small" id="forgotPasswordLink">Esqueceu sua senha?</a>
+                <a href="#" class="forgot-password small" id="forgotPasswordLink">Esqueceu sua senha?</a>
             </div>
         </div>
 
@@ -118,56 +205,12 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{% static 'js/auth.js' %}"></script>
-
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const loginForm = document.getElementById('loginForm');
-            const loginButton = document.getElementById('btnLogin');
-            const buttonText = loginButton.querySelector('.button-text');
-            const spinner = loginButton.querySelector('.spinner-border');
-
-            if (loginForm) {
-                loginForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-
-                    const username = document.getElementById('username').value;
-                    const password = document.getElementById('password').value;
-
-                    // Feedback visual: Desabilitar botão e mostrar spinner
-                    loginButton.disabled = true;
-                    buttonText.textContent = 'Entrando...';
-                    spinner.classList.remove('d-none');
-                    Auth.hideLoginError(); // Esconde erros anteriores (do auth.js)
-
-                    Auth.login(username, password)
-                        .then(success => {
-                            if (!success) {
-                                // Se Auth.login retornar false, o erro já foi mostrado por showLoginError
-                                // e o botão será reativado no finally.
-                            }
-                            // O redirecionamento é feito dentro de Auth.login em caso de sucesso.
-                        })
-                        .catch(err => {
-                            // Erros de rede ou exceções inesperadas em Auth.login
-                            // Auth.login já deve chamar showLoginError
-                            console.error("Falha crítica no login:", err);
-                            Auth.showLoginError("Erro de conexão ou inesperado. Tente novamente.");
-                        })
-                        .finally(() => {
-                            // Restaurar botão independentemente do resultado
-                            loginButton.disabled = false;
-                            buttonText.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Entrar';
-                            spinner.classList.add('d-none');
-                        });
-                });
-            }
-
             const forgotPasswordLink = document.getElementById('forgotPasswordLink');
             if(forgotPasswordLink) {
                 forgotPasswordLink.addEventListener('click', function(e){
                     e.preventDefault();
-                    // Implementar lógica de "Esqueci minha senha" ou exibir mensagem
                     alert("Funcionalidade 'Esqueci minha senha' ainda não implementada.");
                 });
             }

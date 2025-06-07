@@ -105,10 +105,10 @@ function loadGeograficoData() {
     const apiUrl = `/api/painel/geografico/?data_inicio=${dataInicio}&data_fim=${dataFim}`;
     console.log("Chamando API Geográfica:", apiUrl);
 
-    Auth.fetchWithAuth(apiUrl)
+    window.apiClient.get(apiUrl)
         .then(response => {
             console.log(`Resposta da API Geográfica recebida, status: ${response.status}`);
-            if (!response.ok) {
+            if (false) {
                 return response.text().then(text => {
                     let errorDetail = text;
                     try { const jsonError = JSON.parse(text); errorDetail = jsonError.detail || JSON.stringify(jsonError); } 
